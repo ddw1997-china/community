@@ -448,7 +448,7 @@ namespace Ink_Canvas
             if (index == 0)
             {
                 FloatingbarHeadIconImg.Source =
-                    CreateBitmapImage(new Uri("pack://application:,,,/Resources/Icons-png/icc.png"));
+                    CreateBitmapImage(new Uri("pack://application:,,,/Resources/Icons-png/dycz.png"));
                 FloatingbarHeadIconImg.Margin = new Thickness(0.5);
             }
             else if (index == 1)
@@ -535,7 +535,7 @@ namespace Ink_Canvas
                 catch
                 {
                     // 如果加载失败，使用默认图标
-                    FloatingbarHeadIconImg.Source = CreateBitmapImage(new Uri("pack://application:,,,/Resources/Icons-png/icc.png"));
+                    FloatingbarHeadIconImg.Source = CreateBitmapImage(new Uri("pack://application:,,,/Resources/Icons-png/dycz.png"));
                     FloatingbarHeadIconImg.Margin = new Thickness(0.5);
                 }
             }
@@ -1173,6 +1173,9 @@ namespace Ink_Canvas
             Settings.Automation.IsAutoKillIDT = false;
             Settings.Automation.IsAutoKillSeewoLauncher2DesktopAnnotation = false;
             Settings.Automation.IsSaveScreenshotsInDateFolders = false;
+            Settings.Automation.ScreenshotSaveFormat = 0;
+            Settings.Automation.ScreenshotJpegQuality = 90;
+            Settings.Automation.ScreenshotScaleMode = 0;
             Settings.Automation.IsAutoSaveStrokesAtScreenshot = true;
             Settings.Automation.IsAutoSaveScreenshotAtClear = true;
             Settings.Automation.IsAutoClearWhenExitingWritingMode = false;
@@ -1237,10 +1240,6 @@ namespace Ink_Canvas
             Settings.InkToShape.HandwritingBeautifyDebounceMs = 2000;
 
             Settings.Startup.IsEnableNibMode = false;
-            Settings.Startup.IsAutoUpdate = true;
-            Settings.Startup.IsAutoUpdateWithSilence = true;
-            Settings.Startup.AutoUpdateWithSilenceStartTime = "06:00";
-            Settings.Startup.AutoUpdateWithSilenceEndTime = "22:00";
             Settings.Startup.IsFoldAtStartup = false;
             Settings.Startup.StartupMode = StartupMode.Default;
         }
@@ -1249,7 +1248,7 @@ namespace Ink_Canvas
         /// 将应用设置重置为推荐的默认值，并保存与重新加载配置以应用更改。
         /// </summary>
         /// <remarks>
-        /// 如果配置重置受安全密码保护，则会提示用户输入密码；在验证失败时中止重置。方法会暂时停止加载标志以避免触发事件、将“开机启动”切换置为关闭，并在完成后显示一条通知。任何内部异常将被吞噬以保证流程不中断。
+        /// 如果配置重置受安全密码保护，则会提示用户输入密码；在验证失败时中止重置。方法会暂时停止加载标志以避免触发事件、将“开机启动”切换置为关闭。任何内部异常将被吞噬以保证流程不中断。
         /// </remarks>
         public async void BtnResetToSuggestion_Click(object sender, RoutedEventArgs e)
         {
@@ -1275,16 +1274,17 @@ namespace Ink_Canvas
                 var configName = SettingsManager.Settings?.ToolbarConfigName ?? "default";
                 ToolbarRegistry.SaveConfigFile(configName, ToolbarRegistry.CreateDefaultLayout());
 
-                LoadSettings(isStartup: false, skipAutoUpdateCheck: true);
+                LoadSettings(isStartup: false);
 
                 // 重置后重建工具栏
                 RebuildToolbar();
-
-                isLoaded = true;
             }
             catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex); }
-
-            try { ShowNotification(Properties.MainWindowStrings.Main_Settings_ResetDone); } catch { }
+            finally
+            {
+                // 无论是否异常都必须恢复，否则设置界面的所有事件处理器会永久失效
+                isLoaded = true;
+            }
         }
 
         private async void SpecialVersionResetToSuggestion_Click()
@@ -1303,14 +1303,17 @@ namespace Ink_Canvas
                 var configName = SettingsManager.Settings?.ToolbarConfigName ?? "default";
                 ToolbarRegistry.SaveConfigFile(configName, ToolbarRegistry.CreateDefaultLayout());
 
-                LoadSettings(isStartup: false, skipAutoUpdateCheck: true);
+                LoadSettings(isStartup: false);
 
                 // 重置后重建工具栏
                 RebuildToolbar();
-
-                isLoaded = true;
             }
             catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex); }
+            finally
+            {
+                // 无论是否异常都必须恢复，否则设置界面的所有事件处理器会永久失效
+                isLoaded = true;
+            }
         }
 
         #endregion
@@ -1443,42 +1446,21 @@ namespace Ink_Canvas
 
         private void HyperlinkSourceToICCRepository_Click(object sender, RoutedEventArgs e)
         {
-            Process.Start("https://gitea.bliemhax.com/kriastans/InkCanvasForClass");
+            Process.Start(new ProcessStartInfo("https://gitea.bliemhax.com/kriastans/InkCanvasForClass") { UseShellExecute = true });
             HideSubPanels();
         }
 
         private void HyperlinkSourceToPresentRepository_Click(object sender, RoutedEventArgs e)
         {
-            Process.Start("https://github.com/ChangSakura/Ink-Canvas");
+            Process.Start(new ProcessStartInfo("https://github.com/ChangSakura/Ink-Canvas") { UseShellExecute = true });
             HideSubPanels();
         }
 
         private void HyperlinkSourceToOringinalRepository_Click(object sender, RoutedEventArgs e)
         {
-            Process.Start("https://github.com/WXRIW/Ink-Canvas");
+            Process.Start(new ProcessStartInfo("https://github.com/WXRIW/Ink-Canvas") { UseShellExecute = true });
             HideSubPanels();
         }
-
-        private void UpdatePackageArchitectureSelector_Checked(object sender, RoutedEventArgs e)
-        {
-            if (!isLoaded) return;
-            if (!(sender is RadioButton radioButton) || radioButton.Tag == null) return;
-
-            var newArch = string.Equals(radioButton.Tag.ToString(), "X64", StringComparison.OrdinalIgnoreCase)
-                ? UpdatePackageArchitecture.X64
-                : UpdatePackageArchitecture.X86;
-
-            if (Settings.Startup.UpdatePackageArchitecture == newArch)
-                return;
-
-            Settings.Startup.UpdatePackageArchitecture = newArch;
-            SaveSettingsToFile();
-            LogHelper.WriteLogToFile($"Settings | Update package architecture: {newArch}");
-        }
-
-
-
-
 
         #region 底部按钮水平位置控制
 

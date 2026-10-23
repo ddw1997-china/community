@@ -151,8 +151,7 @@ namespace Ink_Canvas.Windows
             if (settings == null) return;
 
             // 启动与隐私
-            settings.Startup.IsFoldAtStartup = true;
-            settings.Startup.IsAutoUpdate = true;
+            settings.Startup.IsFoldAtStartup = false;
             settings.Startup.CrashAction = 2; // 弹窗重启
             settings.Startup.TelemetryUploadLevel = settings.Startup.HasAcceptedTelemetryPrivacy
                 ? TelemetryUploadLevel.Extended
@@ -228,8 +227,7 @@ namespace Ink_Canvas.Windows
             if (settings == null) return;
 
             // 启动与隐私
-            settings.Startup.IsFoldAtStartup = true;
-            settings.Startup.IsAutoUpdate = true;
+            settings.Startup.IsFoldAtStartup = false;
             settings.Startup.CrashAction = 0;
             settings.Startup.TelemetryUploadLevel = TelemetryUploadLevel.None;
 

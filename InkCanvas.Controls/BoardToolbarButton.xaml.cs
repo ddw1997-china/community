@@ -86,6 +86,25 @@ namespace Ink_Canvas.Controls
             set => SetValue(IconBrushProperty, value);
         }
 
+        public static readonly DependencyProperty LabelBrushProperty = DependencyProperty.Register(
+            nameof(LabelBrush), typeof(Brush), typeof(BoardToolbarButton),
+            new PropertyMetadata(null, OnLabelBrushChanged));
+
+        private static void OnLabelBrushChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            var button = (BoardToolbarButton)d;
+            if (button.LabelTextBlock != null && e.NewValue is Brush brush)
+            {
+                button.LabelTextBlock.Foreground = brush;
+            }
+        }
+
+        public Brush LabelBrush
+        {
+            get => (Brush)GetValue(LabelBrushProperty);
+            set => SetValue(LabelBrushProperty, value);
+        }
+
 
 
         public event MouseButtonEventHandler ButtonMouseDown;

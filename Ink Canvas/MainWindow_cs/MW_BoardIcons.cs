@@ -36,6 +36,7 @@ namespace Ink_Canvas
             {
                 HideSubPanels();
                 LoadCustomBackgroundColor();
+                LoadGridLinesSetting();
                 UpdateBackgroundButtonsState();
                 AnimationsHelper.ShowPopupWithSlideAndFade(BackgroundPalette);
                 _popupManager?.BringToFront(BackgroundPalette);
@@ -225,6 +226,13 @@ namespace Ink_Canvas
         /// </summary>
         private Color? CustomBackgroundColor { get; set; }
 
+        private bool _isGridLinesVisible;
+        private int _gridDensity = 20;
+        private int _gridBrightness = 229;
+        private bool _showGridHorizontalLines = true;
+        private bool _showGridVerticalLines = true;
+        private Color? _originalBackgroundColor;
+
         /// <summary>
         /// 更新颜色预览框的颜色
         /// </summary>
@@ -253,8 +261,15 @@ namespace Ink_Canvas
             // 只在白板或黑板模式下应用自定义背景色
             if (currentMode == 1) // 白板或黑板模式
             {
-                // 设置白板/黑板模式下的背景
-                GridBackgroundCover.Background = new SolidColorBrush(color);
+                // 设置白板/黑板模式下的背景（网格开启时使用网格画刷）
+                if (_isGridLinesVisible && GridBackgroundCover != null)
+                {
+                    GridBackgroundCover.Background = CreateGridBackgroundBrush(color);
+                }
+                else
+                {
+                    GridBackgroundCover.Background = new SolidColorBrush(color);
+                }
             }
 
             // 保存设置
@@ -266,9 +281,6 @@ namespace Ink_Canvas
                 UpdateBackgroundButtonsState();
                 UpdateRGBSliders(color); // 更新RGB滑块的值
             }
-
-            // 显示提示信息
-            ShowNotification(string.Format(MainWindowStrings.Main_Board_CustomBgApplied, colorHex));
         }
 
         /// <summary>
@@ -290,6 +302,11 @@ namespace Ink_Canvas
 
                         // 保存到内存中
                         CustomBackgroundColor = Color.FromRgb(r, g, b);
+                    }
+                    else
+                    {
+                        // 非法格式（非 #RRGGBB）同样走解析失败分支，避免 CustomBackgroundColor 保持为空导致网格背景无法重建
+                        throw new FormatException($"自定义背景色不是 #RRGGBB 格式: {colorHex}");
                     }
                 }
                 catch (Exception ex)
@@ -339,6 +356,219 @@ namespace Ink_Canvas
             }
         }
 
+        #region 网格背景功能
+
+        /// <summary>
+        /// 创建带有网格线的背景画刷
+        /// </summary>
+        private Brush CreateGridBackgroundBrush(Color backgroundColor)
+        {
+            var drawingGroup = new DrawingGroup();
+
+            drawingGroup.Children.Add(new GeometryDrawing(new SolidColorBrush(backgroundColor), null,
+                new RectangleGeometry(new Rect(0, 0, _gridDensity, _gridDensity))));
+
+            var lineGeometry = new GeometryGroup();
+
+            if (_showGridHorizontalLines)
+            {
+                lineGeometry.Children.Add(new LineGeometry(new Point(_gridDensity, 0), new Point(0, 0)));
+            }
+
+            if (_showGridVerticalLines)
+            {
+                lineGeometry.Children.Add(new LineGeometry(new Point(0, 0), new Point(0, _gridDensity)));
+            }
+
+            if (lineGeometry.Children.Count > 0)
+            {
+                byte brightness = (byte)_gridBrightness;
+                drawingGroup.Children.Add(new GeometryDrawing(null, new Pen(new SolidColorBrush(Color.FromRgb(brightness, brightness, brightness)), 1), lineGeometry));
+            }
+
+            return new DrawingBrush(drawingGroup)
+            {
+                TileMode = TileMode.Tile,
+                Viewport = new Rect(0, 0, _gridDensity, _gridDensity),
+                ViewportUnits = BrushMappingMode.Absolute,
+                Viewbox = new Rect(0, 0, _gridDensity, _gridDensity),
+                ViewboxUnits = BrushMappingMode.Absolute
+            };
+        }
+
+        /// <summary>
+        /// 切换网格线显示状态
+        /// </summary>
+        private void ToggleGridLines(bool isVisible)
+        {
+            _isGridLinesVisible = isVisible;
+
+            if (GridBackgroundCover != null)
+            {
+                if (isVisible)
+                {
+                    if (GridBackgroundCover.Background is SolidColorBrush solidBrush)
+                    {
+                        _originalBackgroundColor = solidBrush.Color;
+                    }
+                    else if (CustomBackgroundColor.HasValue)
+                    {
+                        _originalBackgroundColor = CustomBackgroundColor.Value;
+                    }
+
+                    if (_originalBackgroundColor.HasValue)
+                    {
+                        GridBackgroundCover.Background = CreateGridBackgroundBrush(_originalBackgroundColor.Value);
+                    }
+                }
+                else
+                {
+                    if (_originalBackgroundColor.HasValue)
+                    {
+                        GridBackgroundCover.Background = new SolidColorBrush(_originalBackgroundColor.Value);
+                    }
+                    else if (CustomBackgroundColor.HasValue)
+                    {
+                        GridBackgroundCover.Background = new SolidColorBrush(CustomBackgroundColor.Value);
+                    }
+                }
+            }
+
+            Settings.Canvas.ShowGridLines = isVisible;
+            SaveSettingsToFile();
+        }
+
+        private void GridLinesCheckBox_Checked(object sender, RoutedEventArgs e)
+        {
+            ToggleGridLines(true);
+        }
+
+        private void GridLinesCheckBox_Unchecked(object sender, RoutedEventArgs e)
+        {
+            ToggleGridLines(false);
+        }
+
+        private void LoadGridLinesSetting()
+        {
+            _isGridLinesVisible = Settings.Canvas.ShowGridLines;
+            _gridDensity = Settings.Canvas.GridDensity;
+            _gridBrightness = Settings.Canvas.GridBrightness;
+            _showGridHorizontalLines = Settings.Canvas.ShowGridHorizontalLines;
+            _showGridVerticalLines = Settings.Canvas.ShowGridVerticalLines;
+
+            var content = BackgroundPalettePopupContent;
+            if (content?.GridLinesCheckBoxControl != null)
+                content.GridLinesCheckBoxControl.IsChecked = _isGridLinesVisible;
+            if (content?.GridDensitySliderControl != null)
+                content.GridDensitySliderControl.Value = _gridDensity;
+            if (content?.GridDensityValueControl != null)
+                content.GridDensityValueControl.Text = $"{_gridDensity}px";
+            if (content?.GridBrightnessSliderControl != null)
+                content.GridBrightnessSliderControl.Value = _gridBrightness;
+            if (content?.GridBrightnessValueControl != null)
+                content.GridBrightnessValueControl.Text = _gridBrightness.ToString();
+            if (content?.GridHorizontalLinesCheckBoxControl != null)
+                content.GridHorizontalLinesCheckBoxControl.IsChecked = _showGridHorizontalLines;
+            if (content?.GridVerticalLinesCheckBoxControl != null)
+                content.GridVerticalLinesCheckBoxControl.IsChecked = _showGridVerticalLines;
+
+            if (_isGridLinesVisible && GridBackgroundCover != null && currentMode == 1 && CustomBackgroundColor.HasValue)
+            {
+                GridBackgroundCover.Background = CreateGridBackgroundBrush(CustomBackgroundColor.Value);
+            }
+        }
+
+        private void UpdateGridBackgroundWithColor(Color color)
+        {
+            if (_isGridLinesVisible && GridBackgroundCover != null)
+            {
+                GridBackgroundCover.Background = CreateGridBackgroundBrush(color);
+                _originalBackgroundColor = color;
+            }
+        }
+
+        private void GridDensitySlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            _gridDensity = (int)e.NewValue;
+
+            if (BackgroundPalettePopupContent?.GridDensityValueControl != null)
+                BackgroundPalettePopupContent.GridDensityValueControl.Text = $"{_gridDensity}px";
+
+            Settings.Canvas.GridDensity = _gridDensity;
+            SaveSettingsToFile();
+
+            if (_isGridLinesVisible && GridBackgroundCover != null && CustomBackgroundColor.HasValue)
+            {
+                GridBackgroundCover.Background = CreateGridBackgroundBrush(CustomBackgroundColor.Value);
+            }
+        }
+
+        private void GridBrightnessSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            _gridBrightness = (int)e.NewValue;
+
+            if (BackgroundPalettePopupContent?.GridBrightnessValueControl != null)
+                BackgroundPalettePopupContent.GridBrightnessValueControl.Text = _gridBrightness.ToString();
+
+            Settings.Canvas.GridBrightness = _gridBrightness;
+            SaveSettingsToFile();
+
+            if (_isGridLinesVisible && GridBackgroundCover != null && CustomBackgroundColor.HasValue)
+            {
+                GridBackgroundCover.Background = CreateGridBackgroundBrush(CustomBackgroundColor.Value);
+            }
+        }
+
+        private void GridHorizontalLinesCheckBox_Checked(object sender, RoutedEventArgs e)
+        {
+            _showGridHorizontalLines = true;
+            Settings.Canvas.ShowGridHorizontalLines = true;
+            SaveSettingsToFile();
+
+            if (_isGridLinesVisible && GridBackgroundCover != null && CustomBackgroundColor.HasValue)
+            {
+                GridBackgroundCover.Background = CreateGridBackgroundBrush(CustomBackgroundColor.Value);
+            }
+        }
+
+        private void GridHorizontalLinesCheckBox_Unchecked(object sender, RoutedEventArgs e)
+        {
+            _showGridHorizontalLines = false;
+            Settings.Canvas.ShowGridHorizontalLines = false;
+            SaveSettingsToFile();
+
+            if (_isGridLinesVisible && GridBackgroundCover != null && CustomBackgroundColor.HasValue)
+            {
+                GridBackgroundCover.Background = CreateGridBackgroundBrush(CustomBackgroundColor.Value);
+            }
+        }
+
+        private void GridVerticalLinesCheckBox_Checked(object sender, RoutedEventArgs e)
+        {
+            _showGridVerticalLines = true;
+            Settings.Canvas.ShowGridVerticalLines = true;
+            SaveSettingsToFile();
+
+            if (_isGridLinesVisible && GridBackgroundCover != null && CustomBackgroundColor.HasValue)
+            {
+                GridBackgroundCover.Background = CreateGridBackgroundBrush(CustomBackgroundColor.Value);
+            }
+        }
+
+        private void GridVerticalLinesCheckBox_Unchecked(object sender, RoutedEventArgs e)
+        {
+            _showGridVerticalLines = false;
+            Settings.Canvas.ShowGridVerticalLines = false;
+            SaveSettingsToFile();
+
+            if (_isGridLinesVisible && GridBackgroundCover != null && CustomBackgroundColor.HasValue)
+            {
+                GridBackgroundCover.Background = CreateGridBackgroundBrush(CustomBackgroundColor.Value);
+            }
+        }
+
+        #endregion
+
         /// <summary>
         /// 处理套索工具图标点击事件，切换到选择模式
         /// </summary>
@@ -381,33 +611,20 @@ namespace Ink_Canvas
         /// - 调用符号删除鼠标抬起事件
         /// - 根据设置决定是否清空图片
         /// - 如果设置为清空图片，则清空所有子元素
-        /// - 否则，保存非笔画元素并在清空后恢复
         /// </remarks>
         private void BoardSymbolIconDelete_MouseUp(object sender, RoutedEventArgs e)
         {
             if (TryBlockFrozenPageMutation("清除冻结页面内容")) return;
             PenIcon_Click(null, null);
+            // SymbolIconDelete_MouseUp 内部（BtnClear_Click → PerformCanvasClear）已完成
+            // 保留非笔画元素→清空→恢复及 SecAgent 元素清理，此处不再重复执行一遍相同流程。
             SymbolIconDelete_MouseUp(null, null);
 
-            // Editable SecAgent rows/lines are children rather than InkCanvas strokes.
-            // Remove them explicitly before the image-preservation branch.
-            ClearSecAgentSceneElements();
-
-            // 根据设置决定是否清空图片
+            // 根据设置决定是否清空图片（PerformCanvasClear 会保留非笔画元素，需在此额外移除）
             if (Settings.Canvas.ClearCanvasAlsoClearImages)
             {
-                // 如果设置为清空图片，则直接清空所有子元素
                 ShutdownAllCanvasMediaElements();
                 inkCanvas.Children.Clear();
-            }
-            else
-            {
-                // 保存非笔画元素（如图片）
-                var preservedElements = PreserveNonStrokeElements();
-                inkCanvas.Children.Clear();
-                // 恢复非笔画元素
-                RestoreNonStrokeElements(preservedElements);
-                ClearSecAgentSceneElements();
             }
         }
         /// <summary>
@@ -421,33 +638,21 @@ namespace Ink_Canvas
         /// - 根据设置决定是否清空时间机器历史
         /// - 根据设置决定是否清空图片
         /// - 如果设置为清空图片，则清空所有子元素
-        /// - 否则，保存非笔画元素并在清空后恢复
         /// </remarks>
         private void BoardSymbolIconDeleteInkAndHistories_MouseUp(object sender, RoutedEventArgs e)
         {
             if (TryBlockFrozenPageMutation("清除冻结页面内容")) return;
             PenIcon_Click(null, null);
+            // SymbolIconDelete_MouseUp 内部（PerformCanvasClear）已在「清空时删除墨迹历史记录」开启时清空历史；
+            // 此按钮无论设置如何都要清空历史，故设置关闭时在此补一次。
             SymbolIconDelete_MouseUp(null, null);
             if (!Settings.Canvas.ClearCanvasAndClearTimeMachine) timeMachine.ClearStrokeHistory();
 
-            // Editable SecAgent rows/lines are children rather than InkCanvas strokes.
-            ClearSecAgentSceneElements();
-
-            // 根据设置决定是否清空图片
+            // 根据设置决定是否清空图片（PerformCanvasClear 会保留非笔画元素，需在此额外移除）
             if (Settings.Canvas.ClearCanvasAlsoClearImages)
             {
-                // 如果设置为清空图片，则直接清空所有子元素
                 ShutdownAllCanvasMediaElements();
                 inkCanvas.Children.Clear();
-            }
-            else
-            {
-                // 保存非笔画元素（如图片）
-                var preservedElements = PreserveNonStrokeElements();
-                inkCanvas.Children.Clear();
-                // 恢复非笔画元素
-                RestoreNonStrokeElements(preservedElements);
-                ClearSecAgentSceneElements();
             }
         }
 
@@ -480,7 +685,7 @@ namespace Ink_Canvas
         {
             HideSubPanelsImmediately();
             ImageBlackboard_MouseUp(null, null);
-            Process.Start("https://www.desmos.com/calculator?lang=zh-CN");
+            Process.Start(new ProcessStartInfo("https://www.desmos.com/calculator?lang=zh-CN") { UseShellExecute = true });
         }
 
         /// <summary>

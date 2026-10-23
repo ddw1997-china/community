@@ -66,7 +66,6 @@ namespace Ink_Canvas
             Settings.MiniWhiteboard ??= new MiniWhiteboardSettings();
             if (!Settings.MiniWhiteboard.IsEnabled)
             {
-                ShowNotification(FloatingBarStrings.MiniWhiteboard_Settings_Enable);
                 return;
             }
 

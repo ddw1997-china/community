@@ -88,7 +88,6 @@ namespace Ink_Canvas.Windows
                 {
                     ComboBoxTelemetryUploadLevel.SelectedIndex = (int)_settings.Startup.TelemetryUploadLevel;
                     CardFoldAtStartup.IsOn = _settings.Startup.IsFoldAtStartup;
-                    CardAutoUpdate.IsOn = _settings.Startup.IsAutoUpdate;
                     int crashAction = _settings.Startup.CrashAction;
                     if (crashAction < 0 || crashAction > 2) crashAction = 0;
                     ComboBoxCrashAction.SelectedIndex = crashAction;
@@ -201,7 +200,6 @@ namespace Ink_Canvas.Windows
                     if (level < 0) level = 0;
                     _settings.Startup.TelemetryUploadLevel = (TelemetryUploadLevel)level;
                     _settings.Startup.IsFoldAtStartup = CardFoldAtStartup.IsOn;
-                    _settings.Startup.IsAutoUpdate = CardAutoUpdate.IsOn;
                     int crashAction = ComboBoxCrashAction.SelectedIndex;
                     if (crashAction < 0 || crashAction > 2) crashAction = 0;
                     _settings.Startup.CrashAction = crashAction;
@@ -704,7 +702,6 @@ namespace Ink_Canvas.Windows
             }
 
             AddSummaryRow(SegoeFluentIcons.Shield, Properties.OobeStrings.Oobe_SummaryTelemetryLevel, telemetryText);
-            AddSummaryRow(SegoeFluentIcons.Sync, UpdateStrings.Header_AutoUpdate, BoolText(CardAutoUpdate.IsOn));
             AddSummaryRow(SegoeFluentIcons.Personalize, Properties.OobeStrings.Oobe_SummaryAppTheme, themeText);
             AddSummaryRow(SegoeFluentIcons.FullScreen, ThemeStrings.Theme_WindowBackdrop, backdropText);
             AddSummaryRow(SegoeFluentIcons.Slideshow, Properties.OobeStrings.Oobe_SummaryPPTLink, BoolText(CardPPTSupport.IsOn));

@@ -89,8 +89,6 @@ namespace Ink_Canvas.Helpers
                 {
                     if (isInSlideShow)
                     {
-                        bool wasInSlideShow = _mainWindow.IsInPPTPresentationMode;
-
                         // Old UI removed:                         _mainWindow.BtnPPTSlideShow.Visibility = Visibility.Collapsed;
                         _mainWindow.IsInPPTPresentationMode = true;
                         _mainWindow.RefreshPPTPageKeyHook();
@@ -103,14 +101,6 @@ namespace Ink_Canvas.Helpers
                         UpdateNavigationButtonStyles();
                         _mainWindow.UpdatePPTTimeCapsuleVisibility();
                         _mainWindow.UpdatePPTQuickPanelVisibility();
-                        if (!wasInSlideShow)
-                        {
-                            _dispatcher.BeginInvoke(new Action(async () =>
-                            {
-                                await Task.Delay(1000);
-                                _mainWindow.ShowPPTModePromptNotification();
-                            }), DispatcherPriority.ContextIdle);
-                        }
                         if (MainWindow.Settings.Advanced.IsEnableAvoidFullScreenHelper)
                         {
                             // 设置为画板模式，允许全屏操作

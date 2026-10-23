@@ -417,12 +417,12 @@ namespace Ink_Canvas.Windows
                     return customImagePath;
                 }
 
-                // 如果选择自定义样式但没有选择图片，使用随机样式
+                // 如果选择自定义样式但没有选择图片，使用学校默认图片
                 if (splashStyle == 7)
                 {
-                    actualStyle = GetActualStyle(0); // 使用随机，此方法会返回解析后的实际样式(2-6)
-                    string randomImageName = GetImageNameByStyle(actualStyle);
-                    return $"pack://application:,,,/Resources/Startup-animation/{randomImageName}";
+                    actualStyle = 8; // 学校图片
+                    string schoolImageName = GetImageNameByStyle(actualStyle);
+                    return $"pack://application:,,,/Resources/Startup-animation/{schoolImageName}";
                 }
 
                 actualStyle = GetActualStyle(splashStyle);
@@ -451,12 +451,9 @@ namespace Ink_Canvas.Windows
                     var randomStyles = new[] { 2, 3, 4, 5, 6 }; // 春季、夏季、秋季、冬季、马年限定
                     return randomStyles[random.Next(randomStyles.Length)];
 
-                case 1: // 跟随四季
-                    var month = DateTime.Now.Month;
-                    if (month >= 2 && month <= 4) return 2; // 春季
-                    if (month >= 5 && month <= 7) return 3; // 夏季
-                    if (month >= 8 && month <= 10) return 4; // 秋季
-                    return 5; // 冬季
+                case 1: // 跟随四季（默认学校图片）
+                    return 8; // 学校图片
+
 
                 default:
                     return style;
@@ -475,12 +472,8 @@ namespace Ink_Canvas.Windows
                     var randomStyles = new[] { 2, 3, 4, 5, 6 }; // 春季、夏季、秋季、冬季、马年限定
                     return GetImageNameByStyle(randomStyles[random.Next(randomStyles.Length)]);
 
-                case 1: // 跟随四季
-                    var month = DateTime.Now.Month;
-                    if (month >= 2 && month <= 4) return GetImageNameByStyle(2); // 春季
-                    if (month >= 5 && month <= 7) return GetImageNameByStyle(3); // 夏季
-                    if (month >= 8 && month <= 10) return GetImageNameByStyle(4); // 秋季
-                    return GetImageNameByStyle(5); // 冬季
+                case 1: // 跟随四季（默认使用学校图片）
+                    return "School.png";
 
                 case 2: // 春季
                     return "ICC Spring.png";
@@ -492,8 +485,10 @@ namespace Ink_Canvas.Windows
                     return "ICC Winter.png";
                 case 6: // 马年限定
                     return "ICC Horse.png";
+                case 8: // 学校图片
+                    return "School.png";
                 default:// 默认返回
-                    return "ICC Horse.png";
+                    return "School.png";
             }
         }
 

@@ -27,7 +27,6 @@ namespace Ink_Canvas
         private DateTime delayedFreezeReferenceUtc;
         private int? freezeCourseRecordedPageIndex;
         private DateTime freezeCourseRecordedUtc;
-        private DateTime lastFreezeBlockNotificationUtc = DateTime.MinValue;
 
         private Ink_Canvas.Controls.BoardToolbarButton BoardInkFreezeBtn;
 
@@ -107,12 +106,11 @@ namespace Ink_Canvas
             }
         }
 
-        private void FreezePage(int pageIndex, bool notify = true)
+        private void FreezePage(int pageIndex)
         {
             if (!IsValidFreezePageIndex(pageIndex)) return;
             if (frozenPages[pageIndex])
             {
-                if (notify) ShowNotification(MainWindowStrings.Main_Freeze_PageFrozen);
                 UpdateInkFreezeButtonState();
                 return;
             }
@@ -125,10 +123,9 @@ namespace Ink_Canvas
             }
 
             UpdateInkFreezeButtonState();
-            if (notify) ShowNotification(pageIndex == 0 ? MainWindowStrings.Main_Freeze_AnnotationPageFrozen : string.Format(MainWindowStrings.Main_Freeze_WhiteboardPageFrozen, pageIndex));
         }
 
-        private async Task<bool> UnfreezePageAsync(int pageIndex, bool skipVerification = false, bool notify = true)
+        private async Task<bool> UnfreezePageAsync(int pageIndex, bool skipVerification = false)
         {
             if (!IsValidFreezePageIndex(pageIndex)) return false;
             if (!frozenPages[pageIndex])
@@ -146,7 +143,6 @@ namespace Ink_Canvas
                     MainWindowStrings.Main_Freeze_VerifyMessage);
                 if (!ok)
                 {
-                    if (notify) ShowNotification(MainWindowStrings.Main_Freeze_VerifyFailed);
                     return false;
                 }
             }
@@ -156,7 +152,6 @@ namespace Ink_Canvas
                 ApplyFreezeStateToCurrentStrokes();
 
             UpdateInkFreezeButtonState();
-            if (notify) ShowNotification(pageIndex == 0 ? MainWindowStrings.Main_Freeze_PageUnfrozen : string.Format(MainWindowStrings.Main_Freeze_WhiteboardPageUnfrozen, pageIndex));
             return true;
         }
 
@@ -311,95 +306,11 @@ namespace Ink_Canvas
             }
         }
 
-        private static bool ContainsCjkCharacters(string text)
-        {
-            if (string.IsNullOrEmpty(text)) return false;
-
-            foreach (char ch in text)
-            {
-                if (ch >= 0x3400 && ch <= 0x9FFF)
-                    return true;
-            }
-
-            return false;
-        }
-
-        private string LocalizeFrozenPageAction(string action)
-        {
-            if (string.IsNullOrWhiteSpace(action)) return null;
-
-            string resourceKey = action switch
-            {
-                "修改冻结页面" => "Main_Freeze_Action_EditPage",
-                "切换到编辑工具" => "Main_Freeze_Action_SwitchToEditTool",
-                "切换到选择工具" => "Main_Freeze_Action_SwitchToSelectionTool",
-                "清除冻结页面内容" => "Main_Freeze_Action_ClearPageContent",
-                "粘贴图片" => "Main_Freeze_Action_PasteImage",
-                "扩展画布" => "Main_Freeze_Action_ExpandCanvas",
-                "擦除冻结页面" => "Main_Freeze_Action_ErasePageContent",
-                "移动图片" => "Main_Freeze_Action_MoveImage",
-                "缩放图片" => "Main_Freeze_Action_ResizeImage",
-                "移动或缩放图片" => "Main_Freeze_Action_MoveOrResizeImage",
-                "克隆图片" => "Main_Freeze_Action_CloneImage",
-                "克隆图片到新页面" => "Main_Freeze_Action_CloneImageToNewPage",
-                "旋转图片" => "Main_Freeze_Action_RotateImage",
-                "切换 PDF 页" => "Main_Freeze_Action_SwitchPdfPage",
-                "删除图片" => "Main_Freeze_Action_DeleteImage",
-                "撤销冻结页面内容" => "Main_Freeze_Action_UndoPageChanges",
-                "重做冻结页面内容" => "Main_Freeze_Action_RedoPageChanges",
-                "重播冻结页面内容" => "Main_Freeze_Action_ReplayPageChanges",
-                "切换到画笔" => "Main_Freeze_Action_SwitchToPen",
-                "切换到橡皮擦" => "Main_Freeze_Action_SwitchToEraser",
-                "切换到线擦" => "Main_Freeze_Action_SwitchToStrokeEraser",
-                "清空冻结页面内容" => "Main_Freeze_Action_ClearPage",
-                "插入截图" => "Main_Freeze_Action_InsertScreenshot",
-                "插入图片" => "Main_Freeze_Action_InsertImage",
-                "插入控件" => "Main_Freeze_Action_InsertElement",
-                "删除控件" => "Main_Freeze_Action_DeleteElement",
-                "书写" => "Main_Freeze_Action_Write",
-                "打开墨迹文件" => "Main_Freeze_Action_OpenInkFile",
-                "恢复墨迹文件" => "Main_Freeze_Action_RestoreInkFile",
-                "克隆墨迹" => "Main_Freeze_Action_CloneInk",
-                "克隆墨迹到新页面" => "Main_Freeze_Action_CloneInkToNewPage",
-                "插入墨迹到白板" => "Main_Freeze_Action_InsertInkToWhiteboard",
-                "修改墨迹粗细" => "Main_Freeze_Action_ChangeInkThickness",
-                "翻转墨迹" => "Main_Freeze_Action_FlipInk",
-                "旋转墨迹" => "Main_Freeze_Action_RotateInk",
-                "移动墨迹" => "Main_Freeze_Action_MoveInk",
-                "移动或缩放墨迹" => "Main_Freeze_Action_MoveOrResizeInk",
-                "调整墨迹大小" => "Main_Freeze_Action_ResizeInk",
-                "打开几何工具" => "Main_Freeze_Action_OpenShapeTool",
-                "绘制几何图形" => "Main_Freeze_Action_DrawShape",
-                "书写或擦除" => "Main_Freeze_Action_WriteOrErase",
-                "移动或缩放内容" => "Main_Freeze_Action_MoveOrResizeContent",
-                _ when action == FloatingBarStrings.Board_InsertImage => "Main_Freeze_Action_InsertFile",
-                _ => null
-            };
-
-            if (!string.IsNullOrWhiteSpace(resourceKey))
-                return MainWindowStrings.GetString(resourceKey) ?? action;
-
-            if (!System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName.Equals("zh", StringComparison.OrdinalIgnoreCase)
-                && ContainsCjkCharacters(action))
-                return null;
-
-            return action;
-        }
-
         private bool TryBlockFrozenPageMutation(string action = null)
         {
             if (!IsCurrentPageFrozen) return false;
 
             EnsureCurrentFrozenEditingState();
-
-            if (DateTime.UtcNow - lastFreezeBlockNotificationUtc > TimeSpan.FromMilliseconds(1500))
-            {
-                lastFreezeBlockNotificationUtc = DateTime.UtcNow;
-                string localizedAction = LocalizeFrozenPageAction(action);
-                ShowNotification(string.IsNullOrWhiteSpace(localizedAction)
-                    ? MainWindowStrings.Main_Freeze_FrozenNoEdit
-                    : string.Format(MainWindowStrings.Main_Freeze_FrozenNoAction, localizedAction));
-            }
 
             return true;
         }
@@ -411,7 +322,7 @@ namespace Ink_Canvas
                 frozenPages[i] = false;
                 pageLastUserInkMutationUtc[i] = DateTime.MinValue;
             }
-            HandleInkFreezeCourseCancel(false);
+            HandleInkFreezeCourseCancel();
             UpdateInkFreezeButtonState();
         }
 
@@ -422,7 +333,6 @@ namespace Ink_Canvas
             freezeCourseRecordedUtc = DateTime.UtcNow;
             delayedFreezeTimer?.Stop();
             delayedFreezePageIndex = null;
-            ShowNotification(pageIndex == 0 ? MainWindowStrings.Main_Freeze_Recorded : string.Format(MainWindowStrings.Main_Freeze_RecordedWhiteboard, pageIndex));
         }
 
         private void HandleInkFreezeCourseEnd(int pageIndex)
@@ -433,12 +343,11 @@ namespace Ink_Canvas
             ScheduleDelayedFreeze(pageIndex, DateTime.UtcNow);
         }
 
-        private void HandleInkFreezeCourseCancel(bool notify = true)
+        private void HandleInkFreezeCourseCancel()
         {
             delayedFreezeTimer?.Stop();
             delayedFreezePageIndex = null;
             freezeCourseRecordedPageIndex = null;
-            if (notify) ShowNotification(MainWindowStrings.Main_Freeze_CancelCountdown);
         }
 
         private void ScheduleDelayedFreeze(int pageIndex, DateTime referenceTimeUtc)
@@ -463,13 +372,9 @@ namespace Ink_Canvas
                 if (!target.HasValue || !IsValidFreezePageIndex(target.Value)) return;
 
                 if (pageLastUserInkMutationUtc[target.Value] <= delayedFreezeReferenceUtc)
-                    FreezePage(target.Value, true);
-                else
-                    ShowNotification(MainWindowStrings.Main_Freeze_CancelByOperation);
+                    FreezePage(target.Value);
             };
             delayedFreezeTimer.Start();
-
-            ShowNotification(MainWindowStrings.Main_Freeze_AutoFreezeIn3Min);
         }
     }
 }

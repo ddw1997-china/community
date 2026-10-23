@@ -89,8 +89,7 @@ namespace Ink_Canvas.Windows.SettingsViews.Pages
             }
 
             if (newLevel == TelemetryUploadLevel.None &&
-                oldLevel != TelemetryUploadLevel.None &&
-                SettingsManager.Settings.Startup.UpdateChannel != UpdateChannel.Release)
+                oldLevel != TelemetryUploadLevel.None)
             {
                 var result = MessageBoxHelper.Show(this,
                     AboutStrings.Privacy_ConfirmDisableTelemetry_Message,
@@ -124,9 +123,6 @@ namespace Ink_Canvas.Windows.SettingsViews.Pages
                     }
                     return;
                 }
-
-                SettingsManager.Settings.Startup.UpdateChannel = UpdateChannel.Release;
-                DeviceIdentifier.UpdateUsageChannel(UpdateChannel.Release);
             }
 
             if (newLevel != TelemetryUploadLevel.None && !SettingsManager.Settings.Startup.HasAcceptedTelemetryPrivacy)
@@ -249,12 +245,6 @@ namespace Ink_Canvas.Windows.SettingsViews.Pages
                 finally
                 {
                     _isChangingTelemetryInternally = false;
-                }
-
-                if (SettingsManager.Settings.Startup.UpdateChannel != UpdateChannel.Release)
-                {
-                    SettingsManager.Settings.Startup.UpdateChannel = UpdateChannel.Release;
-                    DeviceIdentifier.UpdateUsageChannel(UpdateChannel.Release);
                 }
 
                 SettingsManager.Settings.Startup.HasAcceptedTelemetryPrivacy = false;

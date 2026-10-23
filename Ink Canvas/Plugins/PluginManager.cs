@@ -89,8 +89,8 @@ namespace Ink_Canvas.Plugins
         }
 
         /// <summary>
-        /// 当前正在 Initialize 的插件。供宿主服务（如 <see cref="Ink_Canvas.Plugins.Services.NotificationService"/>）
-        /// 在插件调用时识别来源，确保热重载时能按插件 ID 辨认通知回调归属。
+        /// 当前正在 Initialize 的插件。供宿主服务在插件调用时识别来源，
+        /// 确保热重载时能按插件 ID 辨认回调归属。
         /// 不暴露 IPlugin 字段以免插件引用影响到 GC 回收。
         /// </summary>
         public string CurrentLoadingPluginId => _currentLoadingPlugin?.Id;
@@ -1496,24 +1496,7 @@ namespace Ink_Canvas.Plugins
                 }
 
                 // 宿主的静态事件：插件经服务包装订阅后同样钉住 ALC，实例扫描覆盖不到。
-                removed += PluginDelegateCleaner.SweepStaticEvents(typeof(NotificationCenterService), alc);
                 removed += PluginDelegateCleaner.SweepStaticEvents(typeof(ClipboardNotification), alc);
-
-                // 通知消息的 Action 回调不挂在事件上，而是作为字段嵌在 NotificationMessage 里。
-                // 队列/历史中残留的插件消息会把插件 ALC 一直钉住，必须主动清掉。
-                try
-                {
-                    var cleared = NotificationCenterService.ClearPluginCallbacks(plugin.Id);
-                    if (cleared > 0)
-                    {
-                        removed += cleared;
-                        Log(string.Format("Cleared {0} notification callback(s) for plugin {1}", cleared, plugin.Name));
-                    }
-                }
-                catch (Exception ex)
-                {
-                    LogError(string.Format("Failed to clear notification callbacks for plugin {0}", plugin.Name), ex);
-                }
 
                 // 托盘菜单项的 Click 处理器与画布背景层的插件控件都挂在 WPF 可视化树上，
                 // 不在任何服务对象的字段里，需要按插件 ID 显式拆除。
@@ -1558,10 +1541,6 @@ namespace Ink_Canvas.Plugins
                             {
                                 mainWindow.RemovePluginBackgroundLayer();
                             }
-
-                            // 通知控件:当前正在显示的插件通知.Action 指向插件 ALC，
-                            // 关闭它即可释放引用。
-                            mainWindow.DetachPluginNotificationAction(plugin.Id);
                         }
                     }
                     catch (Exception ex)

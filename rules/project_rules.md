@@ -12,7 +12,6 @@
 | `InkCanvas.SettingsTreeView/` | 设置目录树查看器（独立 WPF 应用） |
 | `InkCanvas.PptAgent.Contracts/` | PPT agent 契约（netstandard2.0，注意目录名是 PPTAgent） |
 | `InkCanvas.IACoreHelper/` | IACore 辅助（net472，x86） |
-| `InkCanvas.LiquidGlassMagHost/` | 液态玻璃 MagHost（net6.0-windows10.0.19041.0，真·多平台） |
 | `InkCanvas.PowerPointAddIn/` | PowerPoint VSTO 加载项（net472，**不在 sln 内**，单独 MSBuild） |
 | `InkCanvas.NativeInk.Tests/` | 原生墨迹手动验证程序（**不在 sln 内**） |
 
@@ -28,7 +27,6 @@
 | [chat_log_board_toolbar.md](./chat_log_board_toolbar.md) | 聊天记录/白板工具栏规范 |
 | [build.md](./build.md) | 编译规范（Debug x64、PowerPointAddIn、Copy target） |
 | [general.md](./general.md) | 通用开发规范 |
-| [消息去重说明.md](./消息去重说明.md) | NotificationCenterService 滑动窗口去重策略 |
 | [Ink Canvas 设置完整目录.md](./Ink%20Canvas%20设置完整目录.md) | 设置页面完整目录树 |
 
 ## 快速导航
@@ -38,5 +36,4 @@
 - [弹出菜单规范](./popups_menus.md) - 笔菜单、橡皮擦菜单等 Popup 开发
 - [工具栏规范](./toolbar.md) - 浮动工具栏按钮管理
 - [编译规范](./build.md) - 编译前清理流程、Debug x64 构建校验
-- [消息去重说明](./消息去重说明.md) - 通知去重触发条件
 - [设置完整目录](./Ink%20Canvas%20设置完整目录.md) - 所有设置页面的树状结构

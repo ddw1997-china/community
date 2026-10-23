@@ -72,7 +72,6 @@ namespace Ink_Canvas.Helpers
                 {
                     telemetry_level = level.ToString(),
                     id = deviceId,
-                    update_channel = settings.Startup.UpdateChannel.ToString(),
                     os = systemVersion,
                     machine_name = Environment.MachineName,
                     is_64_bit_operating_system = Environment.Is64BitOperatingSystem,

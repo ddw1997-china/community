@@ -134,7 +134,7 @@
                             </ikw:SimpleStackPanel>
 
                             <ikw:SimpleStackPanel Grid.Row="2" Orientation="Horizontal" Spacing="10">
-                                <ui:HyperlinkButton Content="ICC CE" NavigateUri="https://github.com/InkCanvasForClass/community/"/>
+                                <ui:HyperlinkButton Content="ppt助手" NavigateUri="https://github.com/InkCanvasForClass/community/"/>
                                 <ui:HyperlinkButton Content="ICA" NavigateUri="https://github.com/ChangSakura/Ink-Canvas"/>
                                 <ui:HyperlinkButton Content="Ink Canvas" NavigateUri="https://github.com/WXRIW/Ink-Canvas"/>
                             </ikw:SimpleStackPanel>

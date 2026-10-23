@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Ink;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -50,6 +51,12 @@ namespace Ink_Canvas
             }
 
             lastBorderMouseDownObject = sender;
+
+            // 按下选中栏上其他按钮时收起颜色弹窗（颜色按钮自身由 MouseUp 切换开合）
+            if (!ReferenceEquals(sender, BorderStrokeSelectionColor))
+            {
+                CloseStrokeSelectionColorPopup();
+            }
         }
 
         /// <summary>
@@ -304,6 +311,113 @@ namespace Ink_Canvas
                 stroke.DrawingAttributes.Width = inkCanvas.DefaultDrawingAttributes.Width;
                 stroke.DrawingAttributes.Height = inkCanvas.DefaultDrawingAttributes.Height;
             }
+        }
+
+        /// <summary>
+        /// 选中墨迹颜色弹窗（复用批注模式快捷调色盘控件）
+        /// </summary>
+        private Popup _strokeSelectionColorPopup;
+
+        /// <summary>
+        /// 处理选中栏"颜色"按钮鼠标释放事件：弹出快捷调色盘
+        /// </summary>
+        /// <remarks>
+        /// 只有当鼠标按下和释放的是同一个对象时才处理
+        /// 打开前将选中墨迹的当前颜色同步到调色盘勾选状态
+        /// </remarks>
+        private void BorderStrokeSelectionColor_MouseUp(object sender, MouseButtonEventArgs e)
+        {
+            if (TryBlockFrozenPageMutation("修改墨迹颜色")) return;
+            if (lastBorderMouseDownObject != sender) return;
+
+            if (_strokeSelectionColorPopup == null)
+            {
+                var palette = new QuickColorPaletteControl();
+                palette.ColorClicked += StrokeSelectionColorPalette_ColorClicked;
+                var border = new Border
+                {
+                    Background = (Brush)FindResource("FloatingBarBackgroundBrush"),
+                    BorderBrush = (Brush)FindResource("FloatingBarBorderBrush"),
+                    BorderThickness = new Thickness(1),
+                    CornerRadius = new CornerRadius(8),
+                    Padding = new Thickness(8, 6, 8, 6),
+                    Child = palette
+                };
+                _strokeSelectionColorPopup = new Popup
+                {
+                    Child = border,
+                    Placement = PlacementMode.Top,
+                    PlacementTarget = (UIElement)sender,
+                    StaysOpen = true,
+                    AllowsTransparency = true,
+                    PopupAnimation = PopupAnimation.Fade
+                };
+            }
+
+            var selectedStrokes = inkCanvas.GetSelectedStrokes();
+            if (selectedStrokes.Count > 0
+                && _strokeSelectionColorPopup.Child is Border popupBorder
+                && popupBorder.Child is QuickColorPaletteControl paletteControl)
+            {
+                paletteControl.ClearAllChecked();
+                paletteControl.SetCheckedByColor(selectedStrokes[0].DrawingAttributes.Color);
+            }
+
+            _strokeSelectionColorPopup.IsOpen = !_strokeSelectionColorPopup.IsOpen;
+        }
+
+        /// <summary>
+        /// 快捷调色盘选色后应用到选中墨迹
+        /// </summary>
+        /// <remarks>
+        /// 仅改选中墨迹的颜色，保留各自原有的透明度（荧光笔仍为半透明）
+        /// 不切换当前画笔、不退出选择模式；提交撤销历史
+        /// </remarks>
+        private void StrokeSelectionColorPalette_ColorClicked(object sender, RoutedEventArgs e)
+        {
+            if (e.OriginalSource is not string colorName) return;
+            var color = colorName switch
+            {
+                "Black" => Colors.Black,
+                "White" => Colors.White,
+                "Red" => Colors.Red,
+                "Orange" => Color.FromRgb(251, 150, 80),
+                "Yellow" => Colors.Yellow,
+                "Green" => Color.FromRgb(22, 163, 74),
+                "Blue" => Color.FromRgb(37, 99, 235),
+                "Purple" => Color.FromRgb(147, 51, 234),
+                _ => Colors.Black
+            };
+
+            var changed = false;
+            foreach (var stroke in inkCanvas.GetSelectedStrokes())
+            {
+                var current = stroke.DrawingAttributes.Color;
+                if (current.R == color.R && current.G == color.G && current.B == color.B) continue;
+                stroke.DrawingAttributes.Color = Color.FromArgb(current.A, color.R, color.G, color.B);
+                changed = true;
+            }
+
+            if (changed && DrawingAttributesHistory.Count > 0)
+            {
+                timeMachine.CommitStrokeDrawingAttributesHistory(DrawingAttributesHistory);
+                DrawingAttributesHistory = new Dictionary<Stroke, Tuple<DrawingAttributes, DrawingAttributes>>();
+                foreach (var item in DrawingAttributesHistoryFlag)
+                {
+                    item.Value.Clear();
+                }
+            }
+
+            CloseStrokeSelectionColorPopup();
+        }
+
+        /// <summary>
+        /// 关闭选中墨迹颜色弹窗（如已打开）
+        /// </summary>
+        private void CloseStrokeSelectionColorPopup()
+        {
+            if (_strokeSelectionColorPopup != null && _strokeSelectionColorPopup.IsOpen)
+                _strokeSelectionColorPopup.IsOpen = false;
         }
 
         /// <summary>
@@ -632,17 +746,11 @@ namespace Ink_Canvas
                     stroke.Transform(matrix, false);
                 }
 
-                // 更新选中栏、选择框和旋转锚点位置
-                updateBorderStrokeSelectionControlLocation();
+                // 更新选择框和旋转锚点位置（选中栏保持原位，除非拖动拖动柄）
                 UpdateSelectionDisplay();
 
                 // 更新起始点
                 strokeDragStartPoint = currentPoint;
-            }
-            else if (inkCanvas.GetSelectedStrokes().Count > 0)
-            {
-                // 当鼠标在选中区域移动时，更新墨迹选中栏位置
-                updateBorderStrokeSelectionControlLocation();
             }
         }
 
@@ -732,7 +840,7 @@ namespace Ink_Canvas
         /// <summary>
         /// 墨迹选择控件宽度
         /// </summary>
-        private double BorderStrokeSelectionControlWidth = 490.0;
+        private double BorderStrokeSelectionControlWidth = 580.0;
         /// <summary>
         /// 墨迹选择控件高度
         /// </summary>
@@ -775,6 +883,8 @@ namespace Ink_Canvas
                 GridInkCanvasSelectionCover.Visibility = Visibility.Visible;
                 BorderStrokeSelectionClone.Background = Brushes.Transparent;
                 updateBorderStrokeSelectionControlLocation();
+                // 新的墨迹选区：旋转中心复位到选区中心
+                ImageSelectionOverlay?.ResetPivot();
                 UpdateSelectionDisplay();
                 return;
             }
@@ -852,7 +962,93 @@ namespace Ink_Canvas
                 if (borderTop < 0) borderTop = 10; // 如果上方也没有空间，则显示在顶部
             }
 
-            BorderStrokeSelectionControl.Margin = new Thickness(borderLeft, borderTop, 0, 0);
+            // 记录自动定位结果，叠加用户拖动产生的偏移后仍约束在窗口范围内
+            _strokeSelectionBarAutoPosition = new Point(borderLeft, borderTop);
+            var finalLeft = ClampSelectionBarLeft(borderLeft + _strokeSelectionBarUserOffset.X);
+            var finalTop = ClampSelectionBarTop(borderTop + _strokeSelectionBarUserOffset.Y);
+            BorderStrokeSelectionControl.Margin = new Thickness(finalLeft, finalTop, 0, 0);
+        }
+
+        /// <summary>
+        /// 墨迹选中栏自动定位结果（叠加用户偏移前）
+        /// </summary>
+        private Point _strokeSelectionBarAutoPosition;
+
+        /// <summary>
+        /// 用户拖动选中栏产生的偏移量，叠加在自动定位之上（本次运行期间一直生效）
+        /// </summary>
+        private Vector _strokeSelectionBarUserOffset;
+
+        /// <summary>
+        /// 拖动起点与拖动开始时的选中栏位置
+        /// </summary>
+        private Point _strokeSelectionBarDragStartPoint;
+        private Thickness _strokeSelectionBarDragStartMargin;
+
+        /// <summary>
+        /// 将选中栏横坐标约束在窗口范围内
+        /// </summary>
+        private double ClampSelectionBarLeft(double left)
+        {
+            if (left < 0) return 0;
+            if (Width - left < BorderStrokeSelectionControlWidth) return Width - BorderStrokeSelectionControlWidth;
+            return left;
+        }
+
+        /// <summary>
+        /// 将选中栏纵坐标约束在窗口范围内
+        /// </summary>
+        private double ClampSelectionBarTop(double top)
+        {
+            if (top < 0) return 0;
+            if (Height - top < BorderStrokeSelectionControlHeight) return Height - BorderStrokeSelectionControlHeight;
+            return top;
+        }
+
+        /// <summary>
+        /// 处理选中栏左侧拖动柄按下事件：记录拖动起点并捕获鼠标
+        /// </summary>
+        private void BorderStrokeSelectionDragHandle_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is not FrameworkElement handle) return;
+            _strokeSelectionBarDragStartPoint = e.GetPosition(this);
+            _strokeSelectionBarDragStartMargin = BorderStrokeSelectionControl.Margin;
+            handle.CaptureMouse();
+            e.Handled = true;
+        }
+
+        /// <summary>
+        /// 处理选中栏拖动事件：按位移更新选中栏位置并记录偏移量
+        /// </summary>
+        private void BorderStrokeSelectionDragHandle_MouseMove(object sender, MouseEventArgs e)
+        {
+            if (sender is not FrameworkElement handle) return;
+            if (!handle.IsMouseCaptured || e.LeftButton != MouseButtonState.Pressed) return;
+
+            var position = e.GetPosition(this);
+            var left = _strokeSelectionBarDragStartMargin.Left + (position.X - _strokeSelectionBarDragStartPoint.X);
+            var top = _strokeSelectionBarDragStartMargin.Top + (position.Y - _strokeSelectionBarDragStartPoint.Y);
+            left = ClampSelectionBarLeft(left);
+            top = ClampSelectionBarTop(top);
+            BorderStrokeSelectionControl.Margin = new Thickness(left, top, 0, 0);
+
+            // 记录相对自动定位的偏移，后续自动重定位（换选区、移动墨迹等）时保持用户摆放的位置
+            _strokeSelectionBarUserOffset = new Vector(
+                left - _strokeSelectionBarAutoPosition.X,
+                top - _strokeSelectionBarAutoPosition.Y);
+            e.Handled = true;
+        }
+
+        /// <summary>
+        /// 处理选中栏拖动柄释放事件：结束拖动
+        /// </summary>
+        private void BorderStrokeSelectionDragHandle_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is FrameworkElement handle && handle.IsMouseCaptured)
+            {
+                handle.ReleaseMouseCapture();
+                e.Handled = true;
+            }
         }
 
         /// <summary>
@@ -954,7 +1150,6 @@ namespace Ink_Canvas
                         stroke.Transform(m, false);
                     }
 
-                    updateBorderStrokeSelectionControlLocation();
                     UpdateSelectionDisplay();
                 }
             }
@@ -1072,8 +1267,7 @@ namespace Ink_Canvas
                             stroke.Transform(matrix, false);
                         }
 
-                        // 更新选中栏、选择框和旋转锚点位置
-                        updateBorderStrokeSelectionControlLocation();
+                        // 更新选择框和旋转锚点位置（选中栏保持原位，除非拖动拖动柄）
                         UpdateSelectionDisplay();
 
                         // 更新最后触摸点
@@ -1200,7 +1394,7 @@ namespace Ink_Canvas
             }
 
             GridInkCanvasSelectionCover.Visibility = Visibility.Visible;
-            updateBorderStrokeSelectionControlLocation();
+            // 仅刷新选择框和旋转锚点；选中栏保持原位，只在产生新选区时自动定位
             UpdateSelectionDisplay();
         }
 
@@ -1244,6 +1438,7 @@ namespace Ink_Canvas
         /// </remarks>
         private void HideSelectionDisplay()
         {
+            CloseStrokeSelectionColorPopup();
             SelectionRectangle.Visibility = Visibility.Collapsed;
             SelectionHandlesCanvas.Visibility = Visibility.Collapsed;
             if (currentSelectedElement == null)

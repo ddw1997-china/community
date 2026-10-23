@@ -369,7 +369,6 @@ namespace Ink_Canvas
             AddBlockedRegion(RightSidePanelForPPTNavigation, regions);           // PPT 右侧导航
             AddBlockedRegion(LeftBottomPanelForPPTNavigation, regions);          // PPT 左下导航
             AddBlockedRegion(RightBottomPanelForPPTNavigation, regions);         // PPT 右下导航
-            AddBlockedRegion(GridNotifications, regions);                        // 底部通知条
             return regions;
         }
 

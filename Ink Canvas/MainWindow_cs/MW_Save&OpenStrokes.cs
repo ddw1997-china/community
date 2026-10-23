@@ -463,8 +463,6 @@ namespace Ink_Canvas
             AnimationsHelper.HidePopupWithSlideAndFade(BorderTools);
             AnimationsHelper.HidePopupWithSlideAndFade(BoardBorderToolsPopup);
 
-            GridNotifications.Visibility = Visibility.Collapsed;
-
             SaveInkCanvasStrokes(true, true);
         }
 
@@ -602,17 +600,6 @@ namespace Ink_Canvas
                                     });
                                 }
                             }
-
-                            if (newNotice)
-                            {
-                                Task.Delay(100).ContinueWith(t =>
-                                {
-                                    Dispatcher.Invoke(() =>
-                                    {
-                                        ShowNotification(string.Format(MainWindowStrings.Main_Strokes_SaveMultiPageXmlSuccess, savedCount));
-                                    });
-                                });
-                            }
                         }
                         else
                         {
@@ -627,16 +614,6 @@ namespace Ink_Canvas
                         string xmlPath = Path.ChangeExtension(savePathWithName, ".xml");
                         SaveStrokesAsXML(inkCanvas.Strokes, xmlPath);
                         SavePluginPageDocumentSidecar(xmlPath, CurrentWhiteboardIndex);
-                        if (newNotice)
-                        {
-                            Task.Delay(100).ContinueWith(t =>
-                            {
-                                Dispatcher.Invoke(() =>
-                                {
-                                    ShowNotification(string.Format(MainWindowStrings.Main_Strokes_SaveXmlSuccess, xmlPath));
-                                });
-                            });
-                        }
                     }
                 }
                 else if (Settings.Automation.IsSaveFullPageStrokes)
@@ -782,17 +759,6 @@ namespace Ink_Canvas
                                 });
                             }
                         }
-
-                        if (newNotice)
-                        {
-                            Task.Delay(100).ContinueWith(t =>
-                            {
-                                Dispatcher.Invoke(() =>
-                                {
-                                    ShowNotification(string.Format(MainWindowStrings.Main_Strokes_SaveMultiPageIcstkSuccess, allPageStrokes.Count));
-                                });
-                            });
-                        }
                     }
                     else
                     {
@@ -803,16 +769,6 @@ namespace Ink_Canvas
                             string xmlPath = Path.ChangeExtension(savePathWithName, ".xml");
                             SaveStrokesAsXML(inkCanvas.Strokes, xmlPath);
                             SavePluginPageDocumentSidecar(xmlPath, CurrentWhiteboardIndex);
-                            if (newNotice)
-                            {
-                                Task.Delay(100).ContinueWith(t =>
-                                {
-                                    Dispatcher.Invoke(() =>
-                                    {
-                                        ShowNotification(string.Format(MainWindowStrings.Main_Strokes_SaveXmlSuccess, xmlPath));
-                                    });
-                                });
-                            }
                         }
                         else
                         {
@@ -837,16 +793,6 @@ namespace Ink_Canvas
                                 throw;
                             }
                             SavePluginPageDocumentSidecar(savePathWithName, CurrentWhiteboardIndex);
-                            if (newNotice)
-                            {
-                                Task.Delay(100).ContinueWith(t =>
-                                {
-                                    Dispatcher.Invoke(() =>
-                                    {
-                                        ShowNotification(string.Format(MainWindowStrings.Main_Strokes_SaveSuccess, savePathWithName));
-                                    });
-                                });
-                            }
                         }
 
                         // 异步上传文件
@@ -872,7 +818,6 @@ namespace Ink_Canvas
             }
             catch (Exception ex)
             {
-                ShowNotification(MainWindowStrings.Main_Strokes_SaveFailed);
                 LogHelper.WriteLogToFile("墨迹保存失败 | " + ex, LogHelper.LogType.Error);
             }
         }
@@ -1025,17 +970,6 @@ namespace Ink_Canvas
                         {
                         }
                     });
-
-                    if (newNotice)
-                    {
-                        Task.Delay(100).ContinueWith(t =>
-                        {
-                            Dispatcher.Invoke(() =>
-                            {
-                                ShowNotification(string.Format(MainWindowStrings.Main_Strokes_SaveMultiPageXmlZipSuccess, zipFileName));
-                            });
-                        });
-                    }
                 }
                 finally
                 {
@@ -1137,17 +1071,6 @@ namespace Ink_Canvas
                         {
                         }
                     });
-
-                    if (newNotice)
-                    {
-                        Task.Delay(100).ContinueWith(t =>
-                        {
-                            Dispatcher.Invoke(() =>
-                            {
-                                ShowNotification(string.Format(MainWindowStrings.Main_Strokes_SaveMultiPageZipSuccess, zipFileName));
-                            });
-                        });
-                    }
                 }
                 finally
                 {
@@ -1247,18 +1170,6 @@ namespace Ink_Canvas
                     }
                 } // using g
             } // using bitmap
-
-            // 显示提示
-            if (newNotice)
-            {
-                Task.Delay(100).ContinueWith(t =>
-                {
-                    Dispatcher.Invoke(() =>
-                    {
-                        ShowNotification(string.Format(MainWindowStrings.Main_Strokes_SaveFullPageSuccess, Path.ChangeExtension(savePathWithName, "png")));
-                    });
-                });
-            }
         }
 
         /// <summary>
@@ -1392,7 +1303,6 @@ namespace Ink_Canvas
             }
             catch (Exception ex)
             {
-                ShowNotification(MainWindowStrings.Main_Strokes_OpenFailed);
                 LogHelper.WriteLogToFile($"墨迹打开失败: {ex}", LogHelper.LogType.Error);
             }
         }
@@ -1445,14 +1355,11 @@ namespace Ink_Canvas
                     }
                     else
                     {
-                        // 模式不匹配时，显示提示信息
+                        // 模式不匹配时，记录日志
                         string savedMode = isPPTMode ? "PPT放映" : (isWhiteboardMode ? FloatingBarStrings.FloatingBar_Whiteboard : "未知");
                         string currentMode = isCurrentlyInPPTMode ? "PPT放映" : (isCurrentlyInWhiteboardMode ? FloatingBarStrings.FloatingBar_Whiteboard : "桌面");
-                        ShowNotification(string.Format(MainWindowStrings.Main_Strokes_ModeMismatch, savedMode, currentMode));
                         LogHelper.WriteLogToFile($"模式不匹配：保存模式={savedMode}，当前模式={currentMode}", LogHelper.LogType.Warning);
                     }
-
-                    ShowNotification(string.Format(MainWindowStrings.Main_Strokes_OpenIccSuccess, metadata.ContainsKey("总页数") ? metadata["总页数"] : "0"));
                 }
                 finally
                 {

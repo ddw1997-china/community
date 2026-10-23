@@ -351,7 +351,6 @@ namespace Ink_Canvas.Windows.SettingsViews.Pages
                     if (mw != null)
                     {
                         mw.ReloadSettingsFromFile();
-                        mw.ShowNotification(string.Format(ConfigStrings.SwitchedToProfile, name));
                     }
                 }
             }
@@ -401,8 +400,6 @@ namespace Ink_Canvas.Windows.SettingsViews.Pages
                 {
                     _lastAppliedProfileName = name;
                     RefreshConfigProfileList();
-                    var mw = GetMainWindow();
-                    if (mw != null) mw.ShowNotification(string.Format(ConfigStrings.SavedAsProfile, name));
                 }
                 else
                     MessageBoxHelper.Show(this, ConfigStrings.SaveAs_Failed, ConfigStrings.SaveAsProfileTitle, MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -431,19 +428,14 @@ namespace Ink_Canvas.Windows.SettingsViews.Pages
                 {
                     RefreshConfigProfileList();
                     var nextName = ComboBoxConfigProfile?.SelectedItem as string;
-                    var mw = GetMainWindow();
                     if (!string.IsNullOrEmpty(nextName) && ConfigProfileManager.ApplyProfile(nextName))
                     {
                         _lastAppliedProfileName = nextName;
+                        var mw = GetMainWindow();
                         if (mw != null)
                         {
                             mw.ReloadSettingsFromFile();
-                            mw.ShowNotification(string.Format(ConfigStrings.DeletedAndSwitched, name, nextName));
                         }
-                    }
-                    else
-                    {
-                        if (mw != null) mw.ShowNotification(string.Format(ConfigStrings.DeletedProfile, name));
                     }
                 }
                 else

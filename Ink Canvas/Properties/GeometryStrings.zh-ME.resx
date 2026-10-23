@@ -93,8 +93,8 @@
   <data name="DrawHyperbola" xml:space="preserve">
     <value>卷出来的弧度</value>
   </data>
-  <data name="DrawHyperbolaWithFocal" xml:space="preserve">
-    <value>吸睛双曲线</value>
+  <data name="DrawBezier" xml:space="preserve">
+    <value>一弯贝塞尔</value>
   </data>
   <data name="DrawLine" xml:space="preserve">
     <value>一杆进洞</value>
@@ -104,6 +104,18 @@
   </data>
   <data name="DrawParabola2" xml:space="preserve">
     <value>再抛一个</value>
+  </data>
+<data name="DrawCompass" xml:space="preserve">
+    <value>圆规成精</value>
+  </data>
+  <data name="DrawTriangleRuler" xml:space="preserve">
+    <value>45°三角板</value>
+  </data>
+  <data name="DrawTriangleRuler2" xml:space="preserve">
+    <value>30-60°三角板</value>
+  </data>
+  <data name="DrawStraightRuler" xml:space="preserve">
+    <value>直尺</value>
   </data>
   <data name="DrawParabolaWithFocal" xml:space="preserve">
     <value>吸睛抛物线</value>

@@ -128,6 +128,7 @@ namespace Ink_Canvas.Controls.Toolbar.BoardToolbar
                                 {
                                     new BoardToolbarComponentEntry { Id = "board.select" },
                                     new BoardToolbarComponentEntry { Id = "board.pen" },
+                                    new BoardToolbarComponentEntry { Id = "board.colorPalette" },
                                     new BoardToolbarComponentEntry { Id = "board.inkFreeze" },
                                     new BoardToolbarComponentEntry { Id = "board.roaming" },
                                     new BoardToolbarComponentEntry { Id = "board.eraser" },
@@ -135,7 +136,8 @@ namespace Ink_Canvas.Controls.Toolbar.BoardToolbar
                                     new BoardToolbarComponentEntry { Id = "board.shape" },
                                     new BoardToolbarComponentEntry { Id = "board.insertImage" },
                                     new BoardToolbarComponentEntry { Id = "board.undo" },
-                                    new BoardToolbarComponentEntry { Id = "board.redo" }
+                                    new BoardToolbarComponentEntry { Id = "board.redo" },
+                                    new BoardToolbarComponentEntry { Id = "board.clear" }
                                 }
                             },
                             new BoardToolbarGroupEntry

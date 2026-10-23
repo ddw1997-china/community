@@ -265,6 +265,31 @@
                 </Image>
             </Canvas>
 
+            <!-- 圆规工具（图形工具面板中选择，希沃风格交互画圆/画弧） -->
+            <localControls:CompassTool x:Name="CompassTool"
+                                       Visibility="Collapsed"
+                                       Panel.ZIndex="1001"
+                                       ArcDrawing="CompassTool_ArcDrawing"
+                                       CloseRequested="CompassTool_CloseRequested" />
+
+            <!-- 三角板工具（图形工具面板中选择，白色半透明镂空板身 + 斜边刻度，拖板框移动 / 拖角旋转）。
+                 两块三角板相互独立，可同时打开；除关闭按钮、退出批注模式、退出白板模式外一律保留。 -->
+            <localControls:TriangleRulerTool x:Name="TriangleRulerTool1"
+                                             Visibility="Collapsed"
+                                             Panel.ZIndex="1000"
+                                             CloseRequested="TriangleRulerTool_CloseRequested" />
+
+            <localControls:TriangleRulerTool x:Name="TriangleRulerTool2"
+                                             Visibility="Collapsed"
+                                             Panel.ZIndex="999"
+                                             CloseRequested="TriangleRulerTool_CloseRequested" />
+
+            <!-- 直尺工具（图形工具面板中选择，半透明尺身 + 上沿刻度，拖尺身移动 / 拖两端旋转，关闭按钮在尺身正中） -->
+            <localControls:StraightRulerTool x:Name="StraightRulerTool1"
+                                             Visibility="Collapsed"
+                                             Panel.ZIndex="998"
+                                             CloseRequested="StraightRulerTool_CloseRequested" />
+
             <!-- 边缘扩展画布提示按钮（书写贴近边缘时浮现）。
                  用 Popup 实现，确保永远在最顶层且不被 InkCanvasGridForInkReplay 的兄弟节点
                  （如 GridInkCanvasSelectionCover）遮挡命中测试。PlacementTarget 设为 inkCanvas，
@@ -502,6 +527,28 @@
                     BorderThickness="1" BorderBrush="{DynamicResource FloatingBarBorderBrush}">
                 <Viewbox Margin="0,-2.5">
                     <ikw:SimpleStackPanel Orientation="Horizontal" Spacing="10" Height="60">
+                        <Border Name="BorderStrokeSelectionDragHandle" Margin="0,2,-4,2" Background="Transparent"
+                                CornerRadius="{Binding ElementName=BorderStrokeSelectionControl, Path=CornerRadius}"
+                                Width="24" Cursor="SizeAll"
+                                ToolTip="{x:Static props:MainWindowStrings.Main_SelectionBarDragHint}"
+                                MouseLeftButtonDown="BorderStrokeSelectionDragHandle_MouseLeftButtonDown"
+                                MouseMove="BorderStrokeSelectionDragHandle_MouseMove"
+                                MouseLeftButtonUp="BorderStrokeSelectionDragHandle_MouseLeftButtonUp">
+                            <ikw:SimpleStackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="3">
+                                <ikw:SimpleStackPanel Orientation="Horizontal" Spacing="3">
+                                    <Ellipse Width="3" Height="3" Fill="{DynamicResource FloatingBarForegroundBrush}" />
+                                    <Ellipse Width="3" Height="3" Fill="{DynamicResource FloatingBarForegroundBrush}" />
+                                </ikw:SimpleStackPanel>
+                                <ikw:SimpleStackPanel Orientation="Horizontal" Spacing="3">
+                                    <Ellipse Width="3" Height="3" Fill="{DynamicResource FloatingBarForegroundBrush}" />
+                                    <Ellipse Width="3" Height="3" Fill="{DynamicResource FloatingBarForegroundBrush}" />
+                                </ikw:SimpleStackPanel>
+                                <ikw:SimpleStackPanel Orientation="Horizontal" Spacing="3">
+                                    <Ellipse Width="3" Height="3" Fill="{DynamicResource FloatingBarForegroundBrush}" />
+                                    <Ellipse Width="3" Height="3" Fill="{DynamicResource FloatingBarForegroundBrush}" />
+                                </ikw:SimpleStackPanel>
+                            </ikw:SimpleStackPanel>
+                        </Border>
                         <Border Name="BorderStrokeSelectionClone" Margin="0,2,-9,2" Background="Transparent"
                                 CornerRadius="{Binding ElementName=BorderStrokeSelectionControl, Path=CornerRadius}"
                                 Width="40" MouseDown="Border_MouseDown" MouseUp="BorderStrokeSelectionClone_MouseUp">
@@ -598,6 +645,22 @@
                                 </ikw:SimpleStackPanel>
                                 <TextBlock Text="{x:Static props:MainWindowStrings.Main_ContextBrushSize}" FontSize="10" HorizontalAlignment="Center"
                                            Foreground="{DynamicResource FloatingBarForegroundBrush}" />
+                            </ikw:SimpleStackPanel>
+                        </Border>
+                        <Border Width="1" Height="45" BorderBrush="{DynamicResource FloatingBarForegroundBrush}"
+                                Background="{DynamicResource FloatingBarForegroundBrush}" />
+                        <Border Name="BorderStrokeSelectionColor" Margin="0,2,-9,2" Background="Transparent"
+                                CornerRadius="{Binding ElementName=BorderStrokeSelectionControl, Path=CornerRadius}"
+                                Width="40" MouseDown="Border_MouseDown" MouseUp="BorderStrokeSelectionColor_MouseUp">
+                            <ikw:SimpleStackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                                <Grid Width="25" Height="22">
+                                    <Ellipse Width="10" Height="10" HorizontalAlignment="Left" VerticalAlignment="Top" Fill="#EF4444" Stroke="#808080" StrokeThickness="0.5" />
+                                    <Ellipse Width="10" Height="10" HorizontalAlignment="Right" VerticalAlignment="Top" Fill="#3B82F6" Stroke="#808080" StrokeThickness="0.5" />
+                                    <Ellipse Width="10" Height="10" HorizontalAlignment="Left" VerticalAlignment="Bottom" Fill="#FACC15" Stroke="#808080" StrokeThickness="0.5" />
+                                    <Ellipse Width="10" Height="10" HorizontalAlignment="Right" VerticalAlignment="Bottom" Fill="#22C55E" Stroke="#808080" StrokeThickness="0.5" />
+                                </Grid>
+                                <TextBlock Text="{x:Static props:MainWindowStrings.Main_ContextColor}" FontSize="10" Foreground="{DynamicResource FloatingBarForegroundBrush}"
+                                           HorizontalAlignment="Center" Margin="0,3,0,0" />
                             </ikw:SimpleStackPanel>
                         </Border>
                         <Border Width="1" Height="45" BorderBrush="{DynamicResource FloatingBarForegroundBrush}"
@@ -1036,19 +1099,6 @@
                 </ikw:SimpleStackPanel>
             </Grid>
         </Grid>
-        <!--通知弹窗-->
-        <Grid Name="GridNotifications" Margin="0,110" Visibility="Collapsed"  d:Visibility="Visible" HorizontalAlignment="Center"
-              VerticalAlignment="Bottom">
-            <ui:InfoBar x:Name="NotificationInfoBar"
-                        IsOpen="True"
-                        IsClosable="False"
-                        Severity="Warning"
-                        Title="{x:Static props:NotificationStrings.Type_Reminder}"
-                        MaxWidth="900"
-                        Message="{Binding Text, ElementName=TextBlockNotice}" />
-            <TextBlock x:Name="TextBlockNotice" Visibility="Collapsed"  d:Visibility="Visible"
-                       Text="{x:Static props:NotificationStrings.TestText}" />
-        </Grid>
         <!--// PPT 底部翻页按钮 //-->
         <Grid d:Visibility="Collapsed">
             <Grid Visibility="Visible" d:Visibility="Collapsed">
@@ -1454,10 +1504,6 @@
                 Margin="0,50,0,0">
             <Windows:PPTQuickPanel x:Name="PPTQuickPanel"/>
         </Border>
-        <localControls:DynamicNotificationControl x:Name="DynamicNotification"
-                Panel.ZIndex="1100"
-                HorizontalAlignment="Center"
-                VerticalAlignment="Top" />
         <!-- PPT 增强预览全屏加载动画 -->
         <Grid x:Name="PPTEnhancedPreviewLoadingOverlay"
                 Panel.ZIndex="1200"

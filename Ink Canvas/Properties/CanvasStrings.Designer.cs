@@ -72,6 +72,10 @@ namespace Ink_Canvas.Properties
 
         public static string Canvas_Color_Yellow => ResourceManager.GetString(nameof(Canvas_Color_Yellow), _resourceCulture);
 
+        public static string Canvas_CompassDraw => ResourceManager.GetString(nameof(Canvas_CompassDraw), _resourceCulture);
+
+        public static string Canvas_CompassStop => ResourceManager.GetString(nameof(Canvas_CompassStop), _resourceCulture);
+
         public static string Canvas_CompressPicturesUploaded => ResourceManager.GetString(nameof(Canvas_CompressPicturesUploaded), _resourceCulture);
 
         public static string Canvas_CurveSmoothing_Off => ResourceManager.GetString(nameof(Canvas_CurveSmoothing_Off), _resourceCulture);
@@ -141,6 +145,8 @@ namespace Ink_Canvas.Properties
         public static string Canvas_RestoreWidth => ResourceManager.GetString(nameof(Canvas_RestoreWidth), _resourceCulture);
 
         public static string Canvas_ShowCircleCenter => ResourceManager.GetString(nameof(Canvas_ShowCircleCenter), _resourceCulture);
+
+        public static string Canvas_ParabolaSingleStroke => ResourceManager.GetString(nameof(Canvas_ParabolaSingleStroke), _resourceCulture);
 
         public static string Canvas_ShowCoordinateUnitMarks => ResourceManager.GetString(nameof(Canvas_ShowCoordinateUnitMarks), _resourceCulture);
 

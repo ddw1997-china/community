@@ -19,6 +19,11 @@ namespace Ink_Canvas.Controls
         public GeometryButton DrawRectangleBtn => BoardImageDrawRectangle;
         public GeometryButton DrawCylinderBtn => BoardImageDrawCylinder;
         public GeometryButton DrawConeBtn => BoardImageDrawCone;
+        public GeometryButton DrawCompassBtn => BoardImageDrawCompass;
+        public GeometryButton DrawTriangleRulerBtn => BoardImageDrawTriangleRuler;
+        public GeometryButton DrawTriangleRuler2Btn => BoardImageDrawTriangleRuler2;
+
+        public GeometryButton DrawStraightRulerBtn => BoardImageDrawStraightRuler;
 
         public GeometryButton DrawCoordinate1Btn => ImageDrawCoordinate1;
         public GeometryButton DrawCoordinate2Btn => ImageDrawCoordinate2;
@@ -26,12 +31,14 @@ namespace Ink_Canvas.Controls
         public GeometryButton DrawCoordinate4Btn => ImageDrawCoordinate4;
         public GeometryButton DrawCoordinate5Btn => ImageDrawCoordinate5;
         public GeometryButton DrawHyperbolaBtn => ImageDrawHyperbola;
-        public GeometryButton DrawHyperbolaWithFocalPointBtn => ImageDrawHyperbolaWithFocalPoint;
+        public GeometryButton DrawBezierBtn => ImageDrawBezier;
         public GeometryButton DrawParabola1Btn => ImageDrawParabola1;
         public GeometryButton DrawParabolaWithFocalPointBtn => ImageDrawParabolaWithFocalPoint;
         public GeometryButton DrawParabola2Btn => ImageDrawParabola2;
 
         public ToggleSwitch ShowCircleCenterToggle => ToggleSwitchShowCircleCenter;
+
+        public ToggleSwitch ParabolaSingleStrokeToggle => ToggleSwitchParabolaSingleStroke;
 
         public Button CloseButtonControl => Shell?.CloseButtonControl;
 

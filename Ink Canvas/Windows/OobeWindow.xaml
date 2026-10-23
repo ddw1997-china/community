@@ -67,7 +67,7 @@
                                       Spacing="12"
                                       VerticalAlignment="Center"
                                       Margin="16,0,0,0">
-                    <Image Source="\Resources\icc.ico" Width="18"
+                    <Image Source="\Resources\mylogo.ico" Width="18"
                            RenderOptions.BitmapScalingMode="HighQuality" />
                     <TextBlock VerticalAlignment="Center"
                                Text="{x:Static props:OobeStrings.Oobe_WelcomeTitle}"
@@ -164,7 +164,7 @@
                                     HorizontalAlignment="Center"
                                     CornerRadius="20"
                                     Background="{DynamicResource SystemControlBackgroundChromeMediumBrush}">
-                                <Image Source="\Resources\icc.ico"
+                                <Image Source="\Resources\mylogo.ico"
                                        Width="64"
                                        RenderOptions.BitmapScalingMode="HighQuality" />
                             </Border>
@@ -292,12 +292,6 @@
                                                                   Description="{x:Static props:OobeStrings.Oobe_FoldAtStartupDesc}"
                                                                   Icon="{x:Static ui:SegoeFluentIcons.ChevronLeft}"
                                                                   SwitchName="ToggleSwitchFoldAtStartup" />
-
-                                    <controls:LabeledSettingsCard x:Name="CardAutoUpdate"
-                                                                  Header="{x:Static props:UpdateStrings.Header_AutoUpdate}"
-                                                                  Description="{x:Static props:OobeStrings.Oobe_AutoUpdate}"
-                                                                  Icon="{x:Static ui:SegoeFluentIcons.Sync}"
-                                                                  SwitchName="ToggleSwitchAutoUpdate" />
 
                                     <ui:SettingsCard Header="{x:Static props:OobeStrings.Oobe_CrashAction}"
                                                      Description="{x:Static props:OobeStrings.Oobe_CrashActionDesc}">

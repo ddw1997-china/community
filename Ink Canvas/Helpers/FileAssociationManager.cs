@@ -873,7 +873,6 @@ namespace Ink_Canvas.Helpers
                                     if (Application.Current.MainWindow is MainWindow mainWindow)
                                     {
                                         mainWindow.OpenSingleStrokeFile(filePath);
-                                        mainWindow.ShowNotification(string.Format(AutomationStrings.FileAssoc_LoadedStrokesFile, Path.GetFileName(filePath)));
                                     }
                                 }
                                 catch (Exception ex)
@@ -968,7 +967,6 @@ namespace Ink_Canvas.Helpers
                                     if (Application.Current.MainWindow is MainWindow mainWindow)
                                     {
                                         mainWindow.SwitchToBoardMode();
-                                        mainWindow.ShowNotification(AutomationStrings.FileAssoc_SwitchedToBoardMode);
                                     }
                                 }
                                 catch (Exception ex)
@@ -1023,7 +1021,6 @@ namespace Ink_Canvas.Helpers
                                         {
                                             await mainWindow.UnFoldFloatingBar(new object());
                                         }
-                                        mainWindow.ShowNotification(AutomationStrings.FileAssoc_ExitedFoldMode);
                                     }
                                 }
                                 catch (Exception ex)

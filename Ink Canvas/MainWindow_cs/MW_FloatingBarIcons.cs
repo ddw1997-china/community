@@ -673,6 +673,7 @@ namespace Ink_Canvas
                     if (EraserByStrokes_Icon != null) { if (!ToolbarRegistry.GetUseRedStyle(EraserByStrokes_Icon)) EraserByStrokes_Icon.Icon.Brush = new SolidColorBrush(FloatBarForegroundColor); EraserByStrokes_Icon.Icon.Geometry = Geometry.Parse(GetCorrectIcon("eraserStroke", false)); }
                     if (Eraser_Icon != null) { if (!ToolbarRegistry.GetUseRedStyle(Eraser_Icon)) Eraser_Icon.Icon.Brush = new SolidColorBrush(FloatBarForegroundColor); Eraser_Icon.Icon.Geometry = Geometry.Parse(GetCorrectIcon("eraserCircle", false)); }
                     if (SymbolIconSelect != null) { if (!ToolbarRegistry.GetUseRedStyle(SymbolIconSelect)) SymbolIconSelect.Icon.Brush = new SolidColorBrush(FloatBarForegroundColor); SymbolIconSelect.Icon.Geometry = Geometry.Parse(GetCorrectIcon("lassoSelect", false)); }
+                    if (ShapeDrawFloatingBarBtn != null) { if (!ToolbarRegistry.GetUseRedStyle(ShapeDrawFloatingBarBtn)) ShapeDrawFloatingBarBtn.Icon.Brush = new SolidColorBrush(FloatBarForegroundColor); }
 
                     bool isDarkThemeForButtons = Settings.Appearance.Theme == 1 ||
                                                  (Settings.Appearance.Theme == 2 && !ThemeHelper.IsSystemThemeLight());
@@ -683,6 +684,7 @@ namespace Ink_Canvas
                         if (boardRoaming != null) { boardRoaming.Background = Brushes.Transparent; boardRoaming.IconGeometryDrawing.Brush = boardThemeForeground; boardRoaming.Foreground = boardThemeForeground; }
                         if (boardEraser != null) { boardEraser.Background = Brushes.Transparent; boardEraser.IconGeometryDrawing.Brush = boardThemeForeground; boardEraser.Foreground = boardThemeForeground; }
                         if (boardStrokeEraser != null) { boardStrokeEraser.Background = Brushes.Transparent; boardStrokeEraser.IconGeometryDrawing.Brush = boardThemeForeground; boardStrokeEraser.Foreground = boardThemeForeground; }
+                        if (BoardShapeDrawToolBtn != null) { BoardShapeDrawToolBtn.Background = Brushes.Transparent; BoardShapeDrawToolBtn.IconBrush = boardThemeForeground; BoardShapeDrawToolBtn.Foreground = boardThemeForeground; }
                     }
                     else
                     {
@@ -691,6 +693,7 @@ namespace Ink_Canvas
                         if (boardRoaming != null) { boardRoaming.Background = Brushes.Transparent; boardRoaming.IconGeometryDrawing.Brush = boardThemeForeground; boardRoaming.Foreground = boardThemeForeground; }
                         if (boardEraser != null) { boardEraser.Background = Brushes.Transparent; boardEraser.IconGeometryDrawing.Brush = boardThemeForeground; boardEraser.Foreground = boardThemeForeground; }
                         if (boardStrokeEraser != null) { boardStrokeEraser.Background = Brushes.Transparent; boardStrokeEraser.IconGeometryDrawing.Brush = boardThemeForeground; boardStrokeEraser.Foreground = boardThemeForeground; }
+                        if (BoardShapeDrawToolBtn != null) { BoardShapeDrawToolBtn.Background = Brushes.Transparent; BoardShapeDrawToolBtn.IconBrush = boardThemeForeground; BoardShapeDrawToolBtn.Foreground = boardThemeForeground; }
                     }
                 }
 
@@ -824,6 +827,7 @@ namespace Ink_Canvas
                                 if (boardPen != null) { boardPen.Background = Brushes.Transparent; boardPen.IconGeometryDrawing.Brush = boardThemeForeground; boardPen.Foreground = boardThemeForeground; }
                                 if (boardEraser != null) { boardEraser.Background = Brushes.Transparent; boardEraser.IconGeometryDrawing.Brush = boardThemeForeground; boardEraser.Foreground = boardThemeForeground; }
                                 if (boardStrokeEraser != null) { boardStrokeEraser.Background = Brushes.Transparent; boardStrokeEraser.IconGeometryDrawing.Brush = boardThemeForeground; boardStrokeEraser.Foreground = boardThemeForeground; }
+                        if (BoardShapeDrawToolBtn != null) { BoardShapeDrawToolBtn.Background = Brushes.Transparent; BoardShapeDrawToolBtn.IconBrush = boardThemeForeground; BoardShapeDrawToolBtn.Foreground = boardThemeForeground; }
                                 if (boardSelect != null) { boardSelect.Background = Brushes.Transparent; boardSelect.IconGeometryDrawing.Brush = boardThemeForeground; boardSelect.Foreground = boardThemeForeground; }
                                 if (boardRoaming != null) { boardRoaming.Background = Brushes.Transparent; boardRoaming.IconGeometryDrawing.Brush = boardThemeForeground; boardRoaming.Foreground = boardThemeForeground; }
 
@@ -839,6 +843,7 @@ namespace Ink_Canvas
                                 if (boardPen != null) { boardPen.Background = Brushes.Transparent; boardPen.IconGeometryDrawing.Brush = boardThemeForeground; boardPen.Foreground = boardThemeForeground; }
                                 if (boardEraser != null) { boardEraser.Background = Brushes.Transparent; boardEraser.IconGeometryDrawing.Brush = boardThemeForeground; boardEraser.Foreground = boardThemeForeground; }
                                 if (boardStrokeEraser != null) { boardStrokeEraser.Background = Brushes.Transparent; boardStrokeEraser.IconGeometryDrawing.Brush = boardThemeForeground; boardStrokeEraser.Foreground = boardThemeForeground; }
+                        if (BoardShapeDrawToolBtn != null) { BoardShapeDrawToolBtn.Background = Brushes.Transparent; BoardShapeDrawToolBtn.IconBrush = boardThemeForeground; BoardShapeDrawToolBtn.Foreground = boardThemeForeground; }
                                 if (boardSelect != null) { boardSelect.Background = Brushes.Transparent; boardSelect.IconGeometryDrawing.Brush = boardThemeForeground; boardSelect.Foreground = boardThemeForeground; }
                                 if (boardRoaming != null) { boardRoaming.Background = Brushes.Transparent; boardRoaming.IconGeometryDrawing.Brush = boardThemeForeground; boardRoaming.Foreground = boardThemeForeground; }
 
@@ -855,6 +860,7 @@ namespace Ink_Canvas
                         }
                     case "shape":
                         {
+                            SetFloatingBarHighlightPosition("shape");
                             break;
                         }
                 }
@@ -3003,6 +3009,13 @@ namespace Ink_Canvas
                 pos.X = screenWidth - MarginFromEdge * ViewboxFloatingBarScaleTransform.ScaleX;
             }
 
+            LogHelper.WriteLogToFile(
+                $"[DBG-FBPOS] Core inPPT={IsInPPTPresentationMode} topmost={Topmost} vertical={IsVerticalToolbar} " +
+                $"marginFromEdge={MarginFromEdge} posX={pos.X:F1} posY={pos.Y:F1} " +
+                $"screenH={screenHeight:F1} barH={floatingBarHeight:F1} taskbarH={toolbarHeight:F1} " +
+                $"pointPPT=({pointPPT.X:F1},{pointPPT.Y:F1}) pointDesktop=({pointDesktop.X:F1},{pointDesktop.Y:F1})",
+                LogHelper.LogType.Info);
+
             if (animate)
             {
                 var marginAnimation = new ThicknessAnimation
@@ -3273,6 +3286,12 @@ namespace Ink_Canvas
                     SetFloatingBarHighlightPosition(_currentToolMode);
                 }
             });
+
+            LogHelper.WriteLogToFile(
+                $"[DBG-FBPOS] PurePPT inPPT={IsInPPTPresentationMode} topmost={Topmost} vertical={IsVerticalToolbar} " +
+                $"appliedMargin=({ViewboxFloatingBar.Margin.Left:F1},{ViewboxFloatingBar.Margin.Top:F1}) " +
+                $"pointPPT=({pointPPT.X:F1},{pointPPT.Y:F1})",
+                LogHelper.LogType.Info);
 
             if (Settings.ModeSettings.IsPPTOnlyMode && !isRetry)
             {
@@ -3602,6 +3621,8 @@ namespace Ink_Canvas
 
             // 点击鼠标按钮退出批注模式时的全屏还原
             RestoreFullScreenOnExitAnnotationMode();
+            // 退出批注模式：关闭全部常驻覆盖层工具（圆规/三角板/直尺）
+            HideAllOverlayTools();
 
             inkCanvas.Select(new StrokeCollection());
             GridInkCanvasSelectionCover.Visibility = Visibility.Collapsed;
@@ -3689,6 +3710,7 @@ namespace Ink_Canvas
                 {
                     drawingShapeMode = 0;
                     isLongPressSelected = false;
+                    UpdateAllGeometryButtonsCheckedState();
                 }
 
                 // 使用集中化的工具模式切换方法
@@ -4241,9 +4263,53 @@ namespace Ink_Canvas
                 "Purple" => Color.FromRgb(147, 51, 234),
                 _ => Colors.Black
             };
+
+            // 图形工具（直线/矩形/圆等）使用中：只切换画笔颜色。
+            // 不能再走 SetQuickColor → ColorSwitchCheck，后者会 drawingShapeMode = 0、
+            // 切回画笔模式并收起面板，等于取消当前图形工具。
+            if (drawingShapeMode != 0)
+            {
+                ApplyQuickColorOnly(color);
+                ScheduleBrushAutoRestore();
+                return;
+            }
+
             SetQuickColor(color);
             ScheduleBrushAutoRestore();
-            RefreshLiquidGlassBarActiveState();
+        }
+
+        /// <summary>
+        /// 只更新画笔颜色与颜色指示器，不改变工具模式、编辑模式、面板与选中对象。
+        /// </summary>
+        private void ApplyQuickColorOnly(Color color)
+        {
+            drawingAttributes.Color = color;
+            inkCanvas.DefaultDrawingAttributes.Color = color;
+
+            // 同步"最近使用颜色"索引，保证退出图形工具后仍能恢复这次选的颜色。
+            int index = GetInkColorIndex(color);
+            if (index >= 0)
+            {
+                if (currentMode == 0) lastDesktopInkColor = index;
+                else lastBoardInkColor = index;
+            }
+
+            UpdateQuickColorPaletteIndicator(color);
+            UpdatePenIconColor();
+            UpdateBoardPenIconColor();
+        }
+
+        private static int GetInkColorIndex(Color color)
+        {
+            if (color == Colors.Black) return 0;
+            if (color == Colors.Red) return 1;
+            if (color == Colors.Green || color == Color.FromRgb(22, 163, 74)) return 2;
+            if (color == Color.FromRgb(37, 99, 235)) return 3;
+            if (color == Colors.Yellow) return 4;
+            if (color == Colors.White) return 5;
+            if (color == Color.FromRgb(147, 51, 234)) return 6;
+            if (color == Color.FromRgb(251, 150, 80)) return 8;
+            return -1;
         }
 
         /// <summary>
@@ -4371,17 +4437,39 @@ namespace Ink_Canvas
         /// 更新快速调色盘的选中指示器，根据当前选中的颜色显示对应的勾选图标
         /// </summary>
         /// <param name="selectedColor">当前选中的颜色</param>
-        private void UpdateQuickColorPaletteIndicator(Color selectedColor)
+        /// <summary>
+        /// 按墨水颜色索引刷新快捷调色盘的勾选（0 黑、1 红、2 绿、3 蓝、4 黄、5 白、6 紫/粉、7 青、8 橙）。
+        /// 与按 RGB 匹配相比不受主题化颜色替换影响，白板/黑板模式下都能稳定命中色块。
+        /// </summary>
+        private void UpdateQuickColorPaletteIndicatorByIndex(int index)
         {
             var qcp = QuickColorPalette;
-            if (qcp == null)
+            if (qcp != null) qcp.SetCheckedByIndex(index);
+
+            var qcpBoard = BoardQuickColorPalette;
+            if (qcpBoard != null && !ReferenceEquals(qcpBoard, qcp)) qcpBoard.SetCheckedByIndex(index);
+        }
+
+        private void UpdateQuickColorPaletteIndicator(Color selectedColor)
+        {
+            int tolerance = (penType == 1) ? 25 : 15;
+
+            // 浮动栏调色盘在白板模式下可能不存在，不能因此跳过白板工具栏内嵌调色盘，
+            // 否则白板模式下的颜色勾选会停留在上一次刷新的状态（下排色块始终没有勾）。
+            var qcp = QuickColorPalette;
+            if (qcp != null)
             {
-                return;
+                qcp.ClearAllChecked();
+                qcp.SetCheckedByColor(selectedColor, tolerance);
             }
 
-            int tolerance = (penType == 1) ? 25 : 15;
-            qcp.ClearAllChecked();
-            qcp.SetCheckedByColor(selectedColor, tolerance);
+            // 同步白板工具栏内嵌调色盘的勾选指示
+            var qcpBoard = BoardQuickColorPalette;
+            if (qcpBoard != null && !ReferenceEquals(qcpBoard, qcp))
+            {
+                qcpBoard.ClearAllChecked();
+                qcpBoard.SetCheckedByColor(selectedColor, tolerance);
+            }
         }
 
         /// <summary>
@@ -4792,6 +4880,8 @@ namespace Ink_Canvas
                     case 0: //屏幕模式
                         VideoPresenter_OnExitWhiteboardMode();
                         currentMode = 0;
+                        // 退出白板模式：关闭全部常驻覆盖层工具（圆规/三角板/直尺）
+                        HideAllOverlayTools();
 
                         // 退出白板的公共兜底：所有入口（浮动栏按钮、白板工具栏、热键、自动收纳、IPC）
                         // 都汇聚到这里，统一按当前放映状态重新评估翻页条可见性。
@@ -5058,6 +5148,8 @@ namespace Ink_Canvas
 
                 // 退出批注模式时的全屏还原
                 RestoreFullScreenOnExitAnnotationMode();
+                // 退出批注模式：关闭全部常驻覆盖层工具（圆规/三角板/直尺）
+                HideAllOverlayTools();
 
                 if (currentMode != 0)
                 {
@@ -6311,9 +6403,6 @@ namespace Ink_Canvas
 
             // Issue #285 更小批注栏：根据当前工具模式刷新迷你栏显示状态
             RefreshIdleMiniBarState();
-
-            // 液态玻璃浮动栏：同步选中态高亮
-            RefreshLiquidGlassBarActiveState();
 
             // 通知自动化系统：逻辑工具模式已变化。原生笔路径下物理 EditingMode 不变，
             // 触发器无法靠 EditingModeChanged 感知进/出批注，必须在此显式通知。

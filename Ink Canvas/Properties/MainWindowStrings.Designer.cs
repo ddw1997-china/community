@@ -52,6 +52,10 @@ namespace Ink_Canvas.Properties
 
         public static string Main_ContextDelete => ResourceManager.GetString(nameof(Main_ContextDelete), _resourceCulture);
 
+        public static string Main_ContextColor => ResourceManager.GetString(nameof(Main_ContextColor), _resourceCulture);
+
+        public static string Main_SelectionBarDragHint => ResourceManager.GetString(nameof(Main_SelectionBarDragHint), _resourceCulture);
+
         public static string Main_ContextZoom => ResourceManager.GetString(nameof(Main_ContextZoom), _resourceCulture);
 
         public static string Main_ContextPageTurn => ResourceManager.GetString(nameof(Main_ContextPageTurn), _resourceCulture);

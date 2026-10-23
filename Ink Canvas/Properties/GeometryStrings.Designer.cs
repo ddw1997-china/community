@@ -54,6 +54,8 @@ namespace Ink_Canvas.Properties
 
         public static string DrawCone => ResourceManager.GetString(nameof(DrawCone), _resourceCulture);
 
+        public static string DrawCompass => ResourceManager.GetString(nameof(DrawCompass), _resourceCulture);
+
         public static string DrawCoordinate1 => ResourceManager.GetString(nameof(DrawCoordinate1), _resourceCulture);
 
         public static string DrawCoordinate2 => ResourceManager.GetString(nameof(DrawCoordinate2), _resourceCulture);
@@ -74,7 +76,7 @@ namespace Ink_Canvas.Properties
 
         public static string DrawHyperbola => ResourceManager.GetString(nameof(DrawHyperbola), _resourceCulture);
 
-        public static string DrawHyperbolaWithFocal => ResourceManager.GetString(nameof(DrawHyperbolaWithFocal), _resourceCulture);
+        public static string DrawBezier => ResourceManager.GetString(nameof(DrawBezier), _resourceCulture);
 
         public static string DrawLine => ResourceManager.GetString(nameof(DrawLine), _resourceCulture);
 
@@ -87,6 +89,12 @@ namespace Ink_Canvas.Properties
         public static string DrawParallelLines => ResourceManager.GetString(nameof(DrawParallelLines), _resourceCulture);
 
         public static string DrawSquare => ResourceManager.GetString(nameof(DrawSquare), _resourceCulture);
+
+        public static string DrawTriangleRuler => ResourceManager.GetString(nameof(DrawTriangleRuler), _resourceCulture);
+
+        public static string DrawTriangleRuler2 => ResourceManager.GetString(nameof(DrawTriangleRuler2), _resourceCulture);
+
+        public static string DrawStraightRuler => ResourceManager.GetString(nameof(DrawStraightRuler), _resourceCulture);
 
         public static string Title => ResourceManager.GetString(nameof(Title), _resourceCulture);
     }

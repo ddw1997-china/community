@@ -59,16 +59,6 @@ namespace Ink_Canvas
         private HwndSource _clipboardHwndSource;
 
         /// <summary>
-        /// 最后一次粘贴通知时间
-        /// </summary>
-        private DateTime _lastPasteNotificationTime = DateTime.MinValue;
-
-        /// <summary>
-        /// 粘贴通知防抖时间（秒）
-        /// </summary>
-        private const int PasteNotificationDebounceSeconds = 4;
-
-        /// <summary>
         /// 启用并初始化对系统剪贴板变更的监控，确保窗口消息钩子在可用时安装并订阅剪贴板更新事件。
         /// </summary>
         /// <remarks>
@@ -180,44 +170,10 @@ namespace Ink_Canvas
         }
 
         /// <summary>
-        /// 在进入白板时检查系统剪贴板是否包含图片；如果存在图片且与上次提示间隔超过预设节流时间，则显示粘贴提示。
+        /// 进入白板时检查系统剪贴板是否包含图片并提示用户可粘贴（消息通知功能已移除，保留兼容入口）。
         /// </summary>
         public void CheckClipboardImageAndShowPasteNotificationWhenEnteringBoard()
         {
-            try
-            {
-                if (!Clipboard.ContainsImage())
-                    return;
-
-                bool debounceElapsed = (DateTime.Now - _lastPasteNotificationTime).TotalSeconds >= PasteNotificationDebounceSeconds;
-                if (!debounceElapsed)
-                    return;
-
-                _lastPasteNotificationTime = DateTime.Now;
-                ShowPasteNotification();
-            }
-            catch (Exception ex)
-            {
-                LogHelper.WriteLogToFile($"进入白板时检测剪贴板失败: {ex.Message}", LogHelper.LogType.Error);
-            }
-        }
-
-        /// <summary>
-        /// 在界面上显示提示，告知用户剪贴板中存在图片并可在白板上右键粘贴。
-        /// </summary>
-        private void ShowPasteNotification()
-        {
-            Dispatcher.BeginInvoke(new Action(() =>
-            {
-                try
-                {
-                    ShowNotification(Properties.MainWindowStrings.Main_Clipboard_ImageDetected);
-                }
-                catch (Exception ex)
-                {
-                    LogHelper.WriteLogToFile($"显示粘贴提示失败: {ex.Message}", LogHelper.LogType.Error);
-                }
-            }), DispatcherPriority.Normal);
         }
 
         /// <summary>
@@ -269,7 +225,6 @@ namespace Ink_Canvas
         /// - 绑定事件处理器
         /// - 提交到历史记录
         /// - 插入图片后切换到选择模式并刷新浮动栏高光显示
-        /// - 显示通知
         /// - 包含异常处理
         /// </remarks>
         private Task PasteImageFromClipboard(Point? position = null)
@@ -279,14 +234,12 @@ namespace Ink_Canvas
             {
                 if (!Clipboard.ContainsImage())
                 {
-                    ShowNotification(Properties.MainWindowStrings.Main_Clipboard_NoImage);
                     return Task.CompletedTask;
                 }
 
                 var clipboardImage = Clipboard.GetImage();
                 if (clipboardImage == null)
                 {
-                    ShowNotification(Properties.MainWindowStrings.Main_Clipboard_CannotGetImage);
                     return Task.CompletedTask;
                 }
 
@@ -379,12 +332,9 @@ namespace Ink_Canvas
                 SetCurrentToolMode(InkCanvasEditingMode.Select);
                 UpdateCurrentToolMode("select");
                 HideSubPanels("select");
-
-                ShowNotification(Properties.MainWindowStrings.Main_Clipboard_ImagePasted);
             }
             catch (Exception ex)
             {
-                ShowNotification(string.Format(Properties.MainWindowStrings.Main_Clipboard_PasteFailed, ex.Message));
                 LogHelper.WriteLogToFile($"粘贴图片失败: {ex.Message}", LogHelper.LogType.Error);
             }
             return Task.CompletedTask;

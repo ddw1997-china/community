@@ -148,9 +148,44 @@ namespace Ink_Canvas
         //[DllImport("shell32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         //private static extern int SetCurrentProcessExplicitAppUserModelID(string appId);
 
+        // 托盘图标（mylogo.ico）缓存：所有窗口共用同一 ImageSource，避免重复解码。
+        private static ImageSource _trayWindowIcon;
+
+        /// <summary>
+        /// 窗口类级处理器：任何 Window 加载时，把其标题栏/任务栏图标统一设为托盘图标（mylogo.ico）。
+        /// </summary>
+        private static void ApplyTrayIconToWindow(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                if (!(sender is Window win)) return;
+                if (_trayWindowIcon == null)
+                {
+                    _trayWindowIcon = new System.Windows.Media.Imaging.BitmapImage(
+                        new Uri("pack://application:,,,/Resources/mylogo.ico"));
+                }
+                win.Icon = _trayWindowIcon;
+            }
+            catch
+            {
+            }
+        }
+
         public App()
         {
             System.Windows.Forms.Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
+
+            // 统一所有窗口（含各对话框）的图标为托盘图标；用类级处理器，对之后新建的窗口同样生效。
+            try
+            {
+                EventManager.RegisterClassHandler(
+                    typeof(Window),
+                    FrameworkElement.LoadedEvent,
+                    new RoutedEventHandler(ApplyTrayIconToWindow));
+            }
+            catch
+            {
+            }
 
             // 注意：此处显式禁用 Switch.System.Windows.Input.Stylus.EnablePointerSupport。
             // 启用该开关会让 WPF 使用 WM_POINTER 触摸栈，导致 DragMove() 和 DoDragDrop()
@@ -272,7 +307,6 @@ namespace Ink_Canvas
                 (typeof(Plugins.IEventService),           _pluginEventService),
                 (typeof(Plugins.ISettingsService),        new Plugins.SettingsService()),
                 (typeof(Plugins.IHotkeyService),          new Plugins.HotkeyService(mainWindow.GlobalHotkeyManagerInstance)),
-                (typeof(Plugins.INotificationService),    new Plugins.NotificationService(mainWindow)),
                 (typeof(Plugins.IFileAssociationService),      new Plugins.FileAssociationService()),
                 (typeof(Plugins.IWindowOverviewService),        new Plugins.WindowOverviewService(mainWindow.WindowOverviewModel)),
                 (typeof(Plugins.ICanvasCompositionService),      new Plugins.CanvasCompositionService(mainWindow)),
@@ -286,7 +320,6 @@ namespace Ink_Canvas
                 (typeof(Plugins.IClipboardService),       new Plugins.ClipboardService()),
                 (typeof(Plugins.IAppInfoService),         new Plugins.AppInfoService()),
                 (typeof(Plugins.IScreenInfoService),      new Plugins.ScreenInfoService()),
-                (typeof(Plugins.IUpdateService),          new Plugins.UpdateService()),
                 (typeof(Plugins.IConfigProfileService),   new Plugins.ConfigProfileService()),
                 (typeof(Plugins.IQuoteService),           new Plugins.QuoteService(mainWindow)),
                 (typeof(Plugins.INameRosterService),      new Plugins.NameRosterService()),
@@ -296,7 +329,6 @@ namespace Ink_Canvas
                 (typeof(Plugins.IBackupService),          new Plugins.BackupService()),
                 (typeof(Plugins.IFileDialogService),      new Plugins.FileDialogService(mainWindow)),
                 (typeof(Plugins.IThemeService),           new Plugins.ThemeService()),
-                (typeof(Plugins.IAnnouncementService),    new Plugins.AnnouncementService()),
                 (typeof(Plugins.ICanvasAppearanceService),       new Plugins.CanvasAppearanceService(mainWindow)),
                 (typeof(Plugins.IFocusInteractionService),       new Plugins.FocusInteractionService(mainWindow)),
                 (typeof(Plugins.ICanvasLayerService),            new Plugins.CanvasLayerService(mainWindow)),
@@ -993,7 +1025,6 @@ namespace Ink_Canvas
                 }
             }
 
-            Ink_Canvas.MainWindow.ShowNewMessage(MainWindowStrings.Main_App_UnexpectedError);
             LogHelper.NewLog(e.Exception.ToString());
 
             // 记录到崩溃日志
@@ -1027,12 +1058,10 @@ namespace Ink_Canvas
         private TaskbarIcon _taskbar;
 
         /// <summary>
-        /// 处理应用启动流程：根据命令行与设置显示启动画面、初始化组件与遥测、处理更新相关逻辑、单实例检查并在必要时通过 IPC 与已运行实例通信，最终创建并显示主窗口并启动文件关联与 IPC 监听器。
+        /// 处理应用启动流程：根据命令行与设置显示启动画面、初始化组件与遥测、单实例检查并在必要时通过 IPC 与已运行实例通信，最终创建并显示主窗口并启动文件关联与 IPC 监听器。
         /// </summary>
         /// <param name="sender">事件的发送者（通常为 Application 对象）。</param>
         /// <param name="e">启动事件参数；其 Args 可包含控制启动流程的标志，例如:
-        /// - "--final-app"：表示这是更新后的最终应用启动（会清理更新标记等）
-        /// - "--update-mode"：表示以更新模式启动（跳过主窗口显示）
         /// - "--board"：直接进入白板模式
         /// - "--show"：退出收纳模式并恢复浮动栏
         /// - "--skip-mutex-check"：跳过单实例互斥检查
@@ -1115,8 +1144,7 @@ namespace Ink_Canvas
             AppVersion = versionString;
             LogHelper.NewLog(string.Format("Ink Canvas Starting (Version: {0})", versionString));
 
-            // 检查是否为最终应用启动（更新后的应用）
-            bool isFinalApp = e.Args.Contains("--final-app");
+            // 检查是否跳过单实例互斥检查
             bool skipMutexCheck = e.Args.Contains("--skip-mutex-check");
 
             // 检查是否通过--board参数启动
@@ -1135,12 +1163,6 @@ namespace Ink_Canvas
                 LogHelper.WriteLogToFile("App | 检测到--show参数，将退出收纳模式并恢复浮动栏");
             }
 
-            // 记录最终应用启动状态
-            if (isFinalApp)
-            {
-                LogHelper.WriteLogToFile("App | 检测到最终应用启动（更新后的应用）");
-            }
-
 
             if (_isSplashScreenShown)
             {
@@ -1152,152 +1174,14 @@ namespace Ink_Canvas
                 }
             }
 
-            // 处理更新模式启动
-            bool isUpdateMode = AutoUpdateHelper.HandleUpdateModeStartup(e.Args);
-
             // 配置已加载后再启动看门狗，避免使用默认的 CrashAction 覆盖用户设置。
-            if (!isUpdateMode && !isFinalApp && CrashAction == CrashActionType.SilentRestart)
+            if (CrashAction == CrashActionType.SilentRestart)
             {
                 StartWatchdogIfNeeded();
             }
 
-            // 如果是更新模式，不显示主窗口但保持应用运行
-            if (isUpdateMode)
-            {
-                LogHelper.WriteLogToFile("App | 检测到更新模式，跳过主窗口显示，保持应用运行");
-                return;
-            }
-
-            // 检查是否存在更新标记文件
-            string updateMarkerFile = Path.Combine(RootPath, "update_in_progress.tmp");
-            bool isUpdateInProgress = false;
-
-            // 如果是最终应用启动，立即清理更新标记文件
-            if (isFinalApp)
-            {
-                try
-                {
-                    if (File.Exists(updateMarkerFile))
-                    {
-                        File.Delete(updateMarkerFile);
-                        LogHelper.WriteLogToFile("App | 最终应用启动，清理更新标记文件");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    LogHelper.WriteLogToFile($"App | 清理更新标记文件失败: {ex.Message}", LogHelper.LogType.Warning);
-                }
-
-                _ = Task.Run(async () =>
-                {
-                    try
-                    {
-                        await Task.Delay(3000);
-                        LogHelper.WriteLogToFile("App | 最终应用启动，删除AutoUpdate文件夹");
-                        AutoUpdateHelper.DeleteUpdatesFolder();
-                    }
-                    catch (Exception ex)
-                    {
-                        LogHelper.WriteLogToFile($"App | 删除AutoUpdate文件夹失败: {ex.Message}", LogHelper.LogType.Warning);
-                    }
-                });
-            }
-
-            // 如果不是最终应用启动，才检查更新标记文件
-            if (!isFinalApp && File.Exists(updateMarkerFile))
-            {
-                try
-                {
-                    string updateProcessIdStr = File.ReadAllText(updateMarkerFile).Trim();
-                    if (int.TryParse(updateProcessIdStr, out int updateProcessId))
-                    {
-                        LogHelper.WriteLogToFile($"App | 检测到更新标记文件，更新进程ID: {updateProcessId}");
-
-                        // 检查更新进程是否还在运行
-                        try
-                        {
-                            Process updateProcess = Process.GetProcessById(updateProcessId);
-                            if (!updateProcess.HasExited)
-                            {
-                                LogHelper.WriteLogToFile("App | 更新进程仍在运行，等待更新完成");
-                                isUpdateInProgress = true;
-
-                                // 等待更新进程完成
-                                int waitCount = 0;
-                                const int maxWaitCount = 10; // 减少等待时间到10秒
-
-                                while (waitCount < maxWaitCount && !updateProcess.HasExited)
-                                {
-                                    Thread.Sleep(500); // 减少等待间隔到500ms
-                                    waitCount++;
-                                    LogHelper.WriteLogToFile($"App | 等待更新进程完成... ({waitCount}/{maxWaitCount})");
-                                }
-
-                                if (updateProcess.HasExited)
-                                {
-                                    LogHelper.WriteLogToFile("App | 更新进程已结束");
-                                }
-                                else
-                                {
-                                    LogHelper.WriteLogToFile("App | 等待更新进程超时，强制清理", LogHelper.LogType.Warning);
-                                    // 超时后强制清理标记文件
-                                    try
-                                    {
-                                        if (File.Exists(updateMarkerFile))
-                                        {
-                                            File.Delete(updateMarkerFile);
-                                            LogHelper.WriteLogToFile("App | 强制清理更新标记文件");
-                                        }
-                                    }
-                                    catch (Exception ex)
-                                    {
-                                        LogHelper.WriteLogToFile($"App | 强制清理更新标记文件失败: {ex.Message}", LogHelper.LogType.Warning);
-                                    }
-                                }
-                            }
-                            else
-                            {
-                                LogHelper.WriteLogToFile("App | 更新进程已结束");
-                            }
-                        }
-                        catch (ArgumentException)
-                        {
-                            LogHelper.WriteLogToFile("App | 更新进程已不存在");
-                        }
-
-                        // 无论更新进程是否还在运行，都清理标记文件
-                        try
-                        {
-                            if (File.Exists(updateMarkerFile))
-                            {
-                                File.Delete(updateMarkerFile);
-                                LogHelper.WriteLogToFile("App | 清理更新标记文件");
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            LogHelper.WriteLogToFile($"App | 清理更新标记文件失败: {ex.Message}", LogHelper.LogType.Warning);
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    LogHelper.WriteLogToFile($"App | 读取更新标记文件失败: {ex.Message}", LogHelper.LogType.Warning);
-                    // 如果读取失败，也尝试删除标记文件
-                    try
-                    {
-                        if (File.Exists(updateMarkerFile))
-                        {
-                            File.Delete(updateMarkerFile);
-                            LogHelper.WriteLogToFile("App | 清理损坏的更新标记文件");
-                        }
-                    }
-                    catch (Exception innerEx) { System.Diagnostics.Debug.WriteLine(innerEx); }
-                }
-            }
-
-            // 如果是更新过程、更新模式、最终应用或跳过Mutex检查，跳过Mutex检查
-            if (!isUpdateInProgress && !isUpdateMode && !isFinalApp && !skipMutexCheck)
+            // 单实例互斥检查
+            if (!skipMutexCheck)
             {
                 bool ret;
                 mutex = new Mutex(true, "InkCanvasForClass CE", out ret);
@@ -1406,26 +1290,10 @@ namespace Ink_Canvas
             }
             else
             {
-                if (isUpdateMode)
-                {
-                    LogHelper.WriteLogToFile("App | 更新模式启动，跳过重复运行检测");
-                }
-                else if (isFinalApp)
-                {
-                    LogHelper.WriteLogToFile("App | 最终应用启动，跳过重复运行检测");
-                }
-                else if (skipMutexCheck)
-                {
-                    LogHelper.WriteLogToFile("App | 跳过Mutex检查模式启动，跳过重复运行检测");
-                }
-                else
-                {
-                    LogHelper.WriteLogToFile("App | 更新过程中，跳过重复运行检测");
-                }
+                LogHelper.WriteLogToFile("App | 跳过Mutex检查模式启动，跳过重复运行检测");
 
                 // 在特殊模式下，创建一个临时的Mutex以避免其他检查出错
-                string mutexName = isFinalApp ? "InkCanvasForClass CE Final" : "InkCanvasForClass CE Update";
-                mutex = new Mutex(true, mutexName, out bool tempRet);
+                mutex = new Mutex(true, "InkCanvasForClass CE Update", out bool tempRet);
 
                 // 默认模式沿用 1.7.19.4 的等待时序；优化模式保留当前短等待。
                 await Task.Delay(IsDefaultStartupMode ? 1000 : 100);
@@ -1441,7 +1309,7 @@ namespace Ink_Canvas
             if (!string.IsNullOrEmpty(PendingPluginFilePath))
                 LogHelper.WriteLogToFile($"App | 检测到插件文件关联启动，待插件加载后打开: {PendingPluginFilePath}", LogHelper.LogType.Event);
 
-            // 在非更新模式下创建主窗口
+            // 创建主窗口
             if (_isSplashScreenShown)
             {
                 SetSplashMessage("正在初始化主界面...");

@@ -146,12 +146,10 @@ SecurityVerdict verdict = host.EvaluateTrust(packagePath, expectedSha256, declar
 | `IInkEffectService` | 墨迹特效（笔迹发光等） |
 | `ICanvasCompositionService` | 画布合成：导出 PNG / 插入图片 / 粘贴剪贴板图 |
 
-### 通知 / 消息
+### 名言
 
 | 接口 | 能力 |
 |------|------|
-| `INotificationService` | 应用内通知（`NotificationLevel`：Info/Warning/Error，可带点击回调 `Action`） |
-| `IAnnouncementService` | 公告中心（映射 `AnnouncementCenterItem`） |
 | `IQuoteService` | 名言（白板一言）轮换 |
 
 ### 系统 / 环境
@@ -188,7 +186,6 @@ SecurityVerdict verdict = host.EvaluateTrust(packagePath, expectedSha256, declar
 | `IScreenshotService` | 截图 |
 | `ICameraService` | 摄像头 |
 | `INameRosterService` | 花名册 |
-| `IUpdateService` | 应用更新（`PluginUpdateChannel`） |
 | `IEventService` | 宿主事件订阅（`TopMostChanged`/`AppExiting`/`CanvasInkChanged` 等） |
 | `IPluginCanvasGestureHandler` | 画布手势处理（作为接口由宿主识别并回调） |
 
@@ -216,7 +213,7 @@ uri.OpenUri("icc://settings/CanvasPage?key=inkFadeSpeedMultiplier");
 
 - 开关：`Settings.Advanced.IsEnableUriScheme`（默认关闭），关闭时直接拒绝并写 Warning
 - `icc://plugin/<pluginId>/<subPath>` → `HandlePluginUriNavigation` → `PluginManager.Instance.TryDispatchUri(pluginId, subPath, uri)`
-- 未处理（插件未注册/未加载/处理器返回 false）仅写日志，不弹通知
+- 未处理（插件未注册/未加载/处理器返回 false）仅写日志
 - 处理器与 `OpenUri` 均在 **UI 线程**执行，可安全操作画布/窗口
 
 ## 文件关联（自定义扩展名）

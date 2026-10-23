@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <root>
   <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
     <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
@@ -194,6 +194,15 @@
   </data>
   <data name="Canvas_ShowCircleCenter" xml:space="preserve">
     <value>开挂级找圆心</value>
+  </data>
+  <data name="Canvas_ParabolaSingleStroke" xml:space="preserve">
+    <value>抛物线缝合怪</value>
+  </data>
+<data name="Canvas_CompassDraw" xml:space="preserve">
+    <value>移动搞起</value>
+  </data>
+  <data name="Canvas_CompassStop" xml:space="preserve">
+    <value>画线收工</value>
   </data>
   <data name="Canvas_ShowCoordinateUnitMarks" xml:space="preserve">
     <value>数学老师狂喜</value>

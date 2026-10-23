@@ -1663,10 +1663,10 @@
                                              "NewKey":  "Automation_KeepFoldAfterExitHint",
                                              "Group":  "AutomationStrings"
                                          },
-    "Geometry_DrawHyperbolaWithFocal":  {
-                                            "NewKey":  "DrawHyperbolaWithFocal",
-                                            "Group":  "GeometryStrings"
-                                        },
+    "Geometry_DrawBezier":  {
+                               "NewKey":  "DrawBezier",
+                               "Group":  "GeometryStrings"
+                           },
     "SilentUpdate_TimeRange":  {
                                    "NewKey":  "SilentUpdate_TimeRange",
                                    "Group":  "StartupStrings"

@@ -311,12 +311,6 @@ namespace Ink_Canvas
                 // 记录日志
                 LogHelper.WriteLogToFile($"拦截窗口: {e.WindowTitle} ({e.InterceptType})", LogHelper.LogType.Event);
 
-                // 显示通知（如果启用）
-                if (_settings != null && _settings.ShowNotifications)
-                {
-                    ShowNotification($"已拦截悬浮窗: {e.Rule.Description}");
-                }
-
                 // 触发事件
                 WindowIntercepted?.Invoke(this, e);
             }
@@ -339,20 +333,6 @@ namespace Ink_Canvas
             catch (Exception ex)
             {
                 LogHelper.WriteLogToFile($"处理窗口恢复事件失败: {ex.Message}", LogHelper.LogType.Error);
-            }
-        }
-
-        private void ShowNotification(string message)
-        {
-            try
-            {
-                // 这里可以集成系统通知或自定义通知
-                // 暂时使用调试输出
-                System.Diagnostics.Debug.WriteLine($"通知: {message}");
-            }
-            catch (Exception ex)
-            {
-                LogHelper.WriteLogToFile($"显示通知失败: {ex.Message}", LogHelper.LogType.Error);
             }
         }
 

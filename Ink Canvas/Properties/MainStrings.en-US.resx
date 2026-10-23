@@ -43,7 +43,7 @@
   <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
   <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
   <data name="Main_Tray_HideWindow" xml:space="preserve">
-    <value>Hide ICC-CE Main Window</value>
+    <value>Hide ppt助手 Main Window</value>
   </data>
   <data name="Main_Tray_ShowWindow" xml:space="preserve">
     <value>Show Main Window (2 min)</value>

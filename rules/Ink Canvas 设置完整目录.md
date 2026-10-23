@@ -236,54 +236,6 @@
 │   └── TextBlock "记住上次页面"
 │       ├── LabeledSettingsCard: 记住上次页面 → ToggleSwitch
 │       ├── LabeledSettingsCard: 重新进入时跳到第一页 → ToggleSwitch
-│       ├── LabeledSettingsCard: 通知隐藏页面 → ToggleSwitch
-│       └── LabeledSettingsCard: 通知自动播放 → ToggleSwitch
-├── 更新
-│   ├── 状态横幅（当前版本/更新状态）
-│   └── TabControl
-│       ├── Tab: 更新日志
-│       │   └── MarkdownScrollViewer
-│       ├── Tab: 更新设置
-│       │   ├── TextBlock "自动更新"
-│       │   │   ├── LabeledSettingsCard: 自动更新 → ToggleSwitch
-│       │   │   ├── LabeledSettingsCard: 静默更新 → ToggleSwitch（自动更新开时可见）
-│       │   │   ├── LabeledSettingsCard: 智能更新 → ToggleSwitch
-│       │   │   └── SettingsExpander: 静默更新时间范围（静默更新开则展开）
-│       │   │       ├── SettingsCard: 时间范围设置 → ComboBox × 2
-│       │   │       └── SettingsCard: 时间段说明
-│       │   ├── TextBlock "更新通道"
-│       │   │   ├── SettingsCard: 更新通道 → ComboBox
-│       │   │   └── SettingsCard: 更新包架构 → ComboBox
-│       │   └── TextBlock "维护"
-│       │       └── SettingsCard: 版本修复 → Button
-│       └── Tab: 历史版本
-│           ├── SettingsCard: 选择版本 → ComboBox
-│           ├── MarkdownScrollViewer
-│           └── Button: 回滚到此版本
-├── 通知
-│   ├── 通知设置
-│   │   ├── TextBlock "通知"
-│   │   │   ├── LabeledSettingsCard: 启用公告 → ToggleSwitch
-│   │   │   ├── LabeledSettingsCard: 启用强制弹窗 → ToggleSwitch
-│   │   │   ├── LabeledSettingsCard: 启用动态 → ToggleSwitch
-│   │   │   ├── LabeledSettingsCard: 启用 Windows 通知 → ToggleSwitch
-│   │   │   └── SettingsExpander: 听写免打扰 → ToggleSwitch（开则展开）
-│   │   │       ├── SettingsCard: PPT 模式免打扰 → CheckBox
-│   │   │       └── SettingsCard: 白板模式免打扰 → CheckBox
-│   │   ├── TextBlock "通知提供商"
-│   │   │   ├── SettingsCard: 通知提供商管理 → Button
-│   │   │   └── ItemsControl: 提供商列表（动态）
-│   │   ├── TextBlock "行为"
-│   │   │   ├── SettingsCard: 通知位置 → ComboBox
-│   │   │   ├── SettingsCard: 动画模式 → ComboBox
-│   │   │   ├── SettingsCard: 更新通知持续时间 → Slider
-│   │   │   ├── SettingsCard: 紧急通知持续时间 → Slider
-│   │   │   ├── SettingsCard: 重要通知持续时间 → Slider
-│   │   │   ├── SettingsCard: 提醒通知持续时间 → Slider
-│   │   │   └── SettingsCard: 其他通知持续时间 → Slider
-│   │   └── TextBlock "操作"
-│   │       └── SettingsCard: 测试通知 → Button
-│   └── 公告中心
 ├── 实验性
 │   └── TextBlock "无"
 │       ├── LabeledSettingsCard: 全屏辅助 → ToggleSwitch
@@ -306,11 +258,9 @@
 │   │       │   └── SettingsCard: 自定义文件说明
 │   │       ├── SettingsExpander: 插件（默认展开）
 │   │       │   └── SettingsCard: 插件说明
-│   │       ├── SettingsCard: 自动更新 → TextBlock + Button: 清理
 │   │       └── SettingsCard: 其他 → TextBlock
 │   └── 备份与还原
 │       └── TextBlock "无"
-│           ├── LabeledSettingsCard: 更新前自动备份 → ToggleSwitch
 │           ├── SettingsExpander: 定期自动备份 → ToggleSwitch（开则展开）
 │           │   └── SettingsCard: 备份间隔 → ComboBox
 │           └── SettingsExpander: 手动操作（默认展开）

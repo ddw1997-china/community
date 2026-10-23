@@ -128,8 +128,8 @@ namespace Ink_Canvas.Plugins
         }
 
         /// <summary>
-        /// 移除列表中携带插件委托的元素。覆盖通知历史 <c>List&lt;NotificationMessage&gt;</c>
-        /// 这类「数据对象里挂着 Action 回调」的结构。
+        /// 移除列表中携带插件委托的元素，
+        /// 覆盖「数据对象里挂着 Action 回调」的结构。
         /// </summary>
         private static int SweepListField(object target, FieldInfo field, AssemblyLoadContext context)
         {
@@ -215,8 +215,7 @@ namespace Ink_Canvas.Plugins
 
         /// <summary>
         /// 摘除静态事件上的插件订阅。宿主有若干 <c>static event</c>
-        /// （如 <see cref="Ink_Canvas.Helpers.NotificationCenterService.NotificationRequested"/>、
-        /// <c>ClipboardNotification.ClipboardUpdate</c>），插件经服务包装订阅后同样会钉住 ALC，
+        /// （如 <c>ClipboardNotification.ClipboardUpdate</c>），插件经服务包装订阅后同样会钉住 ALC，
         /// 而静态字段不属于任何实例，实例扫描覆盖不到。
         /// </summary>
         public static int SweepStaticEvents(Type type, AssemblyLoadContext context)

@@ -47,7 +47,6 @@ namespace Ink_Canvas
         private List<System.Windows.Controls.Canvas> whiteboardPages = new List<System.Windows.Controls.Canvas>();
         private int currentPageIndex;
         private System.Windows.Controls.Canvas currentCanvas;
-        internal AutoUpdateHelper.UpdateLineGroup AvailableLatestLineGroup;
 
         // 全局快捷键管理器
         private GlobalHotkeyManager _globalHotkeyManager;
@@ -60,8 +59,6 @@ namespace Ink_Canvas
         private InkFadeManager _inkFadeManager;
         // 暴露给插件墨迹特效服务的入口（未初始化时为 null）
         internal InkFadeManager InkFadeManagerInstance => _inkFadeManager;
-        private readonly CancellationTokenSource _notificationProviderCancellation = new CancellationTokenSource();
-        private AnnouncementService _announcementService;
 
         // 悬浮窗拦截管理器
         public FloatingWindowInterceptorManager _floatingWindowInterceptorManager;
@@ -244,6 +241,14 @@ namespace Ink_Canvas
             content.GSlider.ValueChanged += BackgroundGSlider_ValueChanged;
             content.BSlider.ValueChanged += BackgroundBSlider_ValueChanged;
             content.ApplyBtn.Click += ApplyBackgroundColorBtn_Click;
+            content.GridLinesCheckBoxControl.Checked += GridLinesCheckBox_Checked;
+            content.GridLinesCheckBoxControl.Unchecked += GridLinesCheckBox_Unchecked;
+            content.GridDensitySliderControl.ValueChanged += GridDensitySlider_ValueChanged;
+            content.GridBrightnessSliderControl.ValueChanged += GridBrightnessSlider_ValueChanged;
+            content.GridHorizontalLinesCheckBoxControl.Checked += GridHorizontalLinesCheckBox_Checked;
+            content.GridHorizontalLinesCheckBoxControl.Unchecked += GridHorizontalLinesCheckBox_Unchecked;
+            content.GridVerticalLinesCheckBoxControl.Checked += GridVerticalLinesCheckBox_Checked;
+            content.GridVerticalLinesCheckBoxControl.Unchecked += GridVerticalLinesCheckBox_Unchecked;
             content.CloseButtonControl.Click += CloseBordertools_Click;
         }
 
@@ -255,37 +260,37 @@ namespace Ink_Canvas
             var content = BoardShapeDrawPopupContent;
             if (content == null) return;
 
-            content.DrawLineBtn.ButtonMouseDown += Image_MouseDown;
-            content.DrawLineBtn.ButtonMouseUp += BtnDrawLine_Click;
-            content.DrawDashedLineBtn.ButtonMouseDown += Image_MouseDown;
-            content.DrawDashedLineBtn.ButtonMouseUp += BtnDrawDashedLine_Click;
-            content.DrawDotLineBtn.ButtonMouseDown += Image_MouseDown;
-            content.DrawDotLineBtn.ButtonMouseUp += BtnDrawDotLine_Click;
-            content.DrawArrowBtn.ButtonMouseDown += Image_MouseDown;
-            content.DrawArrowBtn.ButtonMouseUp += BtnDrawArrow_Click;
-            content.DrawParallelLineBtn.ButtonMouseDown += Image_MouseDown;
-            content.DrawParallelLineBtn.ButtonMouseUp += BtnDrawParallelLine_Click;
-            content.DrawRectangleCenterBtn.ButtonMouseUp += BtnDrawRectangleCenter_Click;
-            content.DrawCircleBtn.ButtonMouseUp += BtnDrawCircle_Click;
-            content.DrawDashedCircleBtn.ButtonMouseUp += BtnDrawDashedCircle_Click;
-            content.DrawEllipseCenterBtn.ButtonMouseUp += BtnDrawCenterEllipse_Click;
-            content.DrawEllipseCenterWithFocalPointBtn.ButtonMouseUp += BtnDrawCenterEllipseWithFocalPoint_Click;
-            content.DrawCuboidBtn.ButtonMouseUp += BtnDrawCuboid_Click;
-            content.DrawRectangleBtn.ButtonMouseUp += BtnDrawRectangle_Click;
-            content.DrawCylinderBtn.ButtonMouseUp += BtnDrawCylinder_Click;
-            content.DrawConeBtn.ButtonMouseUp += BtnDrawCone_Click;
-            content.DrawCoordinate1Btn.ButtonMouseUp += BtnDrawCoordinate1_Click;
-            content.DrawCoordinate2Btn.ButtonMouseUp += BtnDrawCoordinate2_Click;
-            content.DrawCoordinate3Btn.ButtonMouseUp += BtnDrawCoordinate3_Click;
-            content.DrawCoordinate4Btn.ButtonMouseUp += BtnDrawCoordinate4_Click;
-            content.DrawCoordinate5Btn.ButtonMouseUp += BtnDrawCoordinate5_Click;
-            content.DrawHyperbolaBtn.ButtonMouseUp += BtnDrawHyperbola_Click;
-            content.DrawHyperbolaWithFocalPointBtn.ButtonMouseUp += BtnDrawHyperbolaWithFocalPoint_Click;
-            content.DrawParabola1Btn.ButtonMouseUp += BtnDrawParabola1_Click;
-            content.DrawParabolaWithFocalPointBtn.ButtonMouseUp += BtnDrawParabolaWithFocalPoint_Click;
-            content.DrawParabola2Btn.ButtonMouseUp += BtnDrawParabola2_Click;
+            content.DrawLineBtn.ButtonMouseUp += GeometryButton_Click;
+            content.DrawDashedLineBtn.ButtonMouseUp += GeometryButton_Click;
+            content.DrawDotLineBtn.ButtonMouseUp += GeometryButton_Click;
+            content.DrawArrowBtn.ButtonMouseUp += GeometryButton_Click;
+            content.DrawParallelLineBtn.ButtonMouseUp += GeometryButton_Click;
+            content.DrawRectangleCenterBtn.ButtonMouseUp += GeometryButton_Click;
+            content.DrawCircleBtn.ButtonMouseUp += GeometryButton_Click;
+            content.DrawDashedCircleBtn.ButtonMouseUp += GeometryButton_Click;
+            content.DrawEllipseCenterBtn.ButtonMouseUp += GeometryButton_Click;
+            content.DrawEllipseCenterWithFocalPointBtn.ButtonMouseUp += GeometryButton_Click;
+            content.DrawCuboidBtn.ButtonMouseUp += GeometryButton_Click;
+            content.DrawRectangleBtn.ButtonMouseUp += GeometryButton_Click;
+            content.DrawCylinderBtn.ButtonMouseUp += GeometryButton_Click;
+            content.DrawConeBtn.ButtonMouseUp += GeometryButton_Click;
+            content.DrawCoordinate1Btn.ButtonMouseUp += GeometryButton_Click;
+            content.DrawCoordinate2Btn.ButtonMouseUp += GeometryButton_Click;
+            content.DrawCoordinate3Btn.ButtonMouseUp += GeometryButton_Click;
+            content.DrawCoordinate4Btn.ButtonMouseUp += GeometryButton_Click;
+            content.DrawCoordinate5Btn.ButtonMouseUp += GeometryButton_Click;
+            content.DrawHyperbolaBtn.ButtonMouseUp += GeometryButton_Click;
+            content.DrawBezierBtn.ButtonMouseUp += GeometryButton_Click;
+            content.DrawParabola1Btn.ButtonMouseUp += GeometryButton_Click;
+            content.DrawParabolaWithFocalPointBtn.ButtonMouseUp += GeometryButton_Click;
+            content.DrawParabola2Btn.ButtonMouseUp += GeometryButton_Click;
+            content.DrawCompassBtn.ButtonMouseUp += GeometryButton_Click;
+            content.DrawTriangleRulerBtn.ButtonMouseUp += GeometryButton_Click;
+            content.DrawTriangleRuler2Btn.ButtonMouseUp += GeometryButton_Click;
+            content.DrawStraightRulerBtn.ButtonMouseUp += GeometryButton_Click;
             content.CloseButtonControl.Click += CloseBordertools_Click;
             content.ShowCircleCenterToggle.Toggled += ToggleSwitchShowCircleCenter_Toggled;
+            content.ParabolaSingleStrokeToggle.Toggled += ToggleSwitchParabolaSingleStroke_Toggled;
         }
 
         private bool _penPaletteEventsWired;
@@ -424,37 +429,37 @@ namespace Ink_Canvas
             var content = ShapeDrawPopupContent;
             if (content == null) return;
 
-            content.DrawLineBtn.ButtonMouseDown += Image_MouseDown;
-            content.DrawLineBtn.ButtonMouseUp += BtnDrawLine_Click;
-            content.DrawDashedLineBtn.ButtonMouseDown += Image_MouseDown;
-            content.DrawDashedLineBtn.ButtonMouseUp += BtnDrawDashedLine_Click;
-            content.DrawDotLineBtn.ButtonMouseDown += Image_MouseDown;
-            content.DrawDotLineBtn.ButtonMouseUp += BtnDrawDotLine_Click;
-            content.DrawArrowBtn.ButtonMouseDown += Image_MouseDown;
-            content.DrawArrowBtn.ButtonMouseUp += BtnDrawArrow_Click;
-            content.DrawParallelLineBtn.ButtonMouseDown += Image_MouseDown;
-            content.DrawParallelLineBtn.ButtonMouseUp += BtnDrawParallelLine_Click;
-            content.DrawRectangleCenterBtn.ButtonMouseUp += BtnDrawRectangleCenter_Click;
-            content.DrawCircleBtn.ButtonMouseUp += BtnDrawCircle_Click;
-            content.DrawDashedCircleBtn.ButtonMouseUp += BtnDrawDashedCircle_Click;
-            content.DrawEllipseCenterBtn.ButtonMouseUp += BtnDrawCenterEllipse_Click;
-            content.DrawEllipseCenterWithFocalPointBtn.ButtonMouseUp += BtnDrawCenterEllipseWithFocalPoint_Click;
-            content.DrawCuboidBtn.ButtonMouseUp += BtnDrawCuboid_Click;
-            content.DrawRectangleBtn.ButtonMouseUp += BtnDrawRectangle_Click;
-            content.DrawCylinderBtn.ButtonMouseUp += BtnDrawCylinder_Click;
-            content.DrawConeBtn.ButtonMouseUp += BtnDrawCone_Click;
-            content.DrawCoordinate1Btn.ButtonMouseUp += BtnDrawCoordinate1_Click;
-            content.DrawCoordinate2Btn.ButtonMouseUp += BtnDrawCoordinate2_Click;
-            content.DrawCoordinate3Btn.ButtonMouseUp += BtnDrawCoordinate3_Click;
-            content.DrawCoordinate4Btn.ButtonMouseUp += BtnDrawCoordinate4_Click;
-            content.DrawCoordinate5Btn.ButtonMouseUp += BtnDrawCoordinate5_Click;
-            content.DrawHyperbolaBtn.ButtonMouseUp += BtnDrawHyperbola_Click;
-            content.DrawHyperbolaWithFocalPointBtn.ButtonMouseUp += BtnDrawHyperbolaWithFocalPoint_Click;
-            content.DrawParabola1Btn.ButtonMouseUp += BtnDrawParabola1_Click;
-            content.DrawParabolaWithFocalPointBtn.ButtonMouseUp += BtnDrawParabolaWithFocalPoint_Click;
-            content.DrawParabola2Btn.ButtonMouseUp += BtnDrawParabola2_Click;
+            content.DrawLineBtn.ButtonMouseUp += GeometryButton_Click;
+            content.DrawDashedLineBtn.ButtonMouseUp += GeometryButton_Click;
+            content.DrawDotLineBtn.ButtonMouseUp += GeometryButton_Click;
+            content.DrawArrowBtn.ButtonMouseUp += GeometryButton_Click;
+            content.DrawParallelLineBtn.ButtonMouseUp += GeometryButton_Click;
+            content.DrawRectangleCenterBtn.ButtonMouseUp += GeometryButton_Click;
+            content.DrawCircleBtn.ButtonMouseUp += GeometryButton_Click;
+            content.DrawDashedCircleBtn.ButtonMouseUp += GeometryButton_Click;
+            content.DrawEllipseCenterBtn.ButtonMouseUp += GeometryButton_Click;
+            content.DrawEllipseCenterWithFocalPointBtn.ButtonMouseUp += GeometryButton_Click;
+            content.DrawCuboidBtn.ButtonMouseUp += GeometryButton_Click;
+            content.DrawRectangleBtn.ButtonMouseUp += GeometryButton_Click;
+            content.DrawCylinderBtn.ButtonMouseUp += GeometryButton_Click;
+            content.DrawConeBtn.ButtonMouseUp += GeometryButton_Click;
+            content.DrawCoordinate1Btn.ButtonMouseUp += GeometryButton_Click;
+            content.DrawCoordinate2Btn.ButtonMouseUp += GeometryButton_Click;
+            content.DrawCoordinate3Btn.ButtonMouseUp += GeometryButton_Click;
+            content.DrawCoordinate4Btn.ButtonMouseUp += GeometryButton_Click;
+            content.DrawCoordinate5Btn.ButtonMouseUp += GeometryButton_Click;
+            content.DrawHyperbolaBtn.ButtonMouseUp += GeometryButton_Click;
+            content.DrawBezierBtn.ButtonMouseUp += GeometryButton_Click;
+            content.DrawParabola1Btn.ButtonMouseUp += GeometryButton_Click;
+            content.DrawParabolaWithFocalPointBtn.ButtonMouseUp += GeometryButton_Click;
+            content.DrawParabola2Btn.ButtonMouseUp += GeometryButton_Click;
+            content.DrawCompassBtn.ButtonMouseUp += GeometryButton_Click;
+            content.DrawTriangleRulerBtn.ButtonMouseUp += GeometryButton_Click;
+            content.DrawTriangleRuler2Btn.ButtonMouseUp += GeometryButton_Click;
+            content.DrawStraightRulerBtn.ButtonMouseUp += GeometryButton_Click;
             content.CloseButtonControl.Click += CloseBordertools_Click;
             content.ShowCircleCenterToggle.Toggled += ToggleSwitchShowCircleCenter_Toggled;
+            content.ParabolaSingleStrokeToggle.Toggled += ToggleSwitchParabolaSingleStroke_Toggled;
         }
 
         private bool _boothPopupEventsWired;
@@ -892,7 +897,7 @@ namespace Ink_Canvas
                     SaveSettingsToFile();
                 }
 
-                LoadSettings(false, skipAutoUpdateCheck: true);
+                LoadSettings(false);
 
                 if (ViewboxFloatingBar != null && currentMode == 0)
                 {
@@ -1453,6 +1458,15 @@ namespace Ink_Canvas
             FloatingBarThemeService.ApplySavedTheme();
         }
 
+        /// <summary>
+        /// 应用或移除彩色浮动栏背景（蓝绿半透明渐变），供 SettingsActionHub 切换开关时实时调用。
+        /// </summary>
+        internal void ApplyColorfulFloatingBar()
+        {
+            FloatingBarThemeService ??= new FloatingBarThemeService(this);
+            FloatingBarThemeService.ApplyColorfulOverlay();
+        }
+
         public void UpdateInkSmoothingConfig()
         {
             _inkSmoothingManager?.UpdateConfig();
@@ -1489,7 +1503,6 @@ namespace Ink_Canvas
         public string _lastAppliedProfileName;
         private bool isLoaded;
         private bool forcePointEraser;
-        private bool _pendingStartupAutoUpdateCheck;
         private bool _sliderTouchSupportInitialized;
         private bool _deferredPhaseBCompleted;
 
@@ -1531,7 +1544,7 @@ namespace Ink_Canvas
             // 默认模式沿用 1.7.19.4：通知与自动化在 Window_Loaded 中初始化。
             if (App.IsDefaultStartupMode)
             {
-                InitializeNotificationAndAutomationForStartup();
+                InitializeAutomationForStartup();
             }
 
             // 启动时根据设置恢复调试控制台显示状态
@@ -1555,7 +1568,8 @@ namespace Ink_Canvas
                     SetTheme("Dark");
                     break;
                 case 2: // 跟随系统
-                    if (ThemeHelper.IsSystemThemeLight())
+                    _lastFollowedSystemThemeLight = ThemeHelper.IsSystemThemeLight();
+                    if (_lastFollowedSystemThemeLight.Value)
                     {
                         ThemeManager.Current.ApplicationTheme = ApplicationTheme.Light;
                         SetTheme("Light");
@@ -1616,9 +1630,6 @@ namespace Ink_Canvas
 
             // 显示快抽悬浮按钮
             ShowQuickDrawFloatingButton();
-
-            // 液态玻璃浮动栏：延迟到首帧之后再起，避免启动瞬间截到自己的窗口
-            Dispatcher.BeginInvoke(new Action(RestoreLiquidGlassBarOnStartup), DispatcherPriority.ContextIdle);
 
             // 如果当前不是黑板模式，则切换到黑板模式
             if (currentMode == 0)
@@ -1708,7 +1719,6 @@ namespace Ink_Canvas
         private void SystemEventsOnDisplaySettingsChanged(object sender, EventArgs e)
         {
             if (!Settings.Advanced.IsEnableResolutionChangeDetection) return;
-            ShowNotification(string.Format(Properties.MainWindowStrings.Main_DisplayChanged, Screen.PrimaryScreen.Bounds.Width, Screen.PrimaryScreen.Bounds.Height));
             HandleFloatingBarRecovery();
         }
 
@@ -1716,8 +1726,6 @@ namespace Ink_Canvas
         {
             if (e.OldDpi.DpiScaleX != e.NewDpi.DpiScaleX && e.OldDpi.DpiScaleY != e.NewDpi.DpiScaleY && Settings.Advanced.IsEnableDPIChangeDetection)
             {
-                ShowNotification(string.Format(Properties.MainWindowStrings.Main_DPIChanged, e.OldDpi.DpiScaleX, e.OldDpi.DpiScaleY, e.NewDpi.DpiScaleX, e.NewDpi.DpiScaleY));
-
                 HandleFloatingBarRecovery();
             }
         }
@@ -1918,8 +1926,6 @@ namespace Ink_Canvas
         {
             if (Settings.Advanced.IsEnableForceFullScreen)
             {
-                if (isLoaded) ShowNotification(
-                    $"检测到窗口大小变化，已自动恢复到全屏：{Screen.PrimaryScreen.Bounds.Width}x{Screen.PrimaryScreen.Bounds.Height}（缩放比例为{Screen.PrimaryScreen.Bounds.Width / SystemParameters.PrimaryScreenWidth}x{Screen.PrimaryScreen.Bounds.Height / SystemParameters.PrimaryScreenHeight}）");
                 WindowState = WindowState.Maximized;
                 MoveWindow(new WindowInteropHelper(this).Handle, 0, 0,
                     Screen.PrimaryScreen.Bounds.Width,
@@ -1937,8 +1943,8 @@ namespace Ink_Canvas
         {
             RealtimeInkFrameScheduler.Clear();
             SystemEvents.DisplaySettingsChanged -= SystemEventsOnDisplaySettingsChanged;
-            // 玻璃浮动栏刻意不设 Owner，必须显式关闭，否则残留窗口会挡住进程退出
-            HideLiquidGlassBar();
+            SystemEvents.UserPreferenceChanged -= SystemEvents_UserPreferenceChanged;
+            _systemThemeRetryTimer?.Stop();
 
             try
             {
@@ -2010,236 +2016,9 @@ namespace Ink_Canvas
 
             LogHelper.WriteLogToFile("Ink Canvas closed", LogHelper.LogType.Event);
 
-            // 检查是否有待安装的更新
-            CheckPendingUpdates();
-
             if (_exitApplicationRequested && Application.Current != null)
             {
                 Application.Current.Shutdown();
-            }
-        }
-
-        private void CheckPendingUpdates()
-        {
-            try
-            {
-                // 如果有可用的更新版本且启用了自动更新
-                if (AvailableLatestVersion != null && Settings.Startup.IsAutoUpdate)
-                {
-                    // 检查更新文件是否已下载
-                    string statusFilePath = AutoUpdateHelper.GetUpdateDownloadStatusFilePath(AvailableLatestVersion);
-
-                    if (File.Exists(statusFilePath) && File.ReadAllText(statusFilePath).Trim().ToLower() == "true")
-                    {
-                        LogHelper.WriteLogToFile($"AutoUpdate | Installing pending update v{AvailableLatestVersion} on application close");
-
-                        // 设置为用户主动退出，避免被看门狗判定为崩溃
-                        App.IsAppExitByUser = true;
-
-                        // 创建批处理脚本并启动，软件关闭后会执行更新操作
-                        AutoUpdateHelper.InstallNewVersionApp(AvailableLatestVersion, true);
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                LogHelper.WriteLogToFile($"AutoUpdate | Error checking pending updates: {ex.Message}", LogHelper.LogType.Error);
-            }
-        }
-
-        // 使用多线路组下载更新
-        internal async Task<bool> DownloadUpdateWithFallback(string version, AutoUpdateHelper.UpdateLineGroup primaryGroup, UpdateChannel channel)
-        {
-            try
-            {
-                // 如果主要线路组可用，直接使用
-                if (primaryGroup != null)
-                {
-                    LogHelper.WriteLogToFile($"AutoUpdate | 使用主要线路组下载: {primaryGroup.GroupName}");
-                    return await AutoUpdateHelper.DownloadSetupFile(version, primaryGroup);
-                }
-
-                // 如果主要线路组不可用，获取所有可用线路组
-                LogHelper.WriteLogToFile("AutoUpdate | 主要线路组不可用，获取所有可用线路组");
-                var availableGroups = await AutoUpdateHelper.GetAvailableLineGroupsOrdered(channel);
-                if (availableGroups.Count == 0)
-                {
-                    LogHelper.WriteLogToFile("AutoUpdate | 没有可用的线路组", LogHelper.LogType.Error);
-                    return false;
-                }
-
-                LogHelper.WriteLogToFile($"AutoUpdate | 使用 {availableGroups.Count} 个可用线路组进行下载");
-                return await AutoUpdateHelper.DownloadSetupFileWithFallback(version, availableGroups);
-            }
-            catch (Exception ex)
-            {
-                LogHelper.WriteLogToFile($"AutoUpdate | 下载更新时出错: {ex.Message}", LogHelper.LogType.Error);
-                return false;
-            }
-        }
-
-        public async void AutoUpdate()
-        {
-            try
-            {
-                if (!string.IsNullOrEmpty(Settings.Startup.AutoUpdatePauseUntilDate))
-                {
-                    if (DateTime.TryParse(Settings.Startup.AutoUpdatePauseUntilDate, out DateTime pauseUntilDate))
-                    {
-                        if (DateTime.Now < pauseUntilDate)
-                        {
-                            LogHelper.WriteLogToFile($"AutoUpdate | 自动更新已暂停，直到 {pauseUntilDate:yyyy-MM-dd}");
-                            return;
-                        }
-                        else
-                        {
-                            LogHelper.WriteLogToFile($"AutoUpdate | 暂停期已过，恢复自动更新检查");
-                            Settings.Startup.AutoUpdatePauseUntilDate = "";
-                            try { await Dispatcher.InvokeAsync(() => SaveSettingsToFile()); } catch (TaskCanceledException) { } catch (ObjectDisposedException) { }
-                        }
-                    }
-                }
-
-                // 清除之前的更新状态，确保使用新通道重新检查
-                AvailableLatestVersion = null;
-                AvailableLatestLineGroup = null;
-                AvailableLatestReleaseNotes = null;
-
-                // 使用当前选择的更新通道检查更新
-                var (remoteVersion, lineGroup, apiReleaseNotes) = await AutoUpdateHelper.CheckForUpdates(Settings.Startup.UpdateChannel);
-                AvailableLatestVersion = remoteVersion;
-                AvailableLatestLineGroup = lineGroup;
-                AvailableLatestReleaseNotes = apiReleaseNotes;
-
-                // 声明下载状态变量，用于整个方法
-                bool isDownloadSuccessful = false;
-
-                bool hasValidLineGroup = lineGroup != null;
-
-                if (AvailableLatestVersion != null)
-                {
-                    try
-                    {
-                        await Dispatcher.InvokeAsync(() =>
-                        {
-                            timerCheckAutoUpdateRetry.Stop();
-                            updateCheckRetryCount = 0;
-                        });
-                    }
-                    catch (TaskCanceledException) { }
-                    catch (ObjectDisposedException) { }
-
-                    // 检测到新版本
-                    LogHelper.WriteLogToFile($"AutoUpdate | New version available: {AvailableLatestVersion}");
-
-                    var updateMessage = new NotificationMessage
-                    {
-                        Id = "update-" + AvailableLatestVersion,
-                        Type = NotificationMessageType.Update,
-                        Level = NotificationMessageLevel.Normal,
-                        Title = NotificationStrings.UpdateTitle,
-                        Summary = string.Format(NotificationStrings.NewVersion, AvailableLatestVersion),
-                        Content = AvailableLatestReleaseNotes ?? string.Empty,
-                        Icon = "Update",
-                        ActionText = NotificationStrings.ViewDetails,
-                        DisplaySeconds = Settings?.Notification?.UpdateDurationSeconds > 0 ? Settings.Notification.UpdateDurationSeconds : 3,
-                        Source = "update",
-                        Action = () =>
-                        {
-                            try
-                            {
-                                var settingsWindow = new SettingsWindow();
-                                settingsWindow.Show();
-                                settingsWindow.NavigateToPage("UpdatePage");
-                            }
-                            catch (Exception ex)
-                            {
-                                LogHelper.WriteLogToFile($"打开更新设置页失败: {ex.Message}", LogHelper.LogType.Warning);
-                            }
-                        }
-                    };
-
-                    NotificationCenterService.Enqueue(updateMessage);
-
-                    // 检查是否是用户选择跳过的版本
-                    if (!string.IsNullOrEmpty(Settings.Startup.SkippedVersion) &&
-                        Settings.Startup.SkippedVersion == AvailableLatestVersion)
-                    {
-                        LogHelper.WriteLogToFile($"AutoUpdate | Version {AvailableLatestVersion} was marked to be skipped by the user");
-                        return; // 跳过此版本，不执行更新操作
-                    }
-
-                    // 如果检测到的版本与跳过的版本不同，则清除跳过版本记录
-                    // 这确保用户只能跳过当前最新版本，而不是永久跳过所有更新
-                    if (!string.IsNullOrEmpty(Settings.Startup.SkippedVersion) &&
-                        Settings.Startup.SkippedVersion != AvailableLatestVersion)
-                    {
-                        LogHelper.WriteLogToFile($"AutoUpdate | Detected new version {AvailableLatestVersion} different from skipped version {Settings.Startup.SkippedVersion}, clearing skip record");
-                        Settings.Startup.SkippedVersion = "";
-                        try { await Dispatcher.InvokeAsync(() => SaveSettingsToFile()); } catch (TaskCanceledException) { } catch (ObjectDisposedException) { }
-                    }
-
-                    // 如果启用了静默更新，则自动下载更新而不显示提示
-                    if (Settings.Startup.IsAutoUpdateWithSilence)
-                    {
-                        LogHelper.WriteLogToFile("AutoUpdate | Silent update enabled, downloading update automatically without notification");
-
-                        // 静默下载更新，使用多线路组下载功能
-                        isDownloadSuccessful = await DownloadUpdateWithFallback(AvailableLatestVersion, AvailableLatestLineGroup, Settings.Startup.UpdateChannel);
-
-                        if (isDownloadSuccessful)
-                        {
-                            LogHelper.WriteLogToFile("AutoUpdate | Update downloaded successfully, will install when conditions are met");
-
-                            // 启动检查定时器，定期检查是否可以安装
-                            try { await Dispatcher.InvokeAsync(() => timerCheckAutoUpdateWithSilence.Start()); } catch (TaskCanceledException) { } catch (ObjectDisposedException) { }
-                        }
-                        else
-                        {
-                            LogHelper.WriteLogToFile("AutoUpdate | Silent update download failed", LogHelper.LogType.Error);
-                        }
-
-                        return;
-                    }
-
-                    // 如果没有启用静默更新，则记录日志并依赖 Toast 通知用户。
-                    // 用户可在 设置 → 更新 中查看版本说明并选择更新方式。
-                    LogHelper.WriteLogToFile(
-                        $"AutoUpdate | New version {AvailableLatestVersion} available; user notified via toast, will act from settings page.");
-                }
-                else if (hasValidLineGroup)
-                {
-                    LogHelper.WriteLogToFile("AutoUpdate | Current version is already the latest, no retry needed");
-
-                    try
-                    {
-                        await Dispatcher.InvokeAsync(() =>
-                        {
-                            timerCheckAutoUpdateRetry.Stop();
-                            updateCheckRetryCount = 0;
-                        });
-                    }
-                    catch (TaskCanceledException) { }
-                    catch (ObjectDisposedException) { }
-                }
-                else
-                {
-                    // 检查更新失败，启动重试定时器
-                    LogHelper.WriteLogToFile("AutoUpdate | Update check failed, starting retry timer");
-
-                    // 重置重试计数
-                    updateCheckRetryCount = 0;
-
-                    // 启动重试定时器，10分钟后重新检查
-                    try { await Dispatcher.InvokeAsync(() => timerCheckAutoUpdateRetry.Start()); } catch (TaskCanceledException) { } catch (ObjectDisposedException) { }
-
-                    // 清理更新文件夹
-                    AutoUpdateHelper.DeleteUpdatesFolder();
-                }
-            }
-            catch (Exception ex)
-            {
-                LogHelper.WriteLogToFile($"AutoUpdate | Error in AutoUpdate: {ex.Message}", LogHelper.LogType.Error);
             }
         }
 
@@ -2685,17 +2464,8 @@ namespace Ink_Canvas
             _popupManager?.OnOwnerActivated();
         }
 
-        private void InitializeNotificationAndAutomationForStartup()
+        private void InitializeAutomationForStartup()
         {
-            try
-            {
-                InitializeNotificationProviders();
-            }
-            catch (Exception ex)
-            {
-                LogHelper.WriteLogToFile($"[MainWindow] 初始化通知提供商时出错: {ex.Message}", LogHelper.LogType.Error);
-            }
-
             try
             {
                 AutomationBootstrap.Initialize();
@@ -2776,7 +2546,7 @@ namespace Ink_Canvas
 
             if (!App.IsDefaultStartupMode)
             {
-                InitializeNotificationAndAutomationForStartup();
+                InitializeAutomationForStartup();
             }
 
             // 后移的非首屏初始化
@@ -2893,17 +2663,6 @@ namespace Ink_Canvas
             if (Settings.PowerPointSettings.EnablePowerPointEnhancement)
             {
                 StartPowerPointProcessMonitoring();
-            }
-
-            if (_pendingStartupAutoUpdateCheck && Settings.Startup?.IsAutoUpdate == true)
-            {
-                _pendingStartupAutoUpdateCheck = false;
-                await Task.Delay(8000);
-                _ = Dispatcher.BeginInvoke(new Action(() =>
-                {
-                    LogHelper.WriteLogToFile("AutoUpdate | Running deferred auto-update check at UI idle");
-                    _ = Task.Run(() => AutoUpdate());
-                }), DispatcherPriority.ApplicationIdle);
             }
         }
 
@@ -3123,6 +2882,21 @@ namespace Ink_Canvas
             catch (Exception ex)
             {
                 LogHelper.WriteLogToFile($"切换圆心显示时出错: {ex.Message}", LogHelper.LogType.Error);
+            }
+        }
+
+        private void ToggleSwitchParabolaSingleStroke_Toggled(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var toggle = sender as ToggleSwitch;
+                if (toggle == null) return;
+                Settings.Canvas.ParabolaSingleStroke = toggle.IsOn;
+                SaveSettingsToFile();
+            }
+            catch (Exception ex)
+            {
+                LogHelper.WriteLogToFile($"切换抛物线一笔绘制时出错: {ex.Message}", LogHelper.LogType.Error);
             }
         }
 
@@ -3400,12 +3174,10 @@ namespace Ink_Canvas
                         {
                             // 打开文件
                             OpenSingleStrokeFile(icstkFile);
-                            ShowNotification(string.Format(Properties.MainWindowStrings.Main_StrokesFileLoaded, Path.GetFileName(icstkFile)));
                         }
                         catch (Exception ex)
                         {
                             LogHelper.WriteLogToFile($"打开命令行参数中的文件失败: {ex.Message}", LogHelper.LogType.Error);
-                            ShowNotification(Properties.MainWindowStrings.Main_StrokesFileOpenFailed);
                         }
                     }), DispatcherPriority.Loaded);
                 }
@@ -3607,14 +3379,19 @@ namespace Ink_Canvas
         {
             try
             {
+                // 手动切换主题时基线失效，运行时系统深浅色切换需要重新建立
+                _lastFollowedSystemThemeLight = null;
+
                 switch (themeIndex)
                 {
                     case 0: // 浅色主题
+                        ThemeManager.Current.ApplicationTheme = ApplicationTheme.Light;
                         SetTheme("Light", true);
                         // 浅色主题下设置浮动栏为完全不透明
                         ViewboxFloatingBar.Opacity = 1.0;
                         break;
                     case 1: // 深色主题
+                        ThemeManager.Current.ApplicationTheme = ApplicationTheme.Dark;
                         SetTheme("Dark", true);
                         // 深色主题下设置浮动栏为完全不透明
                         ViewboxFloatingBar.Opacity = 1.0;
@@ -3622,46 +3399,22 @@ namespace Ink_Canvas
                     case 2: // 跟随系统
                         if (ThemeHelper.IsSystemThemeLight())
                         {
+                            ThemeManager.Current.ApplicationTheme = ApplicationTheme.Light;
                             SetTheme("Light", true);
                             ViewboxFloatingBar.Opacity = 1.0;
                         }
                         else
                         {
+                            ThemeManager.Current.ApplicationTheme = ApplicationTheme.Dark;
                             SetTheme("Dark", true);
                             ViewboxFloatingBar.Opacity = 1.0;
                         }
                         break;
                 }
-
-                // 强制刷新通知框的颜色资源
-                RefreshNotificationColors();
             }
             catch (Exception ex)
             {
                 LogHelper.WriteLogToFile($"应用主题时出错: {ex.Message}", LogHelper.LogType.Error);
-            }
-        }
-
-        /// <summary>
-        /// 刷新通知框的颜色资源
-        /// </summary>
-        private void RefreshNotificationColors()
-        {
-            try
-            {
-                // 强制刷新通知框的背景和前景色
-                var border = GridNotifications.Children.OfType<Border>().FirstOrDefault();
-                if (border != null)
-                {
-                    border.Background = (Brush)Application.Current.FindResource("SettingsPageBackground");
-                    border.BorderBrush = new SolidColorBrush(Color.FromRgb(185, 28, 28)); // 保持红色边框
-                }
-
-                TextBlockNotice.Foreground = (Brush)Application.Current.FindResource("SettingsPageForeground");
-            }
-            catch (Exception ex)
-            {
-                LogHelper.WriteLogToFile($"刷新通知框颜色时出错: {ex.Message}", LogHelper.LogType.Error);
             }
         }
 

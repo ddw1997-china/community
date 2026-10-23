@@ -91,23 +91,78 @@ namespace Ink_Canvas.Controls
             }
         }
 
+        /// <summary>用户最后点击的色块，用于颜色匹配失败时兜底显示勾选。</summary>
+        private ColorPickerButton _lastClickedButton;
+
+        private ColorPickerButton[] AllColorButtons => new[]
+        {
+            QuickColorBlack, QuickColorWhite, QuickColorRed, QuickColorOrange,
+            QuickColorYellow, QuickColorGreen, QuickColorBlue, QuickColorPurple,
+            QuickColorBlackSingle, QuickColorWhiteSingle, QuickColorRedSingle,
+            QuickColorOrangeSingle, QuickColorYellowSingle, QuickColorGreenSingle
+        };
+
         public void ClearAllChecked()
         {
-            QuickColorWhite.IsChecked = false;
-            QuickColorOrange.IsChecked = false;
-            QuickColorYellow.IsChecked = false;
-            QuickColorBlack.IsChecked = false;
-            QuickColorBlue.IsChecked = false;
-            QuickColorRed.IsChecked = false;
-            QuickColorGreen.IsChecked = false;
-            QuickColorPurple.IsChecked = false;
+            foreach (var button in AllColorButtons)
+            {
+                if (button != null) button.IsChecked = false;
+            }
+        }
 
-            QuickColorWhiteSingle.IsChecked = false;
-            QuickColorOrangeSingle.IsChecked = false;
-            QuickColorYellowSingle.IsChecked = false;
-            QuickColorBlackSingle.IsChecked = false;
-            QuickColorRedSingle.IsChecked = false;
-            QuickColorGreenSingle.IsChecked = false;
+        private bool IsAnyChecked()
+        {
+            foreach (var button in AllColorButtons)
+            {
+                if (button != null && button.IsChecked) return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// 按墨水颜色索引（0 黑、1 红、2 绿、3 蓝、4 黄、5 白、6 紫/粉、7 青、8 橙）更新勾选。
+        /// 颜色索引是画笔状态的权威来源，可避开主题化 RGB 与预设色不完全一致导致的匹配失败。
+        /// </summary>
+        public void SetCheckedByIndex(int index)
+        {
+            ClearAllChecked();
+
+            switch (index)
+            {
+                case 0:
+                    QuickColorBlack.IsChecked = true;
+                    QuickColorBlackSingle.IsChecked = true;
+                    return;
+                case 1:
+                    QuickColorRed.IsChecked = true;
+                    QuickColorRedSingle.IsChecked = true;
+                    return;
+                case 2:
+                    QuickColorGreen.IsChecked = true;
+                    QuickColorGreenSingle.IsChecked = true;
+                    return;
+                case 3:
+                    QuickColorBlue.IsChecked = true;
+                    return;
+                case 4:
+                    QuickColorYellow.IsChecked = true;
+                    QuickColorYellowSingle.IsChecked = true;
+                    return;
+                case 5:
+                    QuickColorWhite.IsChecked = true;
+                    QuickColorWhiteSingle.IsChecked = true;
+                    return;
+                case 6:
+                    QuickColorPurple.IsChecked = true;
+                    return;
+                case 8:
+                    QuickColorOrange.IsChecked = true;
+                    QuickColorOrangeSingle.IsChecked = true;
+                    return;
+            }
+
+            // 索引没有对应色块（例如青色）时，退回用户最后点击的色块，避免一个勾都没有。
+            if (_lastClickedButton != null) _lastClickedButton.IsChecked = true;
         }
 
         public void SetCheckedByColor(Color color, int tolerance = 15)
@@ -160,6 +215,10 @@ namespace Ink_Canvas.Controls
             {
                 QuickColorPurple.IsChecked = true;
             }
+
+            // 主题化后的颜色可能落在所有预设之外，退回用户最后点击的色块，避免一个勾都没有。
+            if (!IsAnyChecked() && _lastClickedButton != null)
+                _lastClickedButton.IsChecked = true;
         }
 
         private static bool IsColorSimilar(Color c1, Color c2, int tolerance)
@@ -170,28 +229,40 @@ namespace Ink_Canvas.Controls
         }
 
         private void QuickColorBlack_Click(object sender, RoutedEventArgs e)
-            => RaiseEvent(new RoutedEventArgs(ColorClickedEvent, "Black"));
+            => SelectColor(sender, "Black");
 
         private void QuickColorWhite_Click(object sender, RoutedEventArgs e)
-            => RaiseEvent(new RoutedEventArgs(ColorClickedEvent, "White"));
+            => SelectColor(sender, "White");
 
         private void QuickColorRed_Click(object sender, RoutedEventArgs e)
-            => RaiseEvent(new RoutedEventArgs(ColorClickedEvent, "Red"));
+            => SelectColor(sender, "Red");
 
         private void QuickColorOrange_Click(object sender, RoutedEventArgs e)
-            => RaiseEvent(new RoutedEventArgs(ColorClickedEvent, "Orange"));
+            => SelectColor(sender, "Orange");
 
         private void QuickColorYellow_Click(object sender, RoutedEventArgs e)
-            => RaiseEvent(new RoutedEventArgs(ColorClickedEvent, "Yellow"));
+            => SelectColor(sender, "Yellow");
 
         private void QuickColorGreen_Click(object sender, RoutedEventArgs e)
-            => RaiseEvent(new RoutedEventArgs(ColorClickedEvent, "Green"));
+            => SelectColor(sender, "Green");
 
         private void QuickColorBlue_Click(object sender, RoutedEventArgs e)
-            => RaiseEvent(new RoutedEventArgs(ColorClickedEvent, "Blue"));
+            => SelectColor(sender, "Blue");
 
         private void QuickColorPurple_Click(object sender, RoutedEventArgs e)
-            => RaiseEvent(new RoutedEventArgs(ColorClickedEvent, "Purple"));
+            => SelectColor(sender, "Purple");
+
+        /// <summary>
+        /// 点击色块时先就地更新勾选，再抛出颜色事件。
+        /// 不依赖外部颜色状态刷新链路，避免上下两排色块出现「只有一排有勾」的问题。
+        /// </summary>
+        private void SelectColor(object sender, string colorName)
+        {
+            ClearAllChecked();
+            _lastClickedButton = sender as ColorPickerButton;
+            if (_lastClickedButton != null) _lastClickedButton.IsChecked = true;
+            RaiseEvent(new RoutedEventArgs(ColorClickedEvent, colorName));
+        }
 
         public void ApplyOrientation(bool isVertical)
         {

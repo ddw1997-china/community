@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <root>
   <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
     <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
@@ -67,6 +67,12 @@
   </data>
   <data name="Main_ContextDelete" xml:space="preserve">
     <value>删除</value>
+  </data>
+  <data name="Main_ContextColor" xml:space="preserve">
+    <value>颜色</value>
+  </data>
+  <data name="Main_SelectionBarDragHint" xml:space="preserve">
+    <value>拖动移动工具条</value>
   </data>
   <data name="Main_ContextZoom" xml:space="preserve">
     <value>缩放</value>

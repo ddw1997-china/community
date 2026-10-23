@@ -287,6 +287,36 @@ namespace Ink_Canvas
             }
             return null;
         }
+
+        /// <summary>
+        /// 白板工具栏内嵌的快捷调色盘（board.colorPalette 组件）
+        /// </summary>
+        private QuickColorPaletteControl _boardQuickColorPalette;
+
+        internal QuickColorPaletteControl BoardQuickColorPalette
+        {
+            get
+            {
+                if (_boardQuickColorPalette != null) return _boardQuickColorPalette;
+                _boardQuickColorPalette = FindView("board.colorPalette") as QuickColorPaletteControl;
+                return _boardQuickColorPalette;
+            }
+        }
+
+        /// <summary>
+        /// 白板工具栏构建调色盘组件时回写引用，供颜色指示器联动
+        /// </summary>
+        internal void SetBoardQuickColorPalette(QuickColorPaletteControl control)
+        {
+            _boardQuickColorPalette = control;
+
+            // 白板工具栏可能在颜色状态初始化之后才构建，这里补一次勾选同步，
+            // 保证新建的调色盘立刻反映当前画笔颜色。
+            if (control == null || inkCanvas == null) return;
+            int tolerance = (penType == 1) ? 25 : 15;
+            control.ClearAllChecked();
+            control.SetCheckedByColor(inkCanvas.DefaultDrawingAttributes.Color, tolerance);
+        }
         #endregion
 
         internal void InitializeToolbarPlugins()

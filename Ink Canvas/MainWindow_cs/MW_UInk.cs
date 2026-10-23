@@ -103,21 +103,9 @@ namespace Ink_Canvas
                     resources.Add((m.Path, src));
 
                 UInkSaveService.SaveFull(doc, path, resources);
-
-                if (newNotice)
-                {
-                    Task.Delay(100).ContinueWith(t =>
-                    {
-                        Dispatcher.Invoke(() =>
-                        {
-                            ShowNotification(string.Format(MainWindowStrings.Main_Strokes_SaveUInkSuccess, path));
-                        });
-                    });
-                }
             }
             catch (Exception ex)
             {
-                ShowNotification(MainWindowStrings.Main_Strokes_SaveUInkFailed);
                 LogHelper.WriteLogToFile($"UInk 保存失败 | {ex}", LogHelper.LogType.Error);
             }
         }
@@ -198,7 +186,6 @@ namespace Ink_Canvas
                 var doc = UInkReader.Load(path);
                 if (doc == null)
                 {
-                    ShowNotification(MainWindowStrings.Main_Strokes_UInkInvalid);
                     return;
                 }
 
@@ -220,7 +207,6 @@ namespace Ink_Canvas
                     var pages = UInkIccMapper.ToPages(doc, UInkConversion.BlockToStroke);
                     if (pages.Count == 0)
                     {
-                        ShowNotification(MainWindowStrings.Main_Strokes_UInkInvalid);
                         return;
                     }
 
@@ -248,8 +234,6 @@ namespace Ink_Canvas
                         RestoreUInkToWhiteboard(pages, extraMap, extractDir);
                     else
                         RestoreUInkToAnnotation(pages, extraMap, extractDir);
-
-                    ShowNotification(string.Format(MainWindowStrings.Main_Strokes_OpenUInkSuccess, pages.Count));
                 }
                 finally
                 {
@@ -261,7 +245,6 @@ namespace Ink_Canvas
             }
             catch (Exception ex)
             {
-                ShowNotification(MainWindowStrings.Main_Strokes_OpenFailed);
                 LogHelper.WriteLogToFile($"UInk 打开失败: {ex}", LogHelper.LogType.Error);
             }
         }

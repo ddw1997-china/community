@@ -135,6 +135,116 @@ namespace Ink_Canvas.Controls.Toolbar.BoardToolbar
         }
 
         /// <summary>
+        /// 将后加的内置组件 board.colorPalette 追加进当前激活配置（画笔按钮之后）。
+        /// 与插件 <see cref="EnsurePluginItemInActiveConfig"/> 同构：写入配置文件后，
+        /// 即使用户之后删除该组件也不会再被自动加回。
+        /// </summary>
+        public static void EnsureBuiltinColorPaletteInActiveConfig()
+        {
+            EnsureDefaultConfigExists();
+
+            var configName = SettingsManager.Settings?.BoardToolbarConfigName;
+            if (string.IsNullOrWhiteSpace(configName)) configName = "default";
+
+            var layout = LoadActiveConfig() ?? BoardToolbarLayoutSettings.CreateDefault();
+            layout.Areas ??= new List<BoardToolbarAreaEntry>();
+
+            if (FindComponent(layout.Areas, "board.colorPalette") != null) return;
+
+            var centerArea = layout.Areas.FirstOrDefault(a =>
+                string.Equals(a.Id, "center", StringComparison.OrdinalIgnoreCase));
+            if (centerArea == null) return; // 极端自定义配置：不强行注入
+            centerArea.Groups ??= new List<BoardToolbarGroupEntry>();
+
+            foreach (var group in centerArea.Groups)
+            {
+                group.Components ??= new List<BoardToolbarComponentEntry>();
+                var penIndex = group.Components.FindIndex(c =>
+                    string.Equals(c?.Id, "board.pen", StringComparison.OrdinalIgnoreCase));
+                if (penIndex < 0) continue;
+
+                group.Components.Insert(penIndex + 1, new BoardToolbarComponentEntry { Id = "board.colorPalette" });
+                SaveConfigFile(configName, layout);
+                LogHelper.WriteLogToFile(
+                    $"BoardToolbarRegistry: 已将内置组件 [board.colorPalette] 插入配置 [{configName}] 的画笔按钮之后",
+                    LogHelper.LogType.Info);
+                return;
+            }
+        }
+
+        /// <summary>
+        /// 将后加的内置组件 board.clear 追加进当前激活配置（撤销/重做按钮之后）。
+        /// 写入配置文件后即使用户之后删除该组件也不会再被自动加回。
+        /// </summary>
+        public static void EnsureBuiltinClearInActiveConfig()
+        {
+            EnsureDefaultConfigExists();
+
+            var configName = SettingsManager.Settings?.BoardToolbarConfigName;
+            if (string.IsNullOrWhiteSpace(configName)) configName = "default";
+
+            var layout = LoadActiveConfig() ?? BoardToolbarLayoutSettings.CreateDefault();
+            layout.Areas ??= new List<BoardToolbarAreaEntry>();
+
+            if (FindComponent(layout.Areas, "board.clear") != null) return;
+
+            var centerArea = layout.Areas.FirstOrDefault(a =>
+                string.Equals(a.Id, "center", StringComparison.OrdinalIgnoreCase));
+            if (centerArea == null) return; // 极端自定义配置：不强行注入
+            centerArea.Groups ??= new List<BoardToolbarGroupEntry>();
+
+            foreach (var group in centerArea.Groups)
+            {
+                group.Components ??= new List<BoardToolbarComponentEntry>();
+
+                var anchor = group.Components.FindIndex(c =>
+                    string.Equals(c?.Id, "board.redo", StringComparison.OrdinalIgnoreCase));
+                if (anchor < 0)
+                {
+                    anchor = group.Components.FindIndex(c =>
+                        string.Equals(c?.Id, "board.undo", StringComparison.OrdinalIgnoreCase));
+                }
+                if (anchor < 0) continue;
+
+                group.Components.Insert(anchor + 1, new BoardToolbarComponentEntry { Id = "board.clear" });
+                SaveConfigFile(configName, layout);
+                LogHelper.WriteLogToFile(
+                    $"BoardToolbarRegistry: 已将内置组件 [board.clear] 插入配置 [{configName}] 的撤销/重做按钮之后",
+                    LogHelper.LogType.Info);
+                return;
+            }
+
+            // 没有撤销/重做可参照时，追加到 center 第一个组的末尾
+            var firstGroup = centerArea.Groups.FirstOrDefault();
+            if (firstGroup == null)
+            {
+                firstGroup = new BoardToolbarGroupEntry { Id = "tools" };
+                centerArea.Groups.Add(firstGroup);
+            }
+            firstGroup.Components ??= new List<BoardToolbarComponentEntry>();
+            firstGroup.Components.Add(new BoardToolbarComponentEntry { Id = "board.clear" });
+            SaveConfigFile(configName, layout);
+            LogHelper.WriteLogToFile(
+                $"BoardToolbarRegistry: 已将内置组件 [board.clear] 追加到配置 [{configName}]",
+                LogHelper.LogType.Info);
+        }
+
+        private static BoardToolbarComponentEntry FindComponent(List<BoardToolbarAreaEntry> areas, string id)
+        {
+            foreach (var area in areas ?? new List<BoardToolbarAreaEntry>())
+            {
+                foreach (var group in area?.Groups ?? new List<BoardToolbarGroupEntry>())
+                {
+                    foreach (var component in group?.Components ?? new List<BoardToolbarComponentEntry>())
+                    {
+                        if (string.Equals(component?.Id, id, StringComparison.OrdinalIgnoreCase)) return component;
+                    }
+                }
+            }
+            return null;
+        }
+
+        /// <summary>
         /// 注销插件注册的白板工具栏组件，断开对插件程序集中委托的引用。语义同
         /// <see cref="FloatingToolbar.ToolbarRegistry.UnregisterPluginItem"/>：热重载必需，
         /// 且不动用户布局配置。

@@ -148,9 +148,6 @@ namespace Ink_Canvas.Windows.SettingsViews.Pages
             _suppressSave = false;
             RefreshLibraryList();
             SaveSettings();
-
-            var mw = Application.Current?.Windows.OfType<MainWindow>().FirstOrDefault();
-            mw?.ShowNotification(NavStrings.Menu_ResetDone);
         }
 
         #region Drag-drop

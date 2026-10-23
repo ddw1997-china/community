@@ -36,6 +36,28 @@
                      IsHitTestVisible="False" />
         </Grid>
 
+        <Grid x:Name="RotationCenterHandle"
+              Width="28" Height="28"
+              Background="Transparent"
+              Cursor="Cross"
+              ToolTip="旋转中心（可拖动）">
+            <Ellipse Width="18" Height="18"
+                     Fill="Transparent"
+                     Stroke="#F59E0B"
+                     StrokeThickness="1.5"
+                     StrokeDashArray="2 2"
+                     IsHitTestVisible="False" />
+            <Line X1="14" Y1="4" X2="14" Y2="24"
+                  Stroke="#F59E0B" StrokeThickness="1.2"
+                  IsHitTestVisible="False" />
+            <Line X1="4" Y1="14" X2="24" Y2="14"
+                  Stroke="#F59E0B" StrokeThickness="1.2"
+                  IsHitTestVisible="False" />
+            <Ellipse Width="6" Height="6"
+                     Fill="#F59E0B"
+                     IsHitTestVisible="False" />
+        </Grid>
+
         <Ellipse x:Name="TopLeftHandle"
                  Width="12" Height="12"
                  Fill="White"

@@ -522,7 +522,7 @@ namespace Ink_Canvas.Properties
             dict["Geometry_DrawDashedLine"] = ("GeometryStrings", "DrawDashedLine");
             dict["Geometry_DrawDottedLine"] = ("GeometryStrings", "DrawDottedLine");
             dict["Geometry_DrawHyperbola"] = ("GeometryStrings", "DrawHyperbola");
-            dict["Geometry_DrawHyperbolaWithFocal"] = ("GeometryStrings", "DrawHyperbolaWithFocal");
+            dict["Geometry_DrawBezier"] = ("GeometryStrings", "DrawBezier");
             dict["Geometry_DrawLine"] = ("GeometryStrings", "DrawLine");
             dict["Geometry_DrawParabola"] = ("GeometryStrings", "DrawParabola");
             dict["Geometry_DrawParabola2"] = ("GeometryStrings", "DrawParabola2");
@@ -1405,7 +1405,6 @@ namespace Ink_Canvas.Properties
                 HotkeyStrings.Culture = value;
                 AboutStrings.Culture = value;
                 AdvancedStrings.Culture = value;
-                AnnouncementStrings.Culture = value;
                 AutomationStrings.Culture = value;
                 BoothStrings.Culture = value;
                 BtnStrings.Culture = value;
@@ -1430,7 +1429,6 @@ namespace Ink_Canvas.Properties
                 StorageStrings.Culture = value;
                 ThemeStrings.Culture = value;
                 TimerStrings.Culture = value;
-                UpdateCenterPanelStrings.Culture = value;
                 UpdateStrings.Culture = value;
                 WindowStrings.Culture = value;
             }
@@ -1453,7 +1451,6 @@ namespace Ink_Canvas.Properties
             {
                 "AboutStrings" => AboutStrings.GetString(key),
                 "AdvancedStrings" => AdvancedStrings.GetString(key),
-                "AnnouncementStrings" => AnnouncementStrings.GetString(key),
                 "AutomationStrings" => AutomationStrings.GetString(key),
                 "BoothStrings" => BoothStrings.GetString(key),
                 "BtnStrings" => BtnStrings.GetString(key),
@@ -1478,7 +1475,6 @@ namespace Ink_Canvas.Properties
                 "StorageStrings" => StorageStrings.GetString(key),
                 "ThemeStrings" => ThemeStrings.GetString(key),
                 "TimerStrings" => TimerStrings.GetString(key),
-                "UpdateCenterPanelStrings" => UpdateCenterPanelStrings.GetString(key),
                 "UpdateStrings" => UpdateStrings.GetString(key),
                 "PerformanceStrings" => PerformanceStrings.GetString(key),
                 "WindowStrings" => WindowStrings.GetString(key),

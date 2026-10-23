@@ -87,8 +87,11 @@ namespace Ink_Canvas
                 // 使用集中化的工具模式切换方法
                 SetCurrentToolMode(InkCanvasEditingMode.Ink);
                 CancelSingleFingerDragMode();
-                CheckColorTheme();
             }
+
+            // 无论是否有待提交的笔迹属性历史，都要刷新颜色按钮/调色盘的勾选状态，
+            // 否则刚写过字后切换颜色时，颜色面板的选中标记会停留在上一次的颜色上。
+            CheckColorTheme();
 
             isLongPressSelected = false;
         }
@@ -630,9 +633,11 @@ namespace Ink_Canvas
             }
 
             // 更新快捷调色盘选择指示器
+            // 按颜色索引而不是 RGB 取色：白板/黑板模式会把预设色替换成主题色，
+            // RGB 与预设值不完全一致时「按颜色匹配」会全部落空，导致八个色块都没有勾。
             if (penType == 0)
             {
-                UpdateQuickColorPaletteIndicator(inkCanvas.DefaultDrawingAttributes.Color);
+                UpdateQuickColorPaletteIndicatorByIndex(inkColor);
             }
 
             // 更新浮动栏批注图标颜色

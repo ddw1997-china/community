@@ -38,7 +38,6 @@ namespace Ink_Canvas
 
         private bool _nativeWetInkStarted;
         private bool _nativeWetInkDisabled;
-        private bool _nativeWetInkDeviceFailureNotified;
         private long _nativeCoordinateGeneration = 1;
         private EventHandler _nativeWetInkLocationChangedHandler;
         private DependencyPropertyChangedEventHandler _nativeWetInkIsVisibleChangedHandler;
@@ -127,7 +126,7 @@ namespace Ink_Canvas
                 LogHelper.WriteLogToFile(
                     $"[WetInk] Failed to start native wet-ink pipeline: {ex}",
                     LogHelper.LogType.Error);
-                DisableNativeWetInkAfterFailure(ex, notify: true);
+                DisableNativeWetInkAfterFailure(ex);
             }
         }
 
@@ -834,8 +833,7 @@ namespace Ink_Canvas
             Dispatcher.BeginInvoke(new Action(() =>
             {
                 DisableNativeWetInkAfterFailure(
-                    new InvalidOperationException("Direct3D / DirectComposition device lost."),
-                    notify: true);
+                    new InvalidOperationException("Direct3D / DirectComposition device lost."));
             }), DispatcherPriority.Send);
         }
 
@@ -843,11 +841,11 @@ namespace Ink_Canvas
         {
             Dispatcher.BeginInvoke(new Action(() =>
             {
-                DisableNativeWetInkAfterFailure(ex, notify: true);
+                DisableNativeWetInkAfterFailure(ex);
             }), DispatcherPriority.Send);
         }
 
-        private void DisableNativeWetInkAfterFailure(Exception ex, bool notify)
+        private void DisableNativeWetInkAfterFailure(Exception ex)
         {
             _nativeWetInkDisabled = true;
             try
@@ -868,16 +866,6 @@ namespace Ink_Canvas
                 }
             }
             catch { /* best-effort */ }
-
-            if (notify && !_nativeWetInkDeviceFailureNotified)
-            {
-                _nativeWetInkDeviceFailureNotified = true;
-                try
-                {
-                    ShowNotification(Properties.CanvasStrings.Canvas_WetInkRendererFailed);
-                }
-                catch { /* never throw from failure path */ }
-            }
 
             LogHelper.WriteLogToFile(
                 $"[WetInk] Freehand disabled after pipeline failure: {ex}",

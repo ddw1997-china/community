@@ -18,6 +18,16 @@ namespace Ink_Canvas.Controls.Toolbar.BoardToolbar
         public virtual string IconGeometry => null;
         public virtual FontIconData? IconKey => null;
 
+        /// <summary>
+        /// 图标画刷资源键。设置后图标使用该资源的画刷（例如 "RedBrush" 用于破坏性操作）。
+        /// </summary>
+        protected virtual string IconBrushResourceKey => null;
+
+        /// <summary>
+        /// 文字画刷资源键。设置后按钮文字使用该资源的画刷。
+        /// </summary>
+        protected virtual string LabelBrushResourceKey => null;
+
         public virtual Func<FrameworkElement> CustomSettingsPanelFactory => null;
 
         protected abstract void OnClick(IBoardToolbarHost host, object sender, MouseButtonEventArgs e);
@@ -34,6 +44,11 @@ namespace Ink_Canvas.Controls.Toolbar.BoardToolbar
 
             if (!string.IsNullOrEmpty(IconGeometry))
                 btn.IconGeometry = IconGeometry;
+
+            if (!string.IsNullOrEmpty(IconBrushResourceKey))
+                btn.SetResourceReference(BoardToolbarButton.IconBrushProperty, IconBrushResourceKey);
+            if (!string.IsNullOrEmpty(LabelBrushResourceKey))
+                btn.SetResourceReference(BoardToolbarButton.LabelBrushProperty, LabelBrushResourceKey);
 
             btn.ButtonMouseUp += (s, e) => OnClick(host, s, e);
             AfterBuild(host, btn);

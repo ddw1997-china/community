@@ -311,10 +311,28 @@ namespace Ink_Canvas
             // 转换为WPF坐标系统
             var dpiScale = GetDpiScale();
 
+            // 必须处于 Normal 状态，最大化会让 WPF 忽略下面设置的跨屏边界，
+            // 窗口只覆盖主屏，导致选区坐标整体偏移到副屏（副屏截图全错的根因）
+            WindowState = WindowState.Normal;
+
             Left = virtualScreen.Left / dpiScale;
             Top = virtualScreen.Top / dpiScale;
             Width = virtualScreen.Width / dpiScale;
             Height = virtualScreen.Height / dpiScale;
+
+            // 把工具栏/提示等界面元素锚定到主屏区域：
+            // 窗口中心是虚拟屏中心（可能落在副屏），ChromeGrid 对齐主屏矩形后，
+            // 其内部 Center/Bottom 对齐的子元素自然相对主屏居中/贴底，
+            // 对单屏、副屏在左/右/上/下、三屏以上排列均成立
+            var primary = Screen.PrimaryScreen.Bounds;
+            ChromeGrid.HorizontalAlignment = System.Windows.HorizontalAlignment.Left;
+            ChromeGrid.VerticalAlignment = System.Windows.VerticalAlignment.Top;
+            ChromeGrid.Margin = new Thickness(
+                (primary.Left - virtualScreen.Left) / dpiScale,
+                (primary.Top - virtualScreen.Top) / dpiScale,
+                0, 0);
+            ChromeGrid.Width = primary.Width / dpiScale;
+            ChromeGrid.Height = primary.Height / dpiScale;
         }
 
         private double GetDpiScale()
@@ -777,9 +795,11 @@ namespace Ink_Canvas
                             SelectedPath = optimizedPath;
 
                             var dpiScale = GetDpiScale();
-                            var virtualScreen = SystemInformation.VirtualScreen;
-                            int screenX = (int)((bounds.X * dpiScale) + virtualScreen.Left);
-                            int screenY = (int)((bounds.Y * dpiScale) + virtualScreen.Top);
+                            // 用窗口实际物理原点换算（窗口可能从副屏负坐标开始，
+                            // 不能直接假设窗口左上角就是虚拟屏左上角）
+                            var windowOrigin = PointToScreen(new WpfPoint(0, 0));
+                            int screenX = (int)(windowOrigin.X + (bounds.X * dpiScale));
+                            int screenY = (int)(windowOrigin.Y + (bounds.Y * dpiScale));
                             int screenWidth = (int)(bounds.Width * dpiScale);
                             int screenHeight = (int)(bounds.Height * dpiScale);
 
@@ -1122,13 +1142,14 @@ namespace Ink_Canvas
 
             if (_isAdjusting)
             {
-                // 转换为屏幕坐标，考虑DPI缩放
+                // 转换为屏幕坐标：用窗口实际物理原点（窗口可能从副屏负坐标开始，
+                // 不能假设窗口左上角就是虚拟屏左上角）
                 var dpiScale = GetDpiScale();
-                var virtualScreen = SystemInformation.VirtualScreen;
+                var windowOrigin = PointToScreen(new WpfPoint(0, 0));
 
                 // 计算实际屏幕坐标
-                int screenX = (int)((_currentSelection.X * dpiScale) + virtualScreen.Left);
-                int screenY = (int)((_currentSelection.Y * dpiScale) + virtualScreen.Top);
+                int screenX = (int)(windowOrigin.X + (_currentSelection.X * dpiScale));
+                int screenY = (int)(windowOrigin.Y + (_currentSelection.Y * dpiScale));
                 int screenWidth = (int)(_currentSelection.Width * dpiScale);
                 int screenHeight = (int)(_currentSelection.Height * dpiScale);
 

@@ -1,6 +1,10 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
+    <!-- 工作区不是 git 仓库，关闭 SourceLink / SCM 查询以消除
+         Microsoft.Build.Tasks.Git 与 Microsoft.SourceLink.Common 的良性警告。 -->
+    <EnableSourceLink>false</EnableSourceLink>
+    <EnableSourceControlManagerQueries>false</EnableSourceControlManagerQueries>
     <NBGV_CacheMode>None</NBGV_CacheMode>
     <!-- 标记：仓库树内已由本文件统一注入 Nerdbank.GitVersioning。
          需要自包含引用 NBGV 的项目（如 InkCanvas.PluginSdk，供独立构建场景使用）用此属性避免重复引用产生 NU1504。 -->

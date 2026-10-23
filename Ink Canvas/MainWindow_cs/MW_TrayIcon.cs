@@ -6,6 +6,7 @@ using System;
 using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Forms;
@@ -103,6 +104,7 @@ namespace Ink_Canvas
                 var taskbarIcon = (TaskbarIcon)Current.Resources["TaskbarTrayIcon"];
                 if (taskbarIcon?.ContextMenu != null)
                 {
+                    HookTrayMenuOutsideClick(taskbarIcon.ContextMenu);
                     taskbarIcon.ContextMenu.IsOpen = true;
                 }
             }
@@ -111,6 +113,132 @@ namespace Ink_Canvas
                 ExceptionHandler.HandleException(ex, "显示托盘右键菜单失败", LogHelper.LogType.Warning);
             }
         }
+
+        #region 托盘右键菜单：点击弹窗以外区域自动关闭
+
+        private IntPtr _mouseHook = IntPtr.Zero;
+        private IntPtr _popupHwnd = IntPtr.Zero;
+        private LowLevelMouseProc _mouseProc;
+
+        private const int WH_MOUSE_LL = 14;
+        private const int WM_LBUTTONDOWN = 0x0201;
+        private const int WM_RBUTTONDOWN = 0x0204;
+        private const int WM_MBUTTONDOWN = 0x0207;
+
+        private delegate IntPtr LowLevelMouseProc(int nCode, IntPtr wParam, IntPtr lParam);
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct POINT
+        {
+            public int x;
+            public int y;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct MSLLHOOKSTRUCT
+        {
+            public POINT pt;
+            public uint mouseData;
+            public uint flags;
+            public uint time;
+            public IntPtr dwExtraInfo;
+        }
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern IntPtr SetWindowsHookEx(int idHook, LowLevelMouseProc lpfn, IntPtr hMod, uint dwThreadId);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool UnhookWindowsHookEx(IntPtr hhk);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern IntPtr CallNextHookEx(IntPtr hhk, int nCode, IntPtr wParam, IntPtr lParam);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr WindowFromPoint(POINT pt);
+
+        /// <summary>
+        /// 为托盘右键菜单（SysTrayMenu）挂载“点击弹窗以外区域即关闭”的行为。
+        /// 通过全局低级鼠标钩子（WH_MOUSE_LL）监听所有鼠标按下：若点击位置所在的窗口
+        /// 不是菜单所在的 Popup 窗口，则关闭菜单（覆盖点击桌面 / 其他窗口 / 本程序其它区域）。
+        /// 该实现不依赖 System.Windows.Controls.Popup 类型，可在本项目的编译环境中通过。
+        /// </summary>
+        private void HookTrayMenuOutsideClick(ContextMenu menu)
+        {
+            if (_mouseProc != null) return;
+            _mouseProc = MouseHookProc;
+
+            menu.Opened += (s, e) =>
+            {
+                var hwndSource = PresentationSource.FromVisual(menu) as HwndSource;
+                _popupHwnd = hwndSource?.Handle ?? IntPtr.Zero;
+                InstallMouseHook();
+            };
+
+            menu.Closed += (s, e) =>
+            {
+                UninstallMouseHook();
+            };
+        }
+
+        private void InstallMouseHook()
+        {
+            if (_mouseHook != IntPtr.Zero) return;
+            using (var process = System.Diagnostics.Process.GetCurrentProcess())
+            using (var module = process.MainModule)
+            {
+                _mouseHook = SetWindowsHookEx(WH_MOUSE_LL, _mouseProc, module.BaseAddress, 0);
+            }
+        }
+
+        private void UninstallMouseHook()
+        {
+            if (_mouseHook == IntPtr.Zero) return;
+            UnhookWindowsHookEx(_mouseHook);
+            _mouseHook = IntPtr.Zero;
+        }
+
+        private IntPtr MouseHookProc(int nCode, IntPtr wParam, IntPtr lParam)
+        {
+            try
+            {
+                if (nCode >= 0 && (wParam == (IntPtr)WM_LBUTTONDOWN || wParam == (IntPtr)WM_RBUTTONDOWN || wParam == (IntPtr)WM_MBUTTONDOWN))
+                {
+                    var msll = Marshal.PtrToStructure<MSLLHOOKSTRUCT>(lParam);
+                    var hwnd = WindowFromPoint(msll.pt);
+                    if (_popupHwnd != IntPtr.Zero && hwnd != _popupHwnd)
+                    {
+                        // 点击到了弹窗（Popup 窗口）之外：异步关闭菜单，避免在钩子回调中直接操作 UI。
+                        Current.Dispatcher.BeginInvoke(new Action(CloseTrayContextMenu), DispatcherPriority.Normal);
+                    }
+                }
+            }
+            catch
+            {
+            }
+
+            return CallNextHookEx(_mouseHook, nCode, wParam, lParam);
+        }
+
+        /// <summary>
+        /// 关闭当前打开的托盘右键菜单（如 SysTrayMenu）。
+        /// </summary>
+        internal void CloseTrayContextMenu()
+        {
+            try
+            {
+                var taskbarIcon = (TaskbarIcon)Current.Resources["TaskbarTrayIcon"];
+                if (taskbarIcon?.ContextMenu != null && taskbarIcon.ContextMenu.IsOpen)
+                {
+                    taskbarIcon.ContextMenu.IsOpen = false;
+                }
+            }
+            catch
+            {
+            }
+        }
+
+        #endregion
 
         private void ToggleMainWindowVisibility()
         {
@@ -424,7 +552,6 @@ namespace Ink_Canvas
         /// 1. 获取主窗口实例
         /// 2. 如果主窗口已加载：
         ///    - 调用MoveWindow方法将主窗口移动到屏幕左上角并设置为全屏大小
-        ///    - 显示强制全屏化的消息，包含屏幕分辨率和缩放比例信息
         /// </remarks>
         private void ForceFullScreenTrayIconMenuItem_Clicked(object sender, RoutedEventArgs e)
         {
@@ -433,7 +560,6 @@ namespace Ink_Canvas
             {
                 Ink_Canvas.MainWindow.MoveWindow(new WindowInteropHelper(mainWin).Handle, 0, 0,
                     Screen.PrimaryScreen.Bounds.Width, Screen.PrimaryScreen.Bounds.Height, true);
-                Ink_Canvas.MainWindow.ShowNewMessage($"已强制全屏化：{Screen.PrimaryScreen.Bounds.Width}x{Screen.PrimaryScreen.Bounds.Height}（缩放比例为{Screen.PrimaryScreen.Bounds.Width / SystemParameters.PrimaryScreenWidth}x{Screen.PrimaryScreen.Bounds.Height / SystemParameters.PrimaryScreenHeight}）");
             }
         }
 

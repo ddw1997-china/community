@@ -256,12 +256,12 @@
             </ContextMenu>
             <tb:TaskbarIcon x:Key="TaskbarTrayIcon"
                             Visibility="Collapsed"
-                            ToolTipText="InkCanvasForClass"
+                            ToolTipText="ppt助手"
                             ContextMenu="{StaticResource SysTrayMenu}"
                             MenuActivation="None"
                             TrayLeftMouseDown="TaskbarTrayIcon_TrayLeftMouseDown"
                             TrayRightMouseDown="TaskbarTrayIcon_TrayRightMouseDown"
-                            IconSource="/Resources/icc.ico"/>
+                            IconSource="/Resources/mylogo.ico"/>
             <ResourceDictionary.MergedDictionaries>
                 <ui:ThemeResources/>
                 <ui:XamlControlsResources />

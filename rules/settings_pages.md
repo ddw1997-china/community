@@ -24,10 +24,6 @@
 │   ├── 画布 (CanvasPage)
 │   └── 墨迹识别 (InkRecognitionPage)
 ├── PPT联动 (PowerPointPage)
-├── 更新 (UpdatePage)
-├── 通知 (NotificationStrings.DefaultTitle)
-│   ├── 通知设置 (NotificationPage)
-│   └── 公告中心 (AnnouncementCenterPage)
 ├── 实验性 (ExperimentalPage)
 ├── 存储 (Storage_GroupTitle)
 │   ├── 存储管理 (StoragePage)
@@ -80,10 +76,6 @@
 | Canvas_GroupTitle | 画板设置 / 画布 |
 | InkRecog_Title | 墨迹识别 |
 | PPTStrings.GroupTitle | PPT联动 |
-| NotificationStrings.Type_Update | 更新 |
-| NotificationStrings.DefaultTitle | 通知 |
-| NotificationStrings.SettingsTitle | 通知设置 |
-| AnnouncementStrings.CenterTitle | 公告中心 |
 | AdvancedStrings.Experimental | 实验性 |
 | StorageStrings.Storage_NavTitle | 存储 |
 | StorageStrings.Storage_Title | 存储管理 |
@@ -159,9 +151,6 @@ _pageTypes = new Dictionary<string, Type>
 { "BoardAppearancePage", typeof(BoardAppearancePage) },
 { "BoardMenuPage", typeof(BoardMenuPage) },
 { "WhiteboardTipsPage", typeof(WhiteboardTipsPage) },
-{ "UpdatePage", typeof(UpdatePage) },
-{ "NotificationPage", typeof(NotificationPage) },
-{ "AnnouncementCenterPage", typeof(AnnouncementCenterPage) },
 { "ExperimentalPage", typeof(ExperimentalPage) },
 { "AdvancedPage", typeof(AdvancedPage) },
 { "StoragePage", typeof(StoragePage) },

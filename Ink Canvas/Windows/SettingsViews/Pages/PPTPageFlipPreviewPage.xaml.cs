@@ -17,6 +17,7 @@ namespace Ink_Canvas.Windows.SettingsViews.Pages
         private bool _isLoaded = false;
         private NavigationViewPaneDisplayMode _originalPaneDisplayMode;
         private bool _originalIsInPPTPresentationMode;
+        private bool _originalIsFullScreenApplied;
         private ToolbarPosition _originalToolbarPosition;
         private DelayAction _sliderDelayAction = new DelayAction();
         private int _originalMainWindowExStyle;
@@ -56,6 +57,7 @@ namespace Ink_Canvas.Windows.SettingsViews.Pages
             if (mw != null)
             {
                 _originalIsInPPTPresentationMode = mw.IsInPPTPresentationMode;
+                _originalIsFullScreenApplied = mw.isFullScreenApplied;
                 _originalToolbarPosition = SettingsManager.Settings.Appearance.ToolbarPosition;
 
                 // Disable AvoidFullScreenHelper hook temporarily without overriding settings
@@ -134,18 +136,30 @@ namespace Ink_Canvas.Windows.SettingsViews.Pages
                 SettingsManager.Settings.Appearance.ToolbarPosition = _originalToolbarPosition;
 
                 // Restore AvoidFullScreenHelper based directly on the user's active setting
-                AvoidFullScreenHelper.SetBoardMode(false);
+                // 放映中 PPTUIManager 会把 BoardMode 设为 true（放行全屏），须按进入前状态恢复，不能固定回 false
+                AvoidFullScreenHelper.SetBoardMode(_originalIsInPPTPresentationMode);
                 if (SettingsManager.Settings.Advanced.IsEnableAvoidFullScreenHelper)
                 {
                     AvoidFullScreenHelper.StartAvoidFullScreen(mw);
                 }
 
                 mw.UpdateToolbarComponentVisibility();
-                mw.UpdateToolbarPosition();
 
-                // Restore MainWindow to working area size
-                var workingArea = System.Windows.Forms.Screen.PrimaryScreen.WorkingArea;
-                MainWindow.MoveWindow(mwHwnd, workingArea.X, workingArea.Y, workingArea.Width, workingArea.Height, true);
+                // 先恢复窗口尺寸，再更新浮动栏位置：
+                // PPT 放映中 MainWindow 本已全屏（isFullScreenApplied=true），退出预览页时
+                // 必须恢复全屏；只有非放映状态才回到工作区，否则浮动栏贴底定位会错乱
+                var screen = System.Windows.Forms.Screen.PrimaryScreen;
+                if (_originalIsInPPTPresentationMode && _originalIsFullScreenApplied)
+                {
+                    MainWindow.MoveWindow(mwHwnd, 0, 0, screen.Bounds.Width, screen.Bounds.Height, true);
+                }
+                else
+                {
+                    var workingArea = screen.WorkingArea;
+                    MainWindow.MoveWindow(mwHwnd, workingArea.X, workingArea.Y, workingArea.Width, workingArea.Height, true);
+                }
+
+                mw.UpdateToolbarPosition();
 
                 // Unsubscribe input blocking events
                 mw.PreviewMouseDown -= BlockPreviewInput;

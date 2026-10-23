@@ -68,6 +68,12 @@
   <data name="Main_ContextDelete" xml:space="preserve">
     <value>删库跑路</value>
   </data>
+  <data name="Main_ContextColor" xml:space="preserve">
+    <value>换个皮肤</value>
+  </data>
+  <data name="Main_SelectionBarDragHint" xml:space="preserve">
+    <value>逮住这里就能搬家</value>
+  </data>
   <data name="Main_ContextZoom" xml:space="preserve">
     <value>F5 玩家狂喜镜</value>
   </data>

@@ -53,9 +53,6 @@ namespace Ink_Canvas
         [JsonProperty("security")]
         public Security Security { get; set; } = new Security();
 
-        [JsonProperty("notification")]
-        public NotificationSettings Notification { get; set; } = new NotificationSettings();
-
         [JsonProperty("toolbar")]
         public ToolbarLayoutSettings Toolbar { get; set; } = new ToolbarLayoutSettings();
 
@@ -241,65 +238,6 @@ namespace Ink_Canvas
         public List<RealtimeInkSlowEventSnapshot> RealtimeInkSlowEvents { get; set; }
     }
 
-    public class NotificationSettings
-    {
-        [JsonProperty("isAnnouncementEnabled")]
-        public bool IsAnnouncementEnabled { get; set; } = true;
-
-        [JsonProperty("isDynamicNotificationEnabled")]
-        public bool IsDynamicNotificationEnabled { get; set; } = true;
-
-        [JsonProperty("isWindowsToastEnabled")]
-        public bool IsWindowsToastEnabled { get; set; } = true;
-
-        [JsonProperty("isForcePopupEnabled")]
-        public bool IsForcePopupEnabled { get; set; } = true;
-
-        [JsonIgnore]
-        public string AnnouncementApiBaseUrl => "https://dev-api.dy.ci/api/announcement/client/announcements/";
-
-        [JsonIgnore]
-        public string AnnouncementWebSocketUrl => string.Empty;
-
-        [JsonIgnore]
-        public string AnnouncementSoftwareToken => "092fb28012b3985e2b84341c0643eab0";
-
-        public const string BuiltInSoftwareToken = "492e41ea8eb61fc9a1d336b3852a4478";
-
-        [JsonProperty("placement")]
-        public string Placement { get; set; } = "TopCenter";
-
-        [JsonProperty("animationMode")]
-        public string AnimationMode { get; set; } = "Standard";
-
-        [JsonProperty("updateDurationSeconds")]
-        public int UpdateDurationSeconds { get; set; } = 3;
-
-        [JsonProperty("urgentDurationSeconds")]
-        public int UrgentDurationSeconds { get; set; } = 10;
-
-        [JsonProperty("importantDurationSeconds")]
-        public int ImportantDurationSeconds { get; set; } = 10;
-
-        [JsonProperty("reminderDurationSeconds")]
-        public int ReminderDurationSeconds { get; set; } = 10;
-
-        [JsonProperty("otherDurationSeconds")]
-        public int OtherDurationSeconds { get; set; } = 5;
-
-        [JsonProperty("readAnnouncementIds")]
-        public List<string> ReadAnnouncementIds { get; set; } = new List<string>();
-
-        [JsonProperty("isDictationDoNotDisturbEnabled")]
-        public bool IsDictationDoNotDisturbEnabled { get; set; } = false;
-
-        [JsonProperty("isDictationDoNotDisturbInPPTEnabled")]
-        public bool IsDictationDoNotDisturbInPPTEnabled { get; set; } = true;
-
-        [JsonProperty("isDictationDoNotDisturbInWhiteboardEnabled")]
-        public bool IsDictationDoNotDisturbInWhiteboardEnabled { get; set; } = true;
-    }
-
     public class Security
     {
         [JsonProperty("passwordEnabled")]
@@ -411,6 +349,16 @@ namespace Ink_Canvas
         public bool UsingWhiteboard { get; set; }
         [JsonProperty("customBackgroundColor")]
         public string CustomBackgroundColor { get; set; } = "#162924";
+        [JsonProperty("showGridLines")]
+        public bool ShowGridLines { get; set; } = false;
+        [JsonProperty("gridDensity")]
+        public int GridDensity { get; set; } = 20;
+        [JsonProperty("gridBrightness")]
+        public int GridBrightness { get; set; } = 229;
+        [JsonProperty("showGridHorizontalLines")]
+        public bool ShowGridHorizontalLines { get; set; } = true;
+        [JsonProperty("showGridVerticalLines")]
+        public bool ShowGridVerticalLines { get; set; } = true;
         [JsonProperty("hyperbolaAsymptoteOption")]
         public OptionalOperation HyperbolaAsymptoteOption { get; set; } = OptionalOperation.Ask;
         [JsonProperty("isCompressPicturesUploaded")]
@@ -423,6 +371,8 @@ namespace Ink_Canvas
         public bool ClearCanvasAlsoClearImages { get; set; } = true;
         [JsonProperty("showCircleCenter")]
         public bool ShowCircleCenter { get; set; }
+        [JsonProperty("parabolaSingleStroke")]
+        public bool ParabolaSingleStroke { get; set; } // true=抛物线绘制为单条笔画（一个对象），false=两条对称笔画（默认，兼容旧行为）
         [JsonProperty("showCoordinateUnitMarks")]
         public bool ShowCoordinateUnitMarks { get; set; }
         [JsonProperty("enableInkFade")]
@@ -620,23 +570,6 @@ namespace Ink_Canvas
         public bool IsEnableTwoFingerRotationBoard { get; set; }
     }
 
-    // 更新通道枚举
-    public enum UpdateChannel
-    {
-        Release,
-        Preview,
-        Beta
-    }
-
-    /// <summary>自动更新要下载的安装包架构。默认跟随当前软件进程架构；64 位包对应发布物 ZIP 文件名在 .zip 前增加 -x64。</summary>
-    public enum UpdatePackageArchitecture
-    {
-        /// <summary>32 位包，例如 InkCanvasForClass.CE.1.7.0.0.zip</summary>
-        X86 = 0,
-        /// <summary>64 位包，例如 InkCanvasForClass.CE.1.7.0.0-x64.zip</summary>
-        X64 = 1
-    }
-
     /// <summary>
     /// 遥测上传等级
     /// </summary>
@@ -668,24 +601,6 @@ namespace Ink_Canvas
         private StartupMode _startupMode = StartupMode.Default;
         private bool _hasExplicitStartupMode;
 
-        [JsonProperty("isAutoUpdate")]
-        public bool IsAutoUpdate { get; set; } = true;
-        [JsonProperty("isAutoUpdateWithSilence")]
-        public bool IsAutoUpdateWithSilence { get; set; }
-        [JsonProperty("isAutoUpdateWithSilenceStartTime")]
-        public string AutoUpdateWithSilenceStartTime { get; set; } = "06:00";
-        [JsonProperty("isAutoUpdateWithSilenceEndTime")]
-        public string AutoUpdateWithSilenceEndTime { get; set; } = "22:00";
-        [JsonProperty("updateChannel")]
-        public UpdateChannel UpdateChannel { get; set; } = UpdateChannel.Release;
-        [JsonProperty("updatePackageArchitecture")]
-        public UpdatePackageArchitecture UpdatePackageArchitecture { get; set; } = Environment.Is64BitProcess ? UpdatePackageArchitecture.X64 : UpdatePackageArchitecture.X86;
-        [JsonProperty("isSmartUpdate")]
-        public bool IsSmartUpdate { get; set; } = true;
-        [JsonProperty("skippedVersion")]
-        public string SkippedVersion { get; set; } = "";
-        [JsonProperty("autoUpdatePauseUntilDate")]
-        public string AutoUpdatePauseUntilDate { get; set; } = "";
         [JsonProperty("isEnableNibMode")]
         public bool IsEnableNibMode { get; set; }
         [JsonProperty("isFoldAtStartup")]
@@ -937,19 +852,6 @@ namespace Ink_Canvas
 
         [JsonProperty("idleMiniBarAutoRestoreSeconds")]
         public double IdleMiniBarAutoRestoreSeconds { get; set; } = 60.0;
-
-        // 液态玻璃浮动栏（独立置顶胶囊窗口，桌面截图 + 折射着色器）
-        [JsonProperty("enableLiquidGlassBar")]
-        public bool EnableLiquidGlassBar { get; set; } = false;
-
-        [JsonProperty("liquidGlassBarOpacity")]
-        public double LiquidGlassBarOpacity { get; set; } = 0.95;
-
-        [JsonProperty("liquidGlassBarPositionX")]
-        public double LiquidGlassBarPositionX { get; set; } = -1;
-
-        [JsonProperty("liquidGlassBarPositionY")]
-        public double LiquidGlassBarPositionY { get; set; } = -1;
     }
 
     public enum PPTLinkMode
@@ -1380,6 +1282,15 @@ namespace Ink_Canvas
         [JsonProperty("isSaveScreenshotsInDateFolders")]
         public bool IsSaveScreenshotsInDateFolders { get; set; }
 
+        [JsonProperty("screenshotSaveFormat")]
+        public int ScreenshotSaveFormat { get; set; } = 0;
+
+        [JsonProperty("screenshotJpegQuality")]
+        public long ScreenshotJpegQuality { get; set; } = 90;
+
+        [JsonProperty("screenshotScaleMode")]
+        public int ScreenshotScaleMode { get; set; } = 0;
+
         [JsonProperty("isAutoSaveStrokesAtScreenshot")]
         public bool IsAutoSaveStrokesAtScreenshot { get; set; }
 
@@ -1464,9 +1375,6 @@ namespace Ink_Canvas
 
         [JsonProperty("autoStart")]
         public bool AutoStart { get; set; } = false;
-
-        [JsonProperty("showNotifications")]
-        public bool ShowNotifications { get; set; } = true;
 
         [JsonProperty("interceptRules")]
         public Dictionary<string, bool> InterceptRules { get; set; } = new Dictionary<string, bool>

@@ -202,6 +202,8 @@ namespace Ink_Canvas
             try
             {
                 BoardToolbarRegistry.EnsureDefaultConfigExists();
+                BoardToolbarRegistry.EnsureBuiltinColorPaletteInActiveConfig();
+                BoardToolbarRegistry.EnsureBuiltinClearInActiveConfig();
 
                 var host = (IBoardToolbarHost)this;
 

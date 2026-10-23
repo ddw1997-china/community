@@ -129,9 +129,6 @@ namespace Ink_Canvas
                 isFloatingBarFolded = true;
                 HideEdgeExpandHint(); // 浮动栏收起后批注界面整体隐藏，扩展画布提示立即消失
                 if (currentMode != 0) CloseWhiteboardImmediately();
-                if (IsAnnotating)
-                    if (foldFloatingBarByUser && inkCanvas.Strokes.Count > 2)
-                        ShowNotification(Properties.MainWindowStrings.Main_AutoFold_ClearingAndFolding);
                 lastBorderMouseDownObject = sender;
                 CursorWithDelIcon_Click(sender, null);
             });

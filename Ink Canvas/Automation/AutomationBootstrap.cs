@@ -94,7 +94,6 @@ namespace Ink_Canvas.WorkflowAutomation
                 services.AddAction<SaveStrokesActionSettings>("inkcanvas.savestrokes", "保存笔画", "ContentSaveOutline");
                 services.AddAction<ToggleAnnotationModeActionSettings>("inkcanvas.toggleannotationmode", "切换批注模式", "PenTool");
                 services.AddAction<ClearStrokesActionSettings>("inkcanvas.clearstrokes", "清空笔画", "Eraser");
-                services.AddAction<ShowNotificationActionSettings>("inkcanvas.shownotification", "显示通知", "BellOutline");
                 services.AddAction<ToggleTopmostActionSettings>("inkcanvas.toggletopmost", "切换窗口置顶", "PinOutline");
                 services.AddAction<ResetDesktopPositionActionSettings>("inkcanvas.resetdesktopposition", "重置桌面模式位置", "DockBottom");
                 services.AddAction<ResetPPTPositionActionSettings>("inkcanvas.resetpptposition", "重置PPT模式位置", "Presentation");
@@ -114,7 +113,6 @@ namespace Ink_Canvas.WorkflowAutomation
                 services.AddTransient<SaveStrokesActionHandler>();
                 services.AddTransient<ToggleAnnotationModeActionHandler>();
                 services.AddTransient<ClearStrokesActionHandler>();
-                services.AddTransient<ShowNotificationActionHandler>();
                 services.AddTransient<ToggleTopmostActionHandler>();
                 services.AddTransient<ResetDesktopPositionActionHandler>();
                 services.AddTransient<ResetPPTPositionActionHandler>();
@@ -135,7 +133,6 @@ namespace Ink_Canvas.WorkflowAutomation
                 _serviceProvider.GetRequiredService<SaveStrokesActionHandler>();
                 _serviceProvider.GetRequiredService<ToggleAnnotationModeActionHandler>();
                 _serviceProvider.GetRequiredService<ClearStrokesActionHandler>();
-                _serviceProvider.GetRequiredService<ShowNotificationActionHandler>();
                 _serviceProvider.GetRequiredService<ToggleTopmostActionHandler>();
                 _serviceProvider.GetRequiredService<ResetDesktopPositionActionHandler>();
                 _serviceProvider.GetRequiredService<ResetPPTPositionActionHandler>();

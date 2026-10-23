@@ -761,7 +761,6 @@ namespace Ink_Canvas
 
             if (IsPageFrozen(pageIndex))
             {
-                ShowNotification(MainWindowStrings.Main_Board_FrozenCannotDelete);
                 return;
             }
 

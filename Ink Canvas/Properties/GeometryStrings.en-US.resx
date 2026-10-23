@@ -93,8 +93,8 @@
   <data name="DrawHyperbola" xml:space="preserve">
     <value>Hyperbola</value>
   </data>
-  <data name="DrawHyperbolaWithFocal" xml:space="preserve">
-    <value>Hyperbola (Focal)</value>
+  <data name="DrawBezier" xml:space="preserve">
+    <value>Bézier Curve</value>
   </data>
   <data name="DrawLine" xml:space="preserve">
     <value>Line</value>
@@ -104,6 +104,18 @@
   </data>
   <data name="DrawParabola2" xml:space="preserve">
     <value>Parabola 2</value>
+  </data>
+<data name="DrawCompass" xml:space="preserve">
+    <value>Compass</value>
+  </data>
+  <data name="DrawTriangleRuler" xml:space="preserve">
+    <value>45° Set Square</value>
+  </data>
+  <data name="DrawTriangleRuler2" xml:space="preserve">
+    <value>30-60° Set Square</value>
+  </data>
+  <data name="DrawStraightRuler" xml:space="preserve">
+    <value>Straight Ruler</value>
   </data>
   <data name="DrawParabolaWithFocal" xml:space="preserve">
     <value>Parabola (Focal)</value>

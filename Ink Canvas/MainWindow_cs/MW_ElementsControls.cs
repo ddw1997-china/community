@@ -727,7 +727,7 @@ namespace Ink_Canvas
         /// - 查找RotateTransform
         /// - 应用旋转变换
         /// </remarks>
-        private void ApplyRotateTransform(FrameworkElement element, double angle)
+        private void ApplyRotateTransform(FrameworkElement element, double angle, Point? pivotCanvas = null)
         {
             if (element.RenderTransform is TransformGroup transformGroup)
             {
@@ -743,11 +743,48 @@ namespace Ink_Canvas
                 double ty = translateTransform?.Y ?? 0;
 
                 // Rotate runs last in the group, so its Center is in post-scale/translate space —
-                // i.e. the current visual center of the element.
-                rotateTransform.CenterX = tx + (ox + visW / 2) * sX;
-                rotateTransform.CenterY = ty + (oy + visH / 2) * sY;
+                // i.e. the current visual center of the element. When the user dragged the pivot,
+                // convert that canvas-space point into the same space so rotation happens around it.
+                Point center;
+                if (pivotCanvas.HasValue)
+                {
+                    double left = InkCanvas.GetLeft(element); if (double.IsNaN(left)) left = 0;
+                    double top = InkCanvas.GetTop(element); if (double.IsNaN(top)) top = 0;
+                    center = CanvasToRotateCenterSpace(pivotCanvas.Value, left, top,
+                                                       sX, sY, tx, ty,
+                                                       ox, oy, visW, visH,
+                                                       rotateTransform.Angle);
+                }
+                else
+                {
+                    center = new Point(tx + (ox + visW / 2) * sX,
+                                       ty + (oy + visH / 2) * sY);
+                }
+
+                rotateTransform.CenterX = center.X;
+                rotateTransform.CenterY = center.Y;
                 rotateTransform.Angle += angle;
             }
+        }
+
+        // 画布坐标 → RotateTransform.Center 空间（scale/translate 之后、绕视觉中心旋转之前）。
+        // 变换模型：P_canvas = (left, top) + Rotate_视觉中心(S * local + T)
+        private static Point CanvasToRotateCenterSpace(Point canvasPoint, double left, double top,
+                                                       double sx, double sy, double tx, double ty,
+                                                       double ox, double oy, double visW, double visH,
+                                                       double angleDeg)
+        {
+            double centerX = tx + (ox + visW / 2) * sx;
+            double centerY = ty + (oy + visH / 2) * sy;
+
+            double rad = -angleDeg * Math.PI / 180.0;
+            double cos = Math.Cos(rad);
+            double sin = Math.Sin(rad);
+
+            double dx = canvasPoint.X - left - centerX;
+            double dy = canvasPoint.Y - top - centerY;
+            return new Point(centerX + dx * cos - dy * sin,
+                             centerY + dx * sin + dy * cos);
         }
 
         /// <summary>
@@ -1014,46 +1051,11 @@ namespace Ink_Canvas
                     stroke.Transform(matrix, false);
                 }
 
-                // 更新选择框的位置（如果有选择框）
-                UpdateSelectionBorderPosition(delta);
-
-
+                // 选中栏保持原位，不随墨迹移动（仅拖动拖动柄可移动选中栏）
             }
             catch (Exception ex)
             {
                 LogHelper.WriteLogToFile($"鼠标拖动失败: {ex.Message}", LogHelper.LogType.Error);
-            }
-        }
-
-        /// <summary>
-        /// 更新选择框位置
-        /// </summary>
-        /// <param name="delta">位移向量</param>
-        /// <remarks>
-        /// - 更新选择框位置的逻辑
-        /// - 更新 BorderStrokeSelectionControl 的位置
-        /// - 包含异常处理
-        /// </remarks>
-        private void UpdateSelectionBorderPosition(Vector delta)
-        {
-            try
-            {
-                // 这里可以添加更新选择框位置的逻辑
-                // 例如更新 BorderStrokeSelectionControl 的位置
-                if (BorderStrokeSelectionControl != null)
-                {
-                    var currentMargin = BorderStrokeSelectionControl.Margin;
-                    BorderStrokeSelectionControl.Margin = new Thickness(
-                        currentMargin.Left + delta.X,
-                        currentMargin.Top + delta.Y,
-                        currentMargin.Right,
-                        currentMargin.Bottom
-                    );
-                }
-            }
-            catch (Exception ex)
-            {
-                LogHelper.WriteLogToFile($"更新选择框位置失败: {ex.Message}", LogHelper.LogType.Error);
             }
         }
 
@@ -1248,7 +1250,6 @@ namespace Ink_Canvas
             {
                 string message = args.ErrorException?.Message ?? "未知错误";
                 LogHelper.WriteLogToFile($"媒体加载失败: {message}", LogHelper.LogType.Error);
-                ShowNotification("媒体加载失败，可能是不支持的格式或缺少系统解码器。");
             };
         }
 
@@ -1275,7 +1276,6 @@ namespace Ink_Canvas
                 if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath))
                 {
                     LogHelper.WriteLogToFile($"插入图片失败：文件不存在或路径为空: {filePath}", LogHelper.LogType.Warning);
-                    ShowNotification("无法插入图片：文件不存在或已被移动。");
                     return null;
                 }
 
@@ -1334,7 +1334,6 @@ namespace Ink_Canvas
             catch (Exception ex)
             {
                 LogHelper.WriteLogToFile($"插入图片失败: {ex.Message}", LogHelper.LogType.Error);
-                ShowNotification("无法插入图片：文件可能已损坏或格式不受支持。");
                 return null;
             }
         }
@@ -1357,7 +1356,6 @@ namespace Ink_Canvas
                 uint pageCount = await PdfWinRtHelper.GetPageCountAsync(newFilePath);
                 if (pageCount == 0)
                 {
-                    ShowNotification("无法打开 PDF（可能已加密、损坏或不支持）。");
                     return null;
                 }
 
@@ -1371,7 +1369,6 @@ namespace Ink_Canvas
             catch (Exception ex)
             {
                 LogHelper.WriteLogToFile($"插入 PDF 失败: {ex.Message}", LogHelper.LogType.Error);
-                ShowNotification(string.Format(Properties.MainWindowStrings.Main_PDF_InsertFailed, ex.Message));
                 return null;
             }
         }
@@ -1505,7 +1502,6 @@ namespace Ink_Canvas
             string fileExtension = Path.GetExtension(filePath);
             if (!IsSupportedMediaExtension(fileExtension))
             {
-                ShowNotification(MainWindowStrings.Main_MediaInsert_UnsupportedFormat);
                 return null;
             }
 
@@ -1514,7 +1510,6 @@ namespace Ink_Canvas
                 var autoSavedPath = Settings?.Automation?.AutoSavedStrokesLocation;
                 if (string.IsNullOrEmpty(autoSavedPath))
                 {
-                    ShowNotification(MainWindowStrings.Main_MediaInsert_InsertFailed);
                     return null;
                 }
 
@@ -1558,7 +1553,6 @@ namespace Ink_Canvas
             catch (Exception ex)
             {
                 LogHelper.WriteLogToFile($"插入媒体失败: {ex}", LogHelper.LogType.Error);
-                ShowNotification(string.Format(MainWindowStrings.Main_MediaInsert_InsertFailed, ex.Message));
                 return null;
             }
         }
@@ -2842,8 +2836,13 @@ namespace Ink_Canvas
             try
             {
                 if (ImageSelectionOverlay == null || element == null) return;
+
+                // 切换到另一个元素时把旋转中心复位到选区中心，避免沿用上一个元素的位置。
+                bool elementChanged = !ReferenceEquals(_overlayTrackedElement, element);
+
                 EnsureImageOverlayHooks();
                 ImageSelectionOverlay.SetMode(SelectionOverlayMode.Element);
+                if (elementChanged) ImageSelectionOverlay.ResetPivot();
                 AttachOverlayTracking(element);
                 UpdateImageResizeHandlesPosition(default);
                 ImageSelectionOverlay.Visibility = Visibility.Visible;
@@ -3068,6 +3067,10 @@ namespace Ink_Canvas
                         }
                     }
                 }
+                // 元素整体平移时，自定义旋转中心跟着一起平移，保持与元素的相对位置。
+                if (ImageSelectionOverlay.HasCustomPivot)
+                    ImageSelectionOverlay.SetPivot(ImageSelectionOverlay.PivotCanvasPoint + e.CanvasDelta);
+
                 UpdateImageResizeHandlesPosition(default);
                 if (BorderImageSelectionControl?.Visibility == Visibility.Visible)
                     UpdateImageSelectionToolbarPosition(currentSelectedElement);
@@ -3091,22 +3094,31 @@ namespace Ink_Canvas
                     var strokes = inkCanvas.GetSelectedStrokes();
                     if (strokes.Count == 0) return;
 
+                    bool customPivot = ImageSelectionOverlay.HasCustomPivot;
+                    Point pivot = customPivot ? ImageSelectionOverlay.PivotCanvasPoint : _strokeRotationCenter;
+
                     var matrix = Matrix.Identity;
-                    matrix.RotateAt(e.AngleDelta, _strokeRotationCenter.X, _strokeRotationCenter.Y);
+                    matrix.RotateAt(e.AngleDelta, pivot.X, pivot.Y);
                     foreach (var stroke in strokes)
                         stroke.Transform(matrix, false);
+
+                    // 自定义旋转中心时，选中框中心也要绕该点转动，框才会跟着墨迹一起转。
+                    if (customPivot)
+                        _strokeRotationCenter = matrix.Transform(_strokeRotationCenter);
 
                     _strokeRotationAngle += e.AngleDelta;
                     ImageSelectionOverlay.UpdateFrame(_strokeRotationCenter,
                                                       ImageSelectionOverlay.Width,
                                                       ImageSelectionOverlay.Height,
                                                       _strokeRotationAngle);
-                    updateBorderStrokeSelectionControlLocation();
                     return;
                 }
 
                 if (currentSelectedElement == null) return;
-                ApplyRotateTransform(currentSelectedElement, e.AngleDelta);
+                Point? imagePivot = ImageSelectionOverlay.HasCustomPivot
+                    ? ImageSelectionOverlay.PivotCanvasPoint
+                    : (Point?)null;
+                ApplyRotateTransform(currentSelectedElement, e.AngleDelta, imagePivot);
                 UpdateImageResizeHandlesPosition(default);
                 if (BorderImageSelectionControl?.Visibility == Visibility.Visible)
                     UpdateImageSelectionToolbarPosition(currentSelectedElement);

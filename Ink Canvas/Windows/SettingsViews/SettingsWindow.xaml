@@ -7,6 +7,7 @@
     xmlns:ui="http://schemas.inkore.net/lib/ui/wpf/modern"
     xmlns:ikw="http://schemas.inkore.net/lib/ui/wpf"
 Title="{x:Static props:NavStrings.Nav_SettingsWindow_Title}"
+    Icon="/Resources/mylogo.ico"
     Width="1138" Height="750"
     MinWidth="270" MinHeight="220"
     WindowStartupLocation="CenterScreen"
@@ -59,7 +60,7 @@ Title="{x:Static props:NavStrings.Nav_SettingsWindow_Title}"
                     <ColumnDefinition Width="137"/>
                 </Grid.ColumnDefinitions>
                 <ikw:SimpleStackPanel x:Name="AppTitle" Grid.Column="0" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
-                    <Image Source="\Resources\icc.ico" Width="20" RenderOptions.BitmapScalingMode="HighQuality"/>
+                    <Image Source="\Resources\mylogo.ico" Width="20" RenderOptions.BitmapScalingMode="HighQuality"/>
                     <TextBlock x:Name="AppTitleText"
                         VerticalAlignment="Center"
                         Text="{x:Static props:NavStrings.Nav_AppSettings}" TextWrapping="NoWrap"/>
@@ -281,58 +282,6 @@ Title="{x:Static props:NavStrings.Nav_SettingsWindow_Title}"
                     <ui:NavigationViewItem.Icon>
                         <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Slideshow}"/>
                     </ui:NavigationViewItem.Icon>
-                </ui:NavigationViewItem>
-
-                <!-- 更新设置 -->
-                <ui:NavigationViewItem
-                    x:Name="UpdatePageItem"
-                    Content="{x:Static props:NotificationStrings.Type_Update}"
-                    Tag="UpdatePage"
-                    ToolTipService.ToolTip="{x:Static props:NavStrings.Nav_Update_Tooltip}">
-                    <ui:NavigationViewItem.Icon>
-                        <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Sync}"/>
-                    </ui:NavigationViewItem.Icon>
-                    <ui:NavigationViewItem.InfoBadge>
-                        <ui:InfoBadge Style="{DynamicResource AttentionDotInfoBadgeStyle}"
-                                      MinWidth="8" MinHeight="8"
-                                      Visibility="Collapsed"/>
-                    </ui:NavigationViewItem.InfoBadge>
-                </ui:NavigationViewItem>
-
-                <!-- 通知设置 -->
-                <ui:NavigationViewItem
-                    x:Name="NotificationPageItem"
-                    Content="{x:Static props:NotificationStrings.DefaultTitle}"
-                    SelectsOnInvoked="False"
-                    ToolTipService.ToolTip="{x:Static props:NotificationStrings.NavTooltip}">
-                    <ui:NavigationViewItem.Icon>
-                        <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Message}"/>
-                    </ui:NavigationViewItem.Icon>
-                    <ui:NavigationViewItem.MenuItems>
-                        <ui:NavigationViewItem
-                            x:Name="NotificationSettingsPageItem"
-                            Content="{x:Static props:NotificationStrings.SettingsTitle}"
-                            Tag="NotificationPage"
-                            ToolTipService.ToolTip="{x:Static props:NotificationStrings.NavTooltip}">
-                            <ui:NavigationViewItem.Icon>
-                                <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Message}"/>
-                            </ui:NavigationViewItem.Icon>
-                        </ui:NavigationViewItem>
-                        <ui:NavigationViewItem
-                            x:Name="AnnouncementCenterPageItem"
-                            Content="{x:Static props:AnnouncementStrings.CenterTitle}"
-                            Tag="AnnouncementCenterPage"
-                            ToolTipService.ToolTip="{x:Static props:AnnouncementStrings.CenterHint}">
-                            <ui:NavigationViewItem.Icon>
-                                <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.BulletedList}"/>
-                            </ui:NavigationViewItem.Icon>
-                            <ui:NavigationViewItem.InfoBadge>
-                                <ui:InfoBadge x:Name="AnnouncementUnreadInfoBadge"
-                                              Value="0"
-                                              Visibility="Collapsed" />
-                            </ui:NavigationViewItem.InfoBadge>
-                        </ui:NavigationViewItem>
-                    </ui:NavigationViewItem.MenuItems>
                 </ui:NavigationViewItem>
 
                 <!-- 实验性选项 -->
@@ -562,19 +511,12 @@ Title="{x:Static props:NavStrings.Nav_SettingsWindow_Title}"
 
             <ui:NavigationView.FooterMenuItems>
                 <ui:NavigationViewItem
-                    x:Name="FriendlyLinksItem"
-                    Content="{x:Static props:NavStrings.Nav_FriendlyLinks}"
-                    Tag="FriendlyLinksPage">
+                    x:Name="VersionInfoPageItem"
+                    Content="{x:Static props:AboutStrings.Title}"
+                    Tag="VersionInfoPage"
+                    ToolTipService.ToolTip="{x:Static props:AboutStrings.VersionLabel}">
                     <ui:NavigationViewItem.Icon>
-                        <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Link}" />
-                    </ui:NavigationViewItem.Icon>
-                </ui:NavigationViewItem>
-                <ui:NavigationViewItem
-                    x:Name="AboutItem"
-                    Content="{x:Static props:NavStrings.Nav_AboutInkCanvas}"
-                    Tag="AboutPage">
-                    <ui:NavigationViewItem.Icon>
-                        <ui:SymbolIcon Symbol="Help" />
+                        <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Info}"/>
                     </ui:NavigationViewItem.Icon>
                 </ui:NavigationViewItem>
             </ui:NavigationView.FooterMenuItems>

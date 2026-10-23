@@ -47,6 +47,13 @@ namespace Ink_Canvas.Controls
         public ImageRotateDeltaEventArgs(double angleDelta) { AngleDelta = angleDelta; }
     }
 
+    /// <summary>旋转中心（pivot）位置变化事件参数，坐标为 inkCanvas 画布坐标。</summary>
+    public class ImagePivotChangedEventArgs : EventArgs
+    {
+        public Point CanvasPoint { get; }
+        public ImagePivotChangedEventArgs(Point canvasPoint) { CanvasPoint = canvasPoint; }
+    }
+
     public partial class ImageSelectionOverlay : UserControl
     {
         private const double HandleSize = 12;
@@ -56,6 +63,7 @@ namespace Ink_Canvas.Controls
         public event EventHandler<ImageResizeDeltaEventArgs> ResizeDelta;
         public event EventHandler<ImageMoveDeltaEventArgs> MoveDelta;
         public event EventHandler<ImageRotateDeltaEventArgs> RotateDelta;
+        public event EventHandler<ImagePivotChangedEventArgs> PivotChanged;
         public event EventHandler InteractionStarted;
         public event EventHandler InteractionEnded;
 
@@ -63,6 +71,13 @@ namespace Ink_Canvas.Controls
 
         private Point _rotationCenterCanvas;
         private readonly RotateTransform _overlayRotation = new RotateTransform(0);
+
+        private Point _pivotCanvas;
+        private bool _hasCustomPivot;
+        private bool _isPivotDragging;
+        private bool _pivotStartedByTouch;
+        private int? _pivotTouchDeviceId;
+        private Vector _pivotDragOffset;
 
         private bool _isResizing;
         private bool _isRotating;
@@ -105,6 +120,36 @@ namespace Ink_Canvas.Controls
             MoveSurface.MouseLeftButtonDown += BeginMove;
             MoveSurface.MouseMove += MoveMove;
             MoveSurface.MouseLeftButtonUp += EndMove;
+
+            RotationCenterHandle.MouseLeftButtonDown += BeginPivotDrag;
+            RotationCenterHandle.MouseMove += PivotDragMove;
+            RotationCenterHandle.MouseLeftButtonUp += EndPivotDrag;
+            RotationCenterHandle.LostMouseCapture += RotationCenterHandle_LostMouseCapture;
+            RotationCenterHandle.TouchDown += BeginPivotDragTouch;
+            RotationCenterHandle.TouchMove += PivotDragTouchMove;
+            RotationCenterHandle.TouchUp += EndPivotDragTouch;
+            RotationCenterHandle.LostTouchCapture += RotationCenterHandle_LostTouchCapture;
+        }
+
+        /// <summary>当前旋转中心（inkCanvas 画布坐标）。未自定义时等于选区中心。</summary>
+        public Point PivotCanvasPoint => _hasCustomPivot ? _pivotCanvas : _rotationCenterCanvas;
+
+        /// <summary>旋转中心是否已被用户拖动到自定义位置。</summary>
+        public bool HasCustomPivot => _hasCustomPivot;
+
+        /// <summary>显式指定旋转中心（画布坐标），不触发 PivotChanged。</summary>
+        public void SetPivot(Point canvasPoint)
+        {
+            _pivotCanvas = canvasPoint;
+            _hasCustomPivot = true;
+            UpdatePivotHandlePosition();
+        }
+
+        /// <summary>恢复默认旋转中心（选区中心）。</summary>
+        public void ResetPivot()
+        {
+            _hasCustomPivot = false;
+            UpdatePivotHandlePosition();
         }
 
         public void SetMode(SelectionOverlayMode mode)
@@ -170,9 +215,165 @@ namespace Ink_Canvas.Controls
             RotationLine.Y1 = 0;
             RotationLine.X2 = midX;
             RotationLine.Y2 = -RotationHandleOffset;
+
+            UpdatePivotHandlePosition();
+        }
+
+        private void UpdatePivotHandlePosition()
+        {
+            double width = Width, height = Height;
+            if (double.IsNaN(width) || double.IsNaN(height) || width <= 0 || height <= 0) return;
+
+            Point local = CanvasToLocal(PivotCanvasPoint, width, height);
+            double half = RotationCenterHandle.Width / 2;
+            if (double.IsNaN(half) || half <= 0) half = RotationHandleHitSize / 2;
+
+            System.Windows.Controls.Canvas.SetLeft(RotationCenterHandle, local.X - half);
+            System.Windows.Controls.Canvas.SetTop(RotationCenterHandle, local.Y - half);
+        }
+
+        // canvas → overlay local。overlay 以自身的 (width/2, height/2) 为中心旋转。
+        private Point CanvasToLocal(Point canvasPoint, double width, double height)
+        {
+            double rad = _overlayRotation.Angle * Math.PI / 180.0;
+            double cos = Math.Cos(rad);
+            double sin = Math.Sin(rad);
+            double cx = width / 2, cy = height / 2;
+            double dx = canvasPoint.X - Margin.Left - cx;
+            double dy = canvasPoint.Y - Margin.Top - cy;
+            return new Point(cx + dx * cos + dy * sin, cy - dx * sin + dy * cos);
         }
 
         private IInputElement GetSource() => CoordinateSource ?? (IInputElement)Parent;
+
+        private void BeginPivotDrag(object sender, MouseButtonEventArgs e)
+        {
+            if (_pivotStartedByTouch) return;
+            var source = GetSource();
+            if (source == null) return;
+
+            // 双击旋转中心手柄恢复默认（选区中心）。
+            if (e.ClickCount >= 2)
+            {
+                ResetPivot();
+                e.Handled = true;
+                return;
+            }
+
+            Point p = e.GetPosition(source);
+            _pivotDragOffset = PivotCanvasPoint - p;
+            _isPivotDragging = true;
+            RotationCenterHandle.CaptureMouse();
+            e.Handled = true;
+        }
+
+        private void PivotDragMove(object sender, MouseEventArgs e)
+        {
+            if (_pivotStartedByTouch || !_isPivotDragging || !RotationCenterHandle.IsMouseCaptured) return;
+            var source = GetSource();
+            if (source == null) return;
+
+            MovePivotTo(e.GetPosition(source) + _pivotDragOffset);
+            e.Handled = true;
+        }
+
+        private void EndPivotDrag(object sender, MouseButtonEventArgs e)
+        {
+            if (_pivotStartedByTouch || !_isPivotDragging) return;
+            FinishPivotDrag();
+            e.Handled = true;
+        }
+
+        private void RotationCenterHandle_LostMouseCapture(object sender, MouseEventArgs e)
+        {
+            if (_isPivotDragging && !_pivotStartedByTouch) FinishPivotDrag();
+        }
+
+        private void BeginPivotDragTouch(object sender, TouchEventArgs e)
+        {
+            if (_isPivotDragging) return;
+            var source = GetSource();
+            if (source == null) return;
+
+            _isPivotDragging = true;
+            _pivotStartedByTouch = true;
+            _pivotTouchDeviceId = e.TouchDevice.Id;
+            _pivotDragOffset = PivotCanvasPoint - e.GetTouchPoint(source).Position;
+            RotationCenterHandle.CaptureTouch(e.TouchDevice);
+            e.Handled = true;
+        }
+
+        private void PivotDragTouchMove(object sender, TouchEventArgs e)
+        {
+            if (!_isPivotDragging || !_pivotStartedByTouch
+                || _pivotTouchDeviceId != e.TouchDevice.Id
+                || !RotationCenterHandle.AreAnyTouchesCaptured)
+            {
+                return;
+            }
+
+            var source = GetSource();
+            if (source == null) return;
+
+            MovePivotTo(e.GetTouchPoint(source).Position + _pivotDragOffset);
+            e.Handled = true;
+        }
+
+        private void EndPivotDragTouch(object sender, TouchEventArgs e)
+        {
+            if (!_isPivotDragging || !_pivotStartedByTouch
+                || _pivotTouchDeviceId != e.TouchDevice.Id)
+            {
+                return;
+            }
+
+            FinishPivotDragTouch();
+            e.Handled = true;
+        }
+
+        private void RotationCenterHandle_LostTouchCapture(object sender, TouchEventArgs e)
+        {
+            if (_isPivotDragging && _pivotStartedByTouch
+                && _pivotTouchDeviceId == e.TouchDevice.Id)
+            {
+                FinishPivotDragTouch();
+            }
+        }
+
+        private void MovePivotTo(Point canvasPoint)
+        {
+            _pivotCanvas = canvasPoint;
+            _hasCustomPivot = true;
+            UpdatePivotHandlePosition();
+            PivotChanged?.Invoke(this, new ImagePivotChangedEventArgs(canvasPoint));
+        }
+
+        private void FinishPivotDrag()
+        {
+            _isPivotDragging = false;
+            if (RotationCenterHandle.IsMouseCaptured)
+                RotationCenterHandle.ReleaseMouseCapture();
+        }
+
+        private void FinishPivotDragTouch()
+        {
+            int? touchDeviceId = _pivotTouchDeviceId;
+            _isPivotDragging = false;
+            _pivotStartedByTouch = false;
+            _pivotTouchDeviceId = null;
+
+            if (touchDeviceId != null)
+            {
+                foreach (TouchDevice touch in RotationCenterHandle.TouchesCaptured)
+                {
+                    if (touch.Id == touchDeviceId.Value)
+                    {
+                        RotationCenterHandle.ReleaseTouchCapture(touch);
+                        break;
+                    }
+                }
+            }
+        }
 
         private void BeginResize(ImageResizeCorner corner, MouseButtonEventArgs e, Ellipse handle)
         {
@@ -367,8 +568,9 @@ namespace Ink_Canvas.Controls
 
         private double AngleFromCenter(Point p)
         {
-            double dx = p.X - _rotationCenterCanvas.X;
-            double dy = p.Y - _rotationCenterCanvas.Y;
+            Point pivot = PivotCanvasPoint;
+            double dx = p.X - pivot.X;
+            double dy = p.Y - pivot.Y;
             return Math.Atan2(dy, dx) * 180.0 / Math.PI;
         }
     }

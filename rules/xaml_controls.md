@@ -33,13 +33,13 @@
     SwitchName="ToggleSwitchShowCursor" />
 
 <!-- 绑定开关状态 + 事件 -->
-<controls:LabeledSettingsCard x:Name="CardAutoUpdate"
-    Header="自动检查更新"
-    Description="允许后台检查更新并下载新版本。"
+<controls:LabeledSettingsCard x:Name="CardExample"
+    Header="示例开关"
+    Description="允许后台执行某项操作。"
     Icon="{x:Static ui:SegoeFluentIcons.Sync}"
     IsOn="True"
-    SwitchName="ToggleSwitchAutoUpdate"
-    Toggled="CardAutoUpdate_Toggled" />
+    SwitchName="ToggleSwitchExample"
+    Toggled="CardExample_Toggled" />
 
 <!-- 条件显示 -->
 <controls:LabeledSettingsCard x:Name="CardSomeOption"

@@ -5,10 +5,9 @@
         xmlns:ui="http://schemas.inkore.net/lib/ui/wpf/modern"
         xmlns:ikw="http://schemas.inkore.net/lib/ui/wpf"
         Title="{x:Static props:MainWindowStrings.Main_Screenshot_WindowTitle}"
-        WindowStyle="None" 
-        AllowsTransparency="True" 
+        WindowStyle="None"
+        AllowsTransparency="True"
         Background="Transparent"
-        WindowState="Maximized"
         Topmost="True"
         ShowInTaskbar="False"
         Cursor="Cross"
@@ -141,6 +140,7 @@
         </Canvas>
 
         <!-- 底部工具栏 -->
+        <Grid Name="ChromeGrid">
         <Border Background="{StaticResource ScreenshotBarBackgroundBrush}"
                 BorderBrush="{DynamicResource {x:Static ui:ThemeKeys.CardStrokeColorDefaultBrushKey}}"
                 BorderThickness="1"
@@ -337,5 +337,6 @@
                        FontSize="14"
                        FontWeight="Medium" />
         </Border>
+        </Grid>
     </Grid>
 </Window>

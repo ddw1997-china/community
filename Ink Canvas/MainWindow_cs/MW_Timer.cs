@@ -93,33 +93,9 @@ namespace Ink_Canvas
         /// </summary>
         private Timer _unifiedMainWindowTimer;
         /// <summary>
-        /// 可用的最新版本号
-        /// </summary>
-        internal string AvailableLatestVersion;
-        /// <summary>
-        /// 最近一次自动检查得到的更新说明（Markdown）
-        /// </summary>
-        internal string AvailableLatestReleaseNotes;
-        /// <summary>
-        /// 静默更新检查定时器
-        /// </summary>
-        private Timer timerCheckAutoUpdateWithSilence = new Timer();
-        /// <summary>
-        /// 更新检查重试定时器
-        /// </summary>
-        private Timer timerCheckAutoUpdateRetry = new Timer();
-        /// <summary>
         /// 避免书写时触发二次关闭二级菜单导致动画不连续
         /// </summary>
         private bool isHidingSubPanelsWhenInking;
-        /// <summary>
-        /// 更新检查重试计数
-        /// </summary>
-        private int updateCheckRetryCount = 0;
-        /// <summary>
-        /// 最大更新检查重试次数
-        /// </summary>
-        private const int MAX_UPDATE_CHECK_RETRIES = 6;
         /// <summary>
         /// 日期显示定时器
         /// </summary>
@@ -207,11 +183,9 @@ namespace Ink_Canvas
         /// 初始化以下定时器：
         /// 1. timerKillProcess: 进程终止定时器，每2秒执行一次
         /// 2. _unifiedMainWindowTimer: 统一的主窗口定时器，每500毫秒执行一次
-        /// 3. timerCheckAutoUpdateWithSilence: 静默更新检查定时器，每10分钟执行一次
-        /// 4. timerCheckAutoUpdateRetry: 更新检查重试定时器，每10分钟执行一次
-        /// 5. timerDisplayTime: 时间显示定时器，每秒执行一次
-        /// 6. timerDisplayDate: 日期显示定时器，每小时执行一次
-        /// 7. timerNtpSync: NTP时间同步定时器，每2小时执行一次
+        /// 3. timerDisplayTime: 时间显示定时器，每秒执行一次
+        /// 4. timerDisplayDate: 日期显示定时器，每小时执行一次
+        /// 5. timerNtpSync: NTP时间同步定时器，每2小时执行一次
         /// 同时初始化定时保存墨迹定时器
         /// </remarks>
         private void InitTimers()
@@ -221,10 +195,6 @@ namespace Ink_Canvas
             _unifiedMainWindowTimer = new Timer(500);
             _unifiedMainWindowTimer.Elapsed += OnUnifiedMainWindowTimerElapsed;
             _unifiedMainWindowTimer.AutoReset = true;
-            timerCheckAutoUpdateWithSilence.Elapsed += timerCheckAutoUpdateWithSilence_Elapsed;
-            timerCheckAutoUpdateWithSilence.Interval = 1000 * 60 * 10;
-            timerCheckAutoUpdateRetry.Elapsed += timerCheckAutoUpdateRetry_Elapsed;
-            timerCheckAutoUpdateRetry.Interval = 1000 * 60 * 10;
             WaterMarkTime.DataContext = nowTimeVM;
             WaterMarkDate.DataContext = nowTimeVM;
             timerDisplayDate.Elapsed += TimerDisplayDate_Elapsed;
@@ -620,17 +590,12 @@ namespace Ink_Canvas
 
                     if (arg.Contains("EasiNote"))
                     {
-                        Dispatcher.BeginInvoke(new Action(() =>
-                        {
-                            ShowNotification("「希沃白板 5」已自动关闭");
-                        }));
                     }
 
                     if (arg.Contains("HiteAnnotation"))
                     {
                         Dispatcher.BeginInvoke(new Action(() =>
                         {
-                            ShowNotification("「鸿合屏幕书写」已自动关闭");
                             if (Settings.Automation.IsAutoKillHiteAnnotation && Settings.Automation.IsAutoEnterAnnotationAfterKillHite)
                             {
                                 // 检查是否处于收纳状态，如果是则先展开浮动栏
@@ -651,42 +616,22 @@ namespace Ink_Canvas
 
                     if (arg.Contains("Ink Canvas Annotation") || arg.Contains("Ink Canvas Artistry"))
                     {
-                        Dispatcher.BeginInvoke(new Action(() =>
-                        {
-                            ShowNewMessage("「ICA」已自动关闭");
-                        }));
                     }
 
                     if (arg.Contains("\"Ink Canvas.exe\""))
                     {
-                        Dispatcher.BeginInvoke(new Action(() =>
-                        {
-                            ShowNotification("「Ink Canvas」已自动关闭");
-                        }));
                     }
 
                     if (arg.Contains("Inkeys"))
                     {
-                        Dispatcher.BeginInvoke(new Action(() =>
-                        {
-                            ShowNotification(Properties.MainWindowStrings.Main_Timer_AutoClosedInkeys);
-                        }));
                     }
 
                     if (arg.Contains("VcomTeach"))
                     {
-                        Dispatcher.BeginInvoke(new Action(() =>
-                        {
-                            ShowNotification(Properties.MainWindowStrings.Main_Timer_AutoClosedYouJiao);
-                        }));
                     }
 
                     if (arg.Contains("DesktopAnnotation"))
                     {
-                        Dispatcher.BeginInvoke(new Action(() =>
-                        {
-                            ShowNotification(Properties.MainWindowStrings.Main_Timer_AutoClosedSeewoDesktop);
-                        }));
                     }
                 }
             }
@@ -1293,307 +1238,6 @@ namespace Ink_Canvas
         }
 
         /// <summary>
-        /// 静默更新检查定时器事件处理方法
-        /// </summary>
-        /// <param name="sender">事件发送者</param>
-        /// <param name="e">事件参数</param>
-        /// <remarks>
-        /// 处理静默更新的检查和安装逻辑，包括以下步骤：
-        /// 1. 停止计时器，避免重复触发
-        /// 2. 检查是否有可用的更新版本
-        /// 3. 检查是否启用了静默更新
-        /// 4. 检查更新文件是否已下载
-        /// 5. 如果未下载，尝试使用多线路组下载更新文件
-        /// 6. 检查是否在静默更新时间段内
-        /// 7. 检查应用程序状态，确保可以安全更新
-        /// 8. 如果可以安全更新，执行更新安装并关闭应用程序
-        /// 9. 如果不能安全更新，重新启动计时器，稍后再检查
-        /// 10. 处理异常情况，确保计时器能够重新启动
-        /// </remarks>
-        private void timerCheckAutoUpdateWithSilence_Elapsed(object sender, ElapsedEventArgs e)
-        {
-            // 停止计时器，避免重复触发
-            timerCheckAutoUpdateWithSilence.Stop();
-
-            try
-            {
-                // 检查是否有可用的更新
-                if (string.IsNullOrEmpty(AvailableLatestVersion))
-                {
-                    LogHelper.WriteLogToFile("AutoUpdate | No available update version found");
-                    return;
-                }
-
-                // 检查是否启用了静默更新
-                if (!Settings.Startup.IsAutoUpdateWithSilence)
-                {
-                    LogHelper.WriteLogToFile("AutoUpdate | Silent update is disabled");
-                    return;
-                }
-
-                // 检查更新文件是否已下载
-                string statusFilePath = AutoUpdateHelper.GetUpdateDownloadStatusFilePath(AvailableLatestVersion);
-
-                if (!File.Exists(statusFilePath) || File.ReadAllText(statusFilePath).Trim().ToLower() != "true")
-                {
-                    LogHelper.WriteLogToFile("AutoUpdate | Update file not downloaded yet");
-
-                    // 尝试下载更新文件，使用多线路组下载功能
-                    Task.Run(async () =>
-                    {
-                        bool isDownloadSuccessful = false;
-
-                        try
-                        {
-                            // 如果主要线路组可用，直接使用
-                            if (AvailableLatestLineGroup != null)
-                            {
-                                LogHelper.WriteLogToFile($"AutoUpdate | 使用主要线路组下载: {AvailableLatestLineGroup.GroupName}");
-                                isDownloadSuccessful = await AutoUpdateHelper.DownloadSetupFile(AvailableLatestVersion, AvailableLatestLineGroup);
-                            }
-
-                            // 如果主要线路组不可用或下载失败，获取所有可用线路组
-                            if (!isDownloadSuccessful)
-                            {
-                                LogHelper.WriteLogToFile("AutoUpdate | 主要线路组不可用或下载失败，获取所有可用线路组");
-                                var availableGroups = await AutoUpdateHelper.GetAvailableLineGroupsOrdered(Settings.Startup.UpdateChannel);
-                                if (availableGroups.Count > 0)
-                                {
-                                    LogHelper.WriteLogToFile($"AutoUpdate | 使用 {availableGroups.Count} 个可用线路组进行下载");
-                                    isDownloadSuccessful = await AutoUpdateHelper.DownloadSetupFileWithFallback(AvailableLatestVersion, availableGroups);
-                                }
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            LogHelper.WriteLogToFile($"AutoUpdate | 下载更新时出错: {ex.Message}", LogHelper.LogType.Error);
-                        }
-
-                        if (isDownloadSuccessful)
-                        {
-                            LogHelper.WriteLogToFile("AutoUpdate | Update downloaded successfully, will check again for installation");
-                            // 重新启动计时器，下次检查时安装
-                            timerCheckAutoUpdateWithSilence.Start();
-                        }
-                        else
-                        {
-                            LogHelper.WriteLogToFile("AutoUpdate | Failed to download update", LogHelper.LogType.Error);
-                        }
-                    });
-
-                    return;
-                }
-
-                // 检查是否在静默更新时间段内
-                bool isInSilencePeriod = AutoUpdateWithSilenceTimeComboBox.CheckIsInSilencePeriod(
-                    Settings.Startup.AutoUpdateWithSilenceStartTime,
-                    Settings.Startup.AutoUpdateWithSilenceEndTime);
-
-                if (!isInSilencePeriod)
-                {
-                    LogHelper.WriteLogToFile("AutoUpdate | Not in silence update time period");
-                    // 重新启动计时器，稍后再检查
-                    timerCheckAutoUpdateWithSilence.Start();
-                    return;
-                }
-
-                // 检查应用程序状态，确保可以安全更新 
-                // 空闲状态的判定为不处于批注模式和画板模式
-                bool canSafelyUpdate = false;
-
-                try
-                {
-                    if (Dispatcher.HasShutdownStarted || Dispatcher.HasShutdownFinished) return;
-                    Dispatcher.Invoke(() =>
-                    {
-                        try
-                        {
-                            // 判断是否处于批注模式（inkCanvas.EditingMode == InkCanvasEditingMode.Ink）
-                            // 判断是否处于画板模式（!Topmost）
-                            if (inkCanvas.EditingMode != InkCanvasEditingMode.Ink && Topmost)
-                            {
-                                // 检查是否有未保存的内容或正在进行的操作
-                                if (!isHidingSubPanelsWhenInking)
-                                {
-                                    canSafelyUpdate = true;
-                                    LogHelper.WriteLogToFile("AutoUpdate | Application is in a safe state for update - not in ink or board mode");
-                                }
-                                else
-                                {
-                                    LogHelper.WriteLogToFile("AutoUpdate | Application is currently performing operations");
-                                }
-                            }
-                            else
-                            {
-                                LogHelper.WriteLogToFile("AutoUpdate | Application is in ink or board mode, cannot update now");
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            LogHelper.WriteLogToFile($"AutoUpdate | Error checking application state: {ex.Message}", LogHelper.LogType.Error);
-                        }
-                    });
-                }
-                catch (Exception)
-                {
-                    // Dispatcher not available
-                    return;
-                }
-
-                if (canSafelyUpdate)
-                {
-                    LogHelper.WriteLogToFile("AutoUpdate | Installing update now");
-
-                    // 设置为用户主动退出，避免被看门狗判定为崩溃
-                    App.IsAppExitByUser = true;
-
-                    // 执行更新安装
-                    AutoUpdateHelper.InstallNewVersionApp(AvailableLatestVersion, true);
-
-                    // 关闭应用程序
-                    try
-                    {
-                        if (Dispatcher.HasShutdownStarted || Dispatcher.HasShutdownFinished) return;
-                        // 使用 BeginInvoke 避免在 Invoke 闭包内同步等待自身调度导致 UI 死锁
-                        Dispatcher.BeginInvoke(new Action(() => { Application.Current.Shutdown(); }));
-                    }
-                    catch (Exception) { }
-                }
-                else
-                {
-                    LogHelper.WriteLogToFile("AutoUpdate | Cannot safely update now, will try again later");
-                    // 重新启动计时器，稍后再检查
-                    timerCheckAutoUpdateWithSilence.Start();
-                }
-            }
-            catch (Exception ex)
-            {
-                LogHelper.WriteLogToFile($"AutoUpdate | Error in silent update check: {ex.Message}", LogHelper.LogType.Error);
-                // 出错时重新启动计时器，稍后再检查
-                timerCheckAutoUpdateWithSilence.Start();
-            }
-        }
-
-        /// <summary>
-        /// 检查更新失败重试定时器事件处理方法
-        /// </summary>
-        /// <param name="sender">事件发送者</param>
-        /// <param name="e">事件参数</param>
-        /// <remarks>
-        /// 异步处理更新检查失败后的重试逻辑，包括以下步骤：
-        /// 1. 停止计时器，避免重复触发
-        /// 2. 检查是否启用了自动更新
-        /// 3. 增加重试计数
-        /// 4. 检查是否超过最大重试次数
-        /// 5. 清除之前的更新状态
-        /// 6. 使用当前选择的更新通道检查更新
-        /// 7. 如果检查成功，重置重试计数并停止重试定时器
-        /// 8. 如果检查失败，重新启动定时器，10分钟后再次尝试
-        /// 9. 处理异常情况，确保定时器能够重新启动
-        /// </remarks>
-        private async void timerCheckAutoUpdateRetry_Elapsed(object sender, ElapsedEventArgs e)
-        {
-            // 停止定时器，避免重复触发
-            timerCheckAutoUpdateRetry.Stop();
-
-            try
-            {
-                // 检查是否启用了自动更新
-                if (!Settings.Startup.IsAutoUpdate)
-                {
-                    LogHelper.WriteLogToFile("AutoUpdate | Auto update is disabled, stopping retry timer");
-                    return;
-                }
-
-                // 增加重试计数
-                updateCheckRetryCount++;
-                LogHelper.WriteLogToFile($"AutoUpdate | Retry check attempt {updateCheckRetryCount}/{MAX_UPDATE_CHECK_RETRIES}");
-
-                // 检查是否超过最大重试次数
-                if (updateCheckRetryCount > MAX_UPDATE_CHECK_RETRIES)
-                {
-                    LogHelper.WriteLogToFile("AutoUpdate | Maximum retry attempts reached, stopping retry timer", LogHelper.LogType.Warning);
-                    return;
-                }
-
-                // 执行更新检查
-                LogHelper.WriteLogToFile("AutoUpdate | Retrying update check after failure");
-
-                // 清除之前的更新状态
-                AvailableLatestVersion = null;
-                AvailableLatestLineGroup = null;
-                AvailableLatestReleaseNotes = null;
-
-                // 使用当前选择的更新通道检查更新
-                var (remoteVersion, lineGroup, apiReleaseNotes) = await AutoUpdateHelper.CheckForUpdates(Settings.Startup.UpdateChannel);
-                AvailableLatestVersion = remoteVersion;
-                AvailableLatestLineGroup = lineGroup;
-                AvailableLatestReleaseNotes = apiReleaseNotes;
-
-                if (AvailableLatestVersion != null)
-                {
-                    // 检查更新成功，重置重试计数
-                    updateCheckRetryCount = 0;
-                    LogHelper.WriteLogToFile($"AutoUpdate | Retry successful, found new version: {AvailableLatestVersion}");
-
-                    // 停止重试定时器，因为已经找到了更新
-                    return;
-                }
-                else
-                {
-                    // 检查更新仍然失败，继续重试
-                    LogHelper.WriteLogToFile($"AutoUpdate | Retry {updateCheckRetryCount} failed, will retry in 10 minutes");
-
-                    // 重新启动定时器，10分钟后再次尝试
-                    timerCheckAutoUpdateRetry.Start();
-                }
-            }
-            catch (Exception ex)
-            {
-                LogHelper.WriteLogToFile($"AutoUpdate | Error in retry check: {ex.Message}", LogHelper.LogType.Error);
-
-                // 出错时也重新启动定时器，稍后再检查
-                if (updateCheckRetryCount <= MAX_UPDATE_CHECK_RETRIES)
-                {
-                    timerCheckAutoUpdateRetry.Start();
-                }
-            }
-        }
-
-        /// <summary>
-        /// 重置更新检查重试状态方法
-        /// </summary>
-        /// <remarks>
-        /// 重置更新检查的重试状态，包括以下步骤：
-        /// 1. 停止重试定时器
-        /// 2. 重置重试计数为0
-        /// 3. 记录日志
-        /// 4. 处理异常情况
-        /// </remarks>
-        public void ResetUpdateCheckRetry()
-        {
-            try
-            {
-                // 停止重试定时器
-                timerCheckAutoUpdateRetry.Stop();
-
-                // 重置重试计数
-                updateCheckRetryCount = 0;
-
-                LogHelper.WriteLogToFile("AutoUpdate | Update check retry state reset");
-            }
-            catch (Exception ex)
-            {
-                LogHelper.WriteLogToFile($"AutoUpdate | Error resetting retry state: {ex.Message}", LogHelper.LogType.Error);
-            }
-        }
-
-        public void StartSilentUpdateTimer()
-        {
-            timerCheckAutoUpdateWithSilence.Start();
-        }
-
-        /// <summary>
         /// 初始化橡皮擦自动切换回批注模式计时器
         /// </summary>
         private void InitEraserAutoSwitchBackTimer()
@@ -1627,22 +1271,6 @@ namespace Ink_Canvas
                     timerKillProcess.Elapsed -= TimerKillProcess_Elapsed;
                     timerKillProcess.Dispose();
                     timerKillProcess = null;
-                }
-
-                if (timerCheckAutoUpdateWithSilence != null)
-                {
-                    timerCheckAutoUpdateWithSilence.Stop();
-                    timerCheckAutoUpdateWithSilence.Elapsed -= timerCheckAutoUpdateWithSilence_Elapsed;
-                    timerCheckAutoUpdateWithSilence.Dispose();
-                    timerCheckAutoUpdateWithSilence = null;
-                }
-
-                if (timerCheckAutoUpdateRetry != null)
-                {
-                    timerCheckAutoUpdateRetry.Stop();
-                    timerCheckAutoUpdateRetry.Elapsed -= timerCheckAutoUpdateRetry_Elapsed;
-                    timerCheckAutoUpdateRetry.Dispose();
-                    timerCheckAutoUpdateRetry = null;
                 }
 
                 if (timerDisplayDate != null)

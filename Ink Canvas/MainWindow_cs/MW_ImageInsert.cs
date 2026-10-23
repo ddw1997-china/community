@@ -92,7 +92,7 @@ namespace Ink_Canvas
                     if (screenshotResult.Value.CameraBitmapSource != null)
                     {
                         // 摄像头截图（使用BitmapSource）
-                        await InsertBitmapSourceToCanvas(screenshotResult.Value.CameraBitmapSource, "摄像头截图已插入到画布", "插入摄像头截图失败");
+                        await InsertBitmapSourceToCanvas(screenshotResult.Value.CameraBitmapSource);
                     }
                     else if (screenshotResult.Value.CameraImage != null)
                     {
@@ -155,14 +155,9 @@ namespace Ink_Canvas
                         }
                     }
                 }
-                else
-                {
-                    ShowNotification(Properties.MainWindowStrings.Main_ImageInsert_ScreenshotCancelled);
-                }
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                ShowNotification($"{Properties.MainWindowStrings.Main_ImageInsert_ScreenshotFailed}: {ex.Message}");
                 Visibility = Visibility.Visible;
             }
         }
@@ -203,18 +198,13 @@ namespace Ink_Canvas
                         // 将截图转换为WPF Image并插入到画布
                         await InsertScreenshotToCanvas(fullScreenBitmap);
                     }
-                    else
-                    {
-                        ShowNotification(Properties.MainWindowStrings.Main_ImageInsert_FullScreenFailed);
-                    }
                 }
 
                 // 恢复窗口显示
                 Visibility = originalVisibility;
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                ShowNotification($"{Properties.MainWindowStrings.Main_ImageInsert_FullScreenFailed}: {ex.Message}");
                 Visibility = Visibility.Visible;
             }
         }
@@ -506,7 +496,6 @@ namespace Ink_Canvas
                 // 验证位图有效性
                 if (bitmap == null || bitmap.Width <= 0 || bitmap.Height <= 0)
                 {
-                    ShowNotification(Properties.MainWindowStrings.Main_ImageInsert_InvalidScreenshot);
                     return Task.CompletedTask;
                 }
 
@@ -515,7 +504,6 @@ namespace Ink_Canvas
 
                 if (bitmapSource == null)
                 {
-                    ShowNotification(Properties.MainWindowStrings.Main_ImageInsert_ConvertFailed);
                     return Task.CompletedTask;
                 }
 
@@ -566,12 +554,9 @@ namespace Ink_Canvas
                 SetCurrentToolMode(InkCanvasEditingMode.Select);
                 UpdateCurrentToolMode("select");
                 HideSubPanels("select");
-
-                ShowNotification(Properties.MainWindowStrings.Main_ImageInsert_Inserted);
             }
             catch (Exception ex)
             {
-                ShowNotification($"{Properties.MainWindowStrings.Main_ImageInsert_InsertFailed}: {ex.Message}");
                 LogHelper.WriteLogToFile($"插入截图失败: {ex.Message}", LogHelper.LogType.Error);
             }
             finally
@@ -598,10 +583,8 @@ namespace Ink_Canvas
         /// 8. 提交历史记录
         /// 9. 插入图片后切换到选择模式并刷新浮动栏高光显示
         /// </remarks>
-        private Task InsertBitmapSourceToCanvas(BitmapSource bitmapSource, string successMessage = null, string failureMessagePrefix = null)
+        private Task InsertBitmapSourceToCanvas(BitmapSource bitmapSource)
         {
-            successMessage = successMessage ?? Properties.MainWindowStrings.Main_ImageInsert_Inserted;
-            failureMessagePrefix = failureMessagePrefix ?? Properties.MainWindowStrings.Main_ImageInsert_InsertFailed;
             if (TryBlockFrozenPageMutation("插入截图")) return Task.CompletedTask;
             try
             {
@@ -652,12 +635,9 @@ namespace Ink_Canvas
                 SetCurrentToolMode(InkCanvasEditingMode.Select);
                 UpdateCurrentToolMode("select");
                 HideSubPanels("select");
-
-                ShowNotification(successMessage);
             }
             catch (Exception ex)
             {
-                ShowNotification($"{failureMessagePrefix}: {ex.Message}");
                 LogHelper.WriteLogToFile($"插入摄像头截图失败: {ex.Message}", LogHelper.LogType.Error);
             }
             return Task.CompletedTask;
@@ -667,7 +647,7 @@ namespace Ink_Canvas
         /// 供插件插入图片到画布的入口（复用完整插入流程：居中缩放、进撤销历史、切选择模式）。
         /// </summary>
         internal Task InsertBitmapSourceToCanvasForPlugin(BitmapSource bitmapSource)
-            => InsertBitmapSourceToCanvas(bitmapSource, null, null);
+            => InsertBitmapSourceToCanvas(bitmapSource);
 
         /// <summary>
         /// 初始化截图的TransformGroup

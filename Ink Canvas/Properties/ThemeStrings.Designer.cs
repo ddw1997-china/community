@@ -206,6 +206,10 @@ namespace Ink_Canvas.Properties
 
         public static string Theme_HideFloatingBarBorderHint => ResourceManager.GetString(nameof(Theme_HideFloatingBarBorderHint), _resourceCulture);
 
+        public static string Theme_ColorfulFloatingBar => ResourceManager.GetString(nameof(Theme_ColorfulFloatingBar), _resourceCulture);
+
+        public static string Theme_ColorfulFloatingBarHint => ResourceManager.GetString(nameof(Theme_ColorfulFloatingBarHint), _resourceCulture);
+
         public static string Theme_FloatingBarBorderColor => ResourceManager.GetString(nameof(Theme_FloatingBarBorderColor), _resourceCulture);
 
         public static string Theme_FloatingBarBorderColorHint => ResourceManager.GetString(nameof(Theme_FloatingBarBorderColorHint), _resourceCulture);
@@ -229,40 +233,6 @@ namespace Ink_Canvas.Properties
         public static string Theme_IdleMiniBarOpacity => ResourceManager.GetString(nameof(Theme_IdleMiniBarOpacity), _resourceCulture);
 
         public static string Theme_IdleMiniBarAutoRestore => ResourceManager.GetString(nameof(Theme_IdleMiniBarAutoRestore), _resourceCulture);
-
-        public static string Theme_LiquidGlassBar => ResourceManager.GetString(nameof(Theme_LiquidGlassBar), _resourceCulture);
-
-        public static string Theme_LiquidGlassBarHint => ResourceManager.GetString(nameof(Theme_LiquidGlassBarHint), _resourceCulture);
-
-        public static string Theme_LiquidGlassBarOpacity => ResourceManager.GetString(nameof(Theme_LiquidGlassBarOpacity), _resourceCulture);
-
-        public static string Theme_LiquidGlassBar_Drag => ResourceManager.GetString(nameof(Theme_LiquidGlassBar_Drag), _resourceCulture);
-
-        public static string Theme_LiquidGlassBar_Pen => ResourceManager.GetString(nameof(Theme_LiquidGlassBar_Pen), _resourceCulture);
-
-        public static string Theme_LiquidGlassBar_Highlighter => ResourceManager.GetString(nameof(Theme_LiquidGlassBar_Highlighter), _resourceCulture);
-
-        public static string Theme_LiquidGlassBar_Eraser => ResourceManager.GetString(nameof(Theme_LiquidGlassBar_Eraser), _resourceCulture);
-
-        public static string Theme_LiquidGlassBar_Select => ResourceManager.GetString(nameof(Theme_LiquidGlassBar_Select), _resourceCulture);
-
-        public static string Theme_LiquidGlassBar_ColorBlack => ResourceManager.GetString(nameof(Theme_LiquidGlassBar_ColorBlack), _resourceCulture);
-
-        public static string Theme_LiquidGlassBar_ColorRed => ResourceManager.GetString(nameof(Theme_LiquidGlassBar_ColorRed), _resourceCulture);
-
-        public static string Theme_LiquidGlassBar_ColorBlue => ResourceManager.GetString(nameof(Theme_LiquidGlassBar_ColorBlue), _resourceCulture);
-
-        public static string Theme_LiquidGlassBar_ColorYellow => ResourceManager.GetString(nameof(Theme_LiquidGlassBar_ColorYellow), _resourceCulture);
-
-        public static string Theme_LiquidGlassBar_Undo => ResourceManager.GetString(nameof(Theme_LiquidGlassBar_Undo), _resourceCulture);
-
-        public static string Theme_LiquidGlassBar_Redo => ResourceManager.GetString(nameof(Theme_LiquidGlassBar_Redo), _resourceCulture);
-
-        public static string Theme_LiquidGlassBar_Clear => ResourceManager.GetString(nameof(Theme_LiquidGlassBar_Clear), _resourceCulture);
-
-        public static string Theme_LiquidGlassBar_Whiteboard => ResourceManager.GetString(nameof(Theme_LiquidGlassBar_Whiteboard), _resourceCulture);
-
-        public static string Theme_LiquidGlassBar_More => ResourceManager.GetString(nameof(Theme_LiquidGlassBar_More), _resourceCulture);
 
         public static string Theme_WindowBackdrop => ResourceManager.GetString(nameof(Theme_WindowBackdrop), _resourceCulture);
 

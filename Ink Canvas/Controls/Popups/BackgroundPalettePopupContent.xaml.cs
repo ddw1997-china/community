@@ -16,6 +16,13 @@ namespace Ink_Canvas.Controls
         public Border BlackboardBtn => BlackboardModeBtn;
         public Border DarkModeBtnControl => DarkModeBtn;
         public Button CloseButtonControl => Shell?.CloseButtonControl;
+        public CheckBox GridLinesCheckBoxControl => GridLinesCheckBox;
+        public Slider GridDensitySliderControl => GridDensitySlider;
+        public Slider GridBrightnessSliderControl => GridBrightnessSlider;
+        public TextBlock GridDensityValueControl => GridDensityValue;
+        public TextBlock GridBrightnessValueControl => GridBrightnessValue;
+        public CheckBox GridHorizontalLinesCheckBoxControl => GridHorizontalLinesCheckBox;
+        public CheckBox GridVerticalLinesCheckBoxControl => GridVerticalLinesCheckBox;
 
         public BackgroundPalettePopupContent()
         {

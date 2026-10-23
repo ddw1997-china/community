@@ -97,8 +97,70 @@
     <BitmapImage x:Key="GeoIconEllipseCenter" UriSource="/Resources/Icons-png/geo-icons/centered-oval_white.png"/>
     <BitmapImage x:Key="GeoIconCuboid" UriSource="/Resources/Icons-png/geo-icons/cube_white.png"/>
     <BitmapImage x:Key="GeoIconRectangle" UriSource="/Resources/Icons-png/geo-icons/square_white.png"/>
+    <!-- 圆规工具图标：顶部圆钮 + 中部铰接头 + 两条锥形腿（实心剪影，矢量绘制） -->
+    <DrawingImage x:Key="GeoIconCompass">
+        <DrawingImage.Drawing>
+            <DrawingGroup>
+                <GeometryDrawing Brush="#F0F0F0" Geometry="M 13.4,6.4 A 2.6,3 0 1 0 18.6,6.4 A 2.6,3 0 1 0 13.4,6.4 Z"/>
+                <GeometryDrawing Brush="#F0F0F0" Geometry="M 12.7,8.6 L 19.3,8.6 A 1.3,1.3 0 0 1 20.6,9.9 L 20.6,13.7 A 1.3,1.3 0 0 1 19.3,15 L 12.7,15 A 1.3,1.3 0 0 1 11.4,13.7 L 11.4,9.9 A 1.3,1.3 0 0 1 12.7,8.6 Z"/>
+                <GeometryDrawing Brush="#F0F0F0" Geometry="M 11.4,13.4 L 15.2,14.6 L 9.55,28.7 L 7.65,28.1 Z"/>
+                <GeometryDrawing Brush="#F0F0F0" Geometry="M 20.6,13.4 L 16.8,14.6 L 22.45,28.7 L 24.35,28.1 Z"/>
+            </DrawingGroup>
+        </DrawingImage.Drawing>
+    </DrawingImage>
+    <!-- 三角板工具图标：45° 等腰直角板 / 30-60° 直角板（矢量绘制，斜边带刻度示意） -->
+    <DrawingImage x:Key="GeoIconTriangleRuler">
+        <DrawingImage.Drawing>
+            <DrawingGroup>
+                <GeometryDrawing Geometry="M 4,4 L 30,30 L 4,30 Z">
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="#F0F0F0" Thickness="2" LineJoin="Round"/>
+                    </GeometryDrawing.Pen>
+                </GeometryDrawing>
+                <GeometryDrawing Geometry="M 9.2,9.2 L 7.1,11.3 M 14.4,14.4 L 12.3,16.5 M 19.6,19.6 L 17.5,21.7 M 24.8,24.8 L 22.7,26.9">
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="#F0F0F0" Thickness="1.2"/>
+                    </GeometryDrawing.Pen>
+                </GeometryDrawing>
+            </DrawingGroup>
+        </DrawingImage.Drawing>
+    </DrawingImage>
+    <DrawingImage x:Key="GeoIconTriangleRuler2">
+        <DrawingImage.Drawing>
+            <DrawingGroup>
+                <GeometryDrawing Geometry="M 4,4 L 20,30 L 4,30 Z">
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="#F0F0F0" Thickness="2" LineJoin="Round"/>
+                    </GeometryDrawing.Pen>
+                </GeometryDrawing>
+                <GeometryDrawing Geometry="M 7.2,9.2 L 5.6,11.8 M 10.4,14.4 L 8.8,17 M 13.6,19.6 L 12,22.2 M 16.8,24.8 L 15.2,27.4">
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="#F0F0F0" Thickness="1.2"/>
+                    </GeometryDrawing.Pen>
+                </GeometryDrawing>
+            </DrawingGroup>
+        </DrawingImage.Drawing>
+    </DrawingImage>
     <BitmapImage x:Key="GeoIconCylinder" UriSource="/Resources/Icons-png/geo-icons/cylinder_white.png"/>
     <BitmapImage x:Key="GeoIconCone" UriSource="/Resources/Icons-png/geo-icons/cone_white.png"/>
+
+    <!-- 直尺工具图标：长条尺身 + 上沿刻度（矢量绘制） -->
+    <DrawingImage x:Key="GeoIconStraightRuler">
+        <DrawingImage.Drawing>
+            <DrawingGroup>
+                <GeometryDrawing Geometry="M 2,10 L 30,10 L 30,22 L 2,22 Z">
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="#F0F0F0" Thickness="2" LineJoin="Round"/>
+                    </GeometryDrawing.Pen>
+                </GeometryDrawing>
+                <GeometryDrawing Geometry="M 6,10 L 6,14 M 10,10 L 10,16 M 14,10 L 14,14 M 18,10 L 18,16 M 22,10 L 22,14 M 26,10 L 26,16">
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="#F0F0F0" Thickness="1.2"/>
+                    </GeometryDrawing.Pen>
+                </GeometryDrawing>
+            </DrawingGroup>
+        </DrawingImage.Drawing>
+    </DrawingImage>
     
     <!-- 点名窗口主题颜色 -->
     <SolidColorBrush x:Key="RandWindowBackground" Color="#1f1f1f"/>
@@ -165,16 +227,4 @@
     <!-- 浮动栏手势按钮图标资源 - 深色主题 -->
     <BitmapImage x:Key="GestureIcon" UriSource="/Resources/new-icons/gesture_white.png"/>
     <BitmapImage x:Key="GestureIconEnabled" UriSource="/Resources/new-icons/gesture-enabled.png"/>
-
-    <!-- 灵动通知主题颜色 -->
-    <Color x:Key="NotificationBackgroundColor">#F018181B</Color>
-    <Color x:Key="NotificationBorderColor">#33FFFFFF</Color>
-    <Color x:Key="NotificationForegroundColor">#FFFFFFFF</Color>
-    <Color x:Key="NotificationSecondaryForegroundColor">#D6FFFFFF</Color>
-    <Color x:Key="NotificationIconBackgroundColor">#22FFFFFF</Color>
-    <Color x:Key="NotificationCloseButtonForegroundColor">#E8FFFFFF</Color>
-    <Color x:Key="NotificationActionBackgroundColor">#22FFFFFF</Color>
-    <Color x:Key="NotificationActionForegroundColor">#FFFFFFFF</Color>
-    <Color x:Key="NotificationActionBorderColor">#33FFFFFF</Color>
-    <Color x:Key="NotificationShadowColor">#44000000</Color>
 </ResourceDictionary>

@@ -1,3 +1,4 @@
+using Ink_Canvas.Controls;
 using Ink_Canvas.Helpers;
 using iNKORE.UI.WPF.Modern.Common.IconKeys;
 using iNKORE.UI.WPF.Modern.Controls;
@@ -62,6 +63,9 @@ namespace Ink_Canvas
                     // 同步圆心显示开关状态
                     if (ShapeDrawPopupContent?.ShowCircleCenterToggle != null)
                         ShapeDrawPopupContent.ShowCircleCenterToggle.IsOn = Settings.Canvas.ShowCircleCenter;
+                    // 同步抛物线一笔绘制开关状态
+                    if (ShapeDrawPopupContent?.ParabolaSingleStrokeToggle != null)
+                        ShapeDrawPopupContent.ParabolaSingleStrokeToggle.IsOn = Settings.Canvas.ParabolaSingleStroke;
                     AnimationsHelper.ShowPopupWithSlideAndFade(BorderDrawShape);
                     _popupManager?.BringToFront(BorderDrawShape);
                 }
@@ -78,9 +82,15 @@ namespace Ink_Canvas
                     // 同步圆心显示开关状态
                     if (BoardShapeDrawPopupContent?.ShowCircleCenterToggle != null)
                         BoardShapeDrawPopupContent.ShowCircleCenterToggle.IsOn = Settings.Canvas.ShowCircleCenter;
+                    // 同步抛物线一笔绘制开关状态
+                    if (BoardShapeDrawPopupContent?.ParabolaSingleStrokeToggle != null)
+                        BoardShapeDrawPopupContent.ParabolaSingleStrokeToggle.IsOn = Settings.Canvas.ParabolaSingleStroke;
                     AnimationsHelper.ShowPopupWithSlideAndFade(BoardBorderDrawShape);
                     _popupManager?.BringToFront(BoardBorderDrawShape);
                 }
+
+                // 打开面板时刷新按钮选中状态
+                UpdateAllGeometryButtonsCheckedState();
             }
         }
 
@@ -133,9 +143,19 @@ namespace Ink_Canvas
         /// 22: 带焦点的抛物线
         /// 23: 带焦点的中心椭圆
         /// 24: 双曲线
-        /// 25: 带焦点的双曲线
+        /// 圆规/三角板/直尺不占用 drawingShapeMode：它们是常驻覆盖层工具，
+        /// 仅在点击自身关闭按钮、退出批注模式、退出白板模式时关闭。
         /// </remarks>
-        private int drawingShapeMode;
+        private int _drawingShapeMode;
+
+        /// <summary>
+        /// 形状绘制模式
+        /// </summary>
+        private int drawingShapeMode
+        {
+            get => _drawingShapeMode;
+            set => _drawingShapeMode = value;
+        }
 
         /// <summary>
         /// 用于存储是否是"选中"状态，便于后期抬笔后不做切换到笔的处理
@@ -237,6 +257,451 @@ namespace Ink_Canvas
         }
 
         /// <summary>
+        /// 统一处理所有几何图形按钮的点击（Toggle 模式）
+        /// </summary>
+        /// <param name="sender">事件发送者（GeometryButton）</param>
+        /// <param name="e">鼠标按钮事件参数</param>
+        /// <remarks>
+        /// 批注模式下几何工具被选中后会一直保持选中，直到：
+        /// 1. 再次点击同一个几何按钮（退出图形绘制模式）
+        /// 2. 点击另一个几何按钮（切换图形）
+        /// 3. 点击画笔、橡皮、框选等其它工具按钮
+        /// </remarks>
+        private async void GeometryButton_Click(object sender, MouseButtonEventArgs e)
+        {
+            if (TryBlockFrozenPageMutation("绘制几何图形")) return;
+            if (!await CheckIsDrawingShapesInMultiTouchMode()) return;
+
+            var btn = sender as GeometryButton;
+            if (btn == null) return;
+
+            // 圆规/三角板/直尺是常驻覆盖层工具：点击只切换对应实例的显示/隐藏，不进入绘制模式、
+            // 不改变书写状态，其它尺具不受影响（三角板可同时使用两块）。
+            if (IsTriangleRulerButton(btn))
+            {
+                ToggleTriangleRuler(btn);
+                return;
+            }
+            if (IsStraightRulerButton(btn))
+            {
+                ToggleStraightRuler();
+                return;
+            }
+            if (IsCompassButton(btn))
+            {
+                ToggleCompass();
+                return;
+            }
+
+            int mode = GetDrawingModeForButton(btn);
+            if (mode == 0) return;
+
+            if (drawingShapeMode == mode)
+            {
+                // 已经在该模式，再次点击退出
+                ExitShapeDrawingMode();
+                UpdateAllGeometryButtonsCheckedState();
+                return;
+            }
+
+            // 进入新模式
+            forcePointEraser = false;
+            DisableEraserOverlay();
+
+            forceEraser = true;
+            drawingShapeMode = mode;
+            inkCanvas.EditingMode = InkCanvasEditingMode.None;
+            inkCanvas.IsManipulationEnabled = true;
+            CancelSingleFingerDragMode();
+
+            // 更新模式缓存
+            UpdateCurrentToolMode("shape");
+
+            // 保持选中：画完一笔后不自动回到画笔模式
+            isLongPressSelected = true;
+
+            // 更新所有按钮的选中状态
+            UpdateAllGeometryButtonsCheckedState();
+
+            DrawShapePromptToPen();
+        }
+
+        /// <summary>
+        /// 退出形状绘制模式
+        /// </summary>
+        private void ExitShapeDrawingMode()
+        {
+            forceEraser = false;
+            drawingShapeMode = 0;
+            isLongPressSelected = false;
+            inkCanvas.EditingMode = InkCanvasEditingMode.Ink;
+            inkCanvas.IsManipulationEnabled = true;
+            CancelSingleFingerDragMode();
+        }
+
+        #region 圆规工具
+
+        /// <summary>圆规当前正在绘制的弧线笔画（一次抓取一笔，整体撤销）</summary>
+        private Stroke _compassStroke;
+        private readonly List<Point> _compassStrokePoints = new List<Point>();
+
+        /// <summary>
+        /// 关闭圆规覆盖层（按钮关闭 / 退出批注模式 / 退出白板模式时调用）
+        /// </summary>
+        private void HideCompassTool()
+        {
+            if (CompassTool != null) CompassTool.Visibility = Visibility.Collapsed;
+            _compassStroke = null;
+            _compassStrokePoints.Clear();
+        }
+
+        /// <summary>
+        /// 圆规旋转画弧：把扫过的角度插值成密集点追加到当前笔画
+        /// </summary>
+        private void CompassTool_ArcDrawing(object sender, CompassArcEventArgs e)
+        {
+            if (TryBlockFrozenPageMutation("圆规绘制")) return;
+
+            var newPoints = BuildCompassArcPoints(e.Pivot, e.Radius, e.FromAngleDeg, e.ToAngleDeg);
+
+            if (e.StartNewStroke || _compassStroke == null)
+            {
+                _compassStrokePoints.Clear();
+                _compassStrokePoints.AddRange(newPoints);
+                _compassStroke = new Stroke(new StylusPointCollection(_compassStrokePoints))
+                {
+                    DrawingAttributes = inkCanvas.DefaultDrawingAttributes.Clone()
+                };
+                _currentCommitType = CommitReason.ShapeDrawing;
+                inkCanvas.Strokes.Add(_compassStroke);
+            }
+            else
+            {
+                _compassStrokePoints.AddRange(newPoints);
+                _compassStroke.StylusPoints = new StylusPointCollection(_compassStrokePoints);
+            }
+        }
+
+        /// <summary>
+        /// 沿圆弧插值点（步长约 2px，走最短方向）
+        /// </summary>
+        private static IEnumerable<Point> BuildCompassArcPoints(Point pivot, double radius, double fromDeg, double toDeg)
+        {
+            double delta = ((toDeg - fromDeg + 540) % 360) - 180;
+            double arcLen = Math.Abs(delta) / 180.0 * Math.PI * radius;
+            int steps = Math.Max(1, (int)Math.Ceiling(arcLen / 2.0));
+            var points = new List<Point>(steps);
+            for (int i = 1; i <= steps; i++)
+            {
+                double a = (fromDeg + delta * i / steps) * Math.PI / 180;
+                points.Add(new Point(pivot.X + radius * Math.Cos(a), pivot.Y - radius * Math.Sin(a)));
+            }
+            return points;
+        }
+
+        private void CompassTool_CloseRequested(object sender, EventArgs e)
+        {
+            // 只关闭圆规自身，其它常驻覆盖层工具保留
+            HideCompassTool();
+            UpdateAllGeometryButtonsCheckedState();
+        }
+
+        #endregion
+
+        #region 常驻覆盖层工具（圆规 / 三角板 / 直尺）
+
+        /// <summary>按钮是否属于圆规按钮</summary>
+        private bool IsCompassButton(GeometryButton btn)
+        {
+            if (btn == null) return false;
+            return btn == ShapeDrawPopupContent?.DrawCompassBtn
+                || btn == BoardShapeDrawPopupContent?.DrawCompassBtn;
+        }
+
+        /// <summary>
+        /// 圆规按钮点击：切换显示/隐藏。与三角板同策略（常驻覆盖层工具，关闭策略一致）。
+        /// </summary>
+        private void ToggleCompass()
+        {
+            if (CompassTool == null) return;
+
+            if (CompassTool.Visibility == Visibility.Visible)
+            {
+                HideCompassTool();
+            }
+            else
+            {
+                CompassTool.Visibility = Visibility.Visible;
+                CompassTool.ShowAtCenter();
+            }
+
+            UpdateAllGeometryButtonsCheckedState();
+        }
+
+        /// <summary>圆规按钮的选中态＝圆规是否可见</summary>
+        private bool IsCompassChecked()
+        {
+            return CompassTool != null && CompassTool.Visibility == Visibility.Visible;
+        }
+
+        /// <summary>按钮是否对应第 2 块三角板（30-60°），否则为第 1 块（45°）</summary>
+        private bool IsTriangleRuler2Button(GeometryButton btn)
+        {
+            if (btn == null) return false;
+            return btn == ShapeDrawPopupContent?.DrawTriangleRuler2Btn
+                || btn == BoardShapeDrawPopupContent?.DrawTriangleRuler2Btn;
+        }
+
+        /// <summary>按钮是否属于三角板按钮</summary>
+        private bool IsTriangleRulerButton(GeometryButton btn)
+        {
+            if (btn == null) return false;
+            return btn == ShapeDrawPopupContent?.DrawTriangleRulerBtn
+                || btn == BoardShapeDrawPopupContent?.DrawTriangleRulerBtn
+                || btn == ShapeDrawPopupContent?.DrawTriangleRuler2Btn
+                || btn == BoardShapeDrawPopupContent?.DrawTriangleRuler2Btn;
+        }
+
+        /// <summary>按钮是否属于直尺按钮</summary>
+        private bool IsStraightRulerButton(GeometryButton btn)
+        {
+            if (btn == null) return false;
+            return btn == ShapeDrawPopupContent?.DrawStraightRulerBtn
+                || btn == BoardShapeDrawPopupContent?.DrawStraightRulerBtn;
+        }
+
+        /// <summary>
+        /// 三角板按钮点击：仅切换对应实例的显示/隐藏。
+        /// 三角板是常驻覆盖层工具，不进入 drawingShapeMode、不改变书写状态，
+        /// 除关闭按钮/退出批注模式/退出白板模式外一律保留（两块可同时打开）。
+        /// </summary>
+        private void ToggleTriangleRuler(GeometryButton btn)
+        {
+            bool isSecond = IsTriangleRuler2Button(btn);
+            var ruler = isSecond ? TriangleRulerTool2 : TriangleRulerTool1;
+            if (ruler == null) return;
+
+            if (ruler.Visibility == Visibility.Visible)
+            {
+                ruler.Visibility = Visibility.Collapsed;
+            }
+            else
+            {
+                ruler.Visibility = Visibility.Visible;
+                ruler.ShowAtCenter(isSecond ? TriangleRulerKind.ThirtySixty : TriangleRulerKind.IsoscelesRight);
+            }
+
+            UpdateAllGeometryButtonsCheckedState();
+        }
+
+        /// <summary>
+        /// 直尺按钮点击：切换显示/隐藏。与三角板同策略（常驻覆盖层工具，关闭策略一致）。
+        /// </summary>
+        private void ToggleStraightRuler()
+        {
+            var ruler = StraightRulerTool1;
+            if (ruler == null) return;
+
+            if (ruler.Visibility == Visibility.Visible)
+            {
+                ruler.Visibility = Visibility.Collapsed;
+            }
+            else
+            {
+                ruler.Visibility = Visibility.Visible;
+                ruler.ShowAtCenter();
+            }
+
+            UpdateAllGeometryButtonsCheckedState();
+        }
+
+        /// <summary>三角板按钮的选中态＝对应实例是否可见</summary>
+        private bool IsTriangleRulerChecked(GeometryButton btn)
+        {
+            var ruler = IsTriangleRuler2Button(btn) ? TriangleRulerTool2 : TriangleRulerTool1;
+            return ruler != null && ruler.Visibility == Visibility.Visible;
+        }
+
+        /// <summary>直尺按钮的选中态＝直尺是否可见</summary>
+        private bool IsStraightRulerChecked()
+        {
+            return StraightRulerTool1 != null && StraightRulerTool1.Visibility == Visibility.Visible;
+        }
+
+        private void TriangleRulerTool_CloseRequested(object sender, EventArgs e)
+        {
+            // 只关闭被点击的那一块，另一块保留
+            if (sender is TriangleRulerTool ruler) ruler.Visibility = Visibility.Collapsed;
+            UpdateAllGeometryButtonsCheckedState();
+        }
+
+        private void StraightRulerTool_CloseRequested(object sender, EventArgs e)
+        {
+            // 只关闭直尺自身，三角板保留
+            if (sender is StraightRulerTool ruler) ruler.Visibility = Visibility.Collapsed;
+            UpdateAllGeometryButtonsCheckedState();
+        }
+
+        /// <summary>
+        /// 关闭全部常驻覆盖层工具（圆规 + 两块三角板 + 直尺）：
+        /// 仅用于「退出批注模式」与「退出白板模式」两个场景。
+        /// </summary>
+        internal void HideAllOverlayTools()
+        {
+            if (CompassTool != null) CompassTool.Visibility = Visibility.Collapsed;
+            if (TriangleRulerTool1 != null) TriangleRulerTool1.Visibility = Visibility.Collapsed;
+            if (TriangleRulerTool2 != null) TriangleRulerTool2.Visibility = Visibility.Collapsed;
+            if (StraightRulerTool1 != null) StraightRulerTool1.Visibility = Visibility.Collapsed;
+            _compassStroke = null;
+            _compassStrokePoints.Clear();
+            UpdateAllGeometryButtonsCheckedState();
+        }
+
+        #endregion
+
+        /// <summary>
+        /// 更新所有几何图形按钮的选中状态：普通图形按钮以 drawingShapeMode 为依据，
+        /// 三角板/直尺按钮则以其覆盖层实例是否可见为依据（不占用 drawingShapeMode）。
+        /// </summary>
+        private void UpdateAllGeometryButtonsCheckedState()
+        {
+            foreach (var btn in GetAllVisibleGeometryButtons())
+            {
+                if (btn == null) continue;
+                if (IsTriangleRulerButton(btn))
+                {
+                    btn.IsChecked = IsTriangleRulerChecked(btn);
+                    continue;
+                }
+                if (IsStraightRulerButton(btn))
+                {
+                    btn.IsChecked = IsStraightRulerChecked();
+                    continue;
+                }
+                if (IsCompassButton(btn))
+                {
+                    btn.IsChecked = IsCompassChecked();
+                    continue;
+                }
+                int btnMode = GetDrawingModeForButton(btn);
+                btn.IsChecked = (btnMode != 0 && btnMode == drawingShapeMode);
+            }
+        }
+
+        /// <summary>
+        /// 获取所有几何图形面板中的按钮
+        /// </summary>
+        private List<GeometryButton> GetAllVisibleGeometryButtons()
+        {
+            var list = new List<GeometryButton>();
+
+            var content = ShapeDrawPopupContent;
+            if (content != null)
+            {
+                list.Add(content.DrawLineBtn);
+                list.Add(content.DrawDashedLineBtn);
+                list.Add(content.DrawDotLineBtn);
+                list.Add(content.DrawArrowBtn);
+                list.Add(content.DrawParallelLineBtn);
+                list.Add(content.DrawRectangleCenterBtn);
+                list.Add(content.DrawCircleBtn);
+                list.Add(content.DrawDashedCircleBtn);
+                list.Add(content.DrawEllipseCenterBtn);
+                list.Add(content.DrawEllipseCenterWithFocalPointBtn);
+                list.Add(content.DrawCuboidBtn);
+                list.Add(content.DrawRectangleBtn);
+                list.Add(content.DrawCylinderBtn);
+                list.Add(content.DrawConeBtn);
+                list.Add(content.DrawCoordinate1Btn);
+                list.Add(content.DrawCoordinate2Btn);
+                list.Add(content.DrawCoordinate3Btn);
+                list.Add(content.DrawCoordinate4Btn);
+                list.Add(content.DrawCoordinate5Btn);
+                list.Add(content.DrawHyperbolaBtn);
+                list.Add(content.DrawBezierBtn);
+                list.Add(content.DrawParabola1Btn);
+                list.Add(content.DrawParabolaWithFocalPointBtn);
+                list.Add(content.DrawParabola2Btn);
+                list.Add(content.DrawCompassBtn);
+                list.Add(content.DrawTriangleRulerBtn);
+                list.Add(content.DrawTriangleRuler2Btn);
+                list.Add(content.DrawStraightRulerBtn);
+            }
+
+            var boardContent = BoardShapeDrawPopupContent;
+            if (boardContent != null)
+            {
+                list.Add(boardContent.DrawLineBtn);
+                list.Add(boardContent.DrawDashedLineBtn);
+                list.Add(boardContent.DrawDotLineBtn);
+                list.Add(boardContent.DrawArrowBtn);
+                list.Add(boardContent.DrawParallelLineBtn);
+                list.Add(boardContent.DrawRectangleCenterBtn);
+                list.Add(boardContent.DrawCircleBtn);
+                list.Add(boardContent.DrawDashedCircleBtn);
+                list.Add(boardContent.DrawEllipseCenterBtn);
+                list.Add(boardContent.DrawEllipseCenterWithFocalPointBtn);
+                list.Add(boardContent.DrawCuboidBtn);
+                list.Add(boardContent.DrawRectangleBtn);
+                list.Add(boardContent.DrawCylinderBtn);
+                list.Add(boardContent.DrawConeBtn);
+                list.Add(boardContent.DrawCoordinate1Btn);
+                list.Add(boardContent.DrawCoordinate2Btn);
+                list.Add(boardContent.DrawCoordinate3Btn);
+                list.Add(boardContent.DrawCoordinate4Btn);
+                list.Add(boardContent.DrawCoordinate5Btn);
+                list.Add(boardContent.DrawHyperbolaBtn);
+                list.Add(boardContent.DrawBezierBtn);
+                list.Add(boardContent.DrawParabola1Btn);
+                list.Add(boardContent.DrawParabolaWithFocalPointBtn);
+                list.Add(boardContent.DrawParabola2Btn);
+                list.Add(boardContent.DrawCompassBtn);
+                list.Add(boardContent.DrawTriangleRulerBtn);
+                list.Add(boardContent.DrawTriangleRuler2Btn);
+                list.Add(boardContent.DrawStraightRulerBtn);
+            }
+
+            return list;
+        }
+
+        /// <summary>
+        /// 获取按钮对应的绘制模式（0 表示未知按钮）
+        /// </summary>
+        private int GetDrawingModeForButton(GeometryButton btn)
+        {
+            var content = ShapeDrawPopupContent;
+            var boardContent = BoardShapeDrawPopupContent;
+
+            if (btn == content?.DrawLineBtn || btn == boardContent?.DrawLineBtn) return 1;
+            if (btn == content?.DrawArrowBtn || btn == boardContent?.DrawArrowBtn) return 2;
+            if (btn == content?.DrawRectangleBtn || btn == boardContent?.DrawRectangleBtn) return 3;
+            if (btn == content?.DrawCircleBtn || btn == boardContent?.DrawCircleBtn) return 5;
+            if (btn == content?.DrawCylinderBtn || btn == boardContent?.DrawCylinderBtn) return 6;
+            if (btn == content?.DrawConeBtn || btn == boardContent?.DrawConeBtn) return 7;
+            if (btn == content?.DrawDashedLineBtn || btn == boardContent?.DrawDashedLineBtn) return 8;
+            if (btn == content?.DrawCuboidBtn || btn == boardContent?.DrawCuboidBtn) return 9;
+            if (btn == content?.DrawDashedCircleBtn || btn == boardContent?.DrawDashedCircleBtn) return 10;
+            if (btn == content?.DrawCoordinate1Btn || btn == boardContent?.DrawCoordinate1Btn) return 11;
+            if (btn == content?.DrawCoordinate2Btn || btn == boardContent?.DrawCoordinate2Btn) return 12;
+            if (btn == content?.DrawCoordinate3Btn || btn == boardContent?.DrawCoordinate3Btn) return 13;
+            if (btn == content?.DrawCoordinate4Btn || btn == boardContent?.DrawCoordinate4Btn) return 14;
+            if (btn == content?.DrawParallelLineBtn || btn == boardContent?.DrawParallelLineBtn) return 15;
+            if (btn == content?.DrawEllipseCenterBtn || btn == boardContent?.DrawEllipseCenterBtn) return 16;
+            if (btn == content?.DrawCoordinate5Btn || btn == boardContent?.DrawCoordinate5Btn) return 17;
+            if (btn == content?.DrawDotLineBtn || btn == boardContent?.DrawDotLineBtn) return 18;
+            if (btn == content?.DrawRectangleCenterBtn || btn == boardContent?.DrawRectangleCenterBtn) return 19;
+            if (btn == content?.DrawParabola1Btn || btn == boardContent?.DrawParabola1Btn) return 20;
+            if (btn == content?.DrawParabola2Btn || btn == boardContent?.DrawParabola2Btn) return 21;
+            if (btn == content?.DrawParabolaWithFocalPointBtn || btn == boardContent?.DrawParabolaWithFocalPointBtn) return 22;
+            if (btn == content?.DrawEllipseCenterWithFocalPointBtn || btn == boardContent?.DrawEllipseCenterWithFocalPointBtn) return 23;
+            if (btn == content?.DrawHyperbolaBtn || btn == boardContent?.DrawHyperbolaBtn) return 24;
+            if (btn == content?.DrawBezierBtn || btn == boardContent?.DrawBezierBtn) return 25;
+            // 圆规/三角板不占用绘制模式，由 IsCompassButton / IsTriangleRulerButton 单独处理（返回 0 = 非绘制模式按钮）
+
+            return 0;
+        }
+
+        /// <summary>
         /// 处理画笔按钮点击事件
         /// </summary>
         /// <param name="sender">事件发送者</param>
@@ -259,6 +724,7 @@ namespace Ink_Canvas
             inkCanvas.IsManipulationEnabled = true;
             CancelSingleFingerDragMode();
             isLongPressSelected = false;
+            UpdateAllGeometryButtonsCheckedState();
         }
 
         /// <summary>
@@ -902,39 +1368,6 @@ namespace Ink_Canvas
         }
 
         /// <summary>
-        /// 处理绘制带焦点的双曲线按钮点击事件
-        /// </summary>
-        /// <param name="sender">事件发送者</param>
-        /// <param name="e">鼠标按钮事件参数</param>
-        /// <remarks>
-        /// 当绘制带焦点的双曲线按钮被点击时：
-        /// 1. 检查是否在多点触控模式下
-        /// 2. 禁用点橡皮擦模式
-        /// 3. 禁用橡皮擦覆盖
-        /// 4. 设置强制橡皮擦模式
-        /// 5. 设置绘制模式为带焦点的双曲线
-        /// 6. 重置多步形状绘制当前步骤
-        /// 7. 设置墨水画布编辑模式为无
-        /// 8. 启用墨水画布的操作功能
-        /// 9. 取消单指拖拽模式
-        /// 10. 提示切换到画笔模式
-        /// </remarks>
-        private async void BtnDrawHyperbolaWithFocalPoint_Click(object sender, MouseButtonEventArgs e)
-        {
-            if (!await CheckIsDrawingShapesInMultiTouchMode()) return;
-            forcePointEraser = false;
-            DisableEraserOverlay();
-
-            forceEraser = true;
-            drawingShapeMode = 25;
-            drawMultiStepShapeCurrentStep = 0;
-            inkCanvas.EditingMode = InkCanvasEditingMode.None;
-            inkCanvas.IsManipulationEnabled = true;
-            CancelSingleFingerDragMode();
-            DrawShapePromptToPen();
-        }
-
-        /// <summary>
         /// 处理绘制抛物线1按钮点击事件
         /// </summary>
         /// <param name="sender">事件发送者</param>
@@ -1186,6 +1619,52 @@ namespace Ink_Canvas
         /// </summary>
         private StrokeCollection drawMultiStepShapeSpecialStrokeCollection = new StrokeCollection();
 
+        /// <summary>
+        /// 当前本次双曲线的渐近线笔画标记（每次绘制生成新 GUID）。
+        /// 用标记而非引用集合来删除渐近线，规避引用跟踪失效导致“删不掉渐近线”的问题。
+        /// </summary>
+        private Guid _currentAsymptoteTagGuid;
+
+        /// <summary>
+        /// 给一批渐近线笔画打上指定标记。
+        /// </summary>
+        private void TagAsymptoteStrokes(StrokeCollection strokes, Guid tag)
+        {
+            if (strokes == null) return;
+            foreach (var s in strokes)
+            {
+                try
+                {
+                    if (!s.ContainsPropertyData(tag)) s.AddPropertyData(tag, true);
+                }
+                catch { }
+            }
+        }
+
+        /// <summary>
+        /// 从画布移除所有带指定标记的渐近线笔画（仅当前本次双曲线）。
+        /// </summary>
+        private void RemoveAsymptotesByTag(Guid tag)
+        {
+            try
+            {
+                if (inkCanvas == null) return;
+                var toRemove = new List<Stroke>();
+                foreach (var s in inkCanvas.Strokes)
+                {
+                    if (s.ContainsPropertyData(tag)) toRemove.Add(s);
+                }
+                foreach (var s in toRemove) inkCanvas.Strokes.Remove(s);
+            }
+            catch { }
+        }
+
+        /// <summary>
+        /// 双曲线绘制时上一帧预览（渐近线克隆体 + 双曲线），用于跨帧清理。
+        /// 不能用 lastTempStrokeCollection：该方法末尾会将其置 null，导致拖动时上一帧双曲线无法被移除而堆叠。
+        /// </summary>
+        private StrokeCollection _hyperbolaLastPreview;
+
         //double drawMultiStepShapeSpecialParameter1 = 0.0; //多笔完成的图形 特殊参数 通常用于表示a
         //double drawMultiStepShapeSpecialParameter2 = 0.0; //多笔完成的图形 特殊参数 通常用于表示b
 
@@ -1193,6 +1672,10 @@ namespace Ink_Canvas
         /// 多笔完成的图形 特殊参数 通常用于表示k
         /// </summary>
         private double drawMultiStepShapeSpecialParameter3;
+
+        // 贝塞尔曲线（模式 25）专用：跨帧预览清理跟踪与第二端点缓存
+        private StrokeCollection _bezierLastPreview;
+        private Point _bezierEndPoint = default;
 
         #region 形状绘制主函数
 
@@ -1686,10 +2169,13 @@ namespace Ink_Canvas
                     inkCanvas.Strokes.Add(strokes);
                     break;
                 case 24:
-                case 25:
                     _currentCommitType = CommitReason.ShapeDrawing;
                     //双曲线 x^2/a^2 - y^2/b^2 = 1
                     if (Math.Abs(iniP.X - endP.X) < 0.01 || Math.Abs(iniP.Y - endP.Y) < 0.01) return;
+                    // 移除上一帧预览（lastTempStrokeCollection 在方法末尾会被置 null，无法跨帧清理，
+                    // 故用专用字段 _hyperbolaLastPreview 跟踪，避免拖动时上一帧双曲线/渐近线不断堆叠残留）。
+                    try { inkCanvas.Strokes.Remove(_hyperbolaLastPreview); }
+                    catch { }
                     var pointList2 = new List<Point>();
                     var pointList3 = new List<Point>();
                     var pointList4 = new List<Point>();
@@ -1703,18 +2189,37 @@ namespace Ink_Canvas
                         strokes.Add(GenerateDashedLineStrokeCollection(new Point(2 * iniP.X - endP.X, endP.Y),
                                 new Point(endP.X, 2 * iniP.Y - endP.Y)));
                         drawMultiStepShapeSpecialParameter3 = k;
+                        _currentAsymptoteTagGuid = Guid.NewGuid();
                         drawMultiStepShapeSpecialStrokeCollection = strokes;
+                        // 给本次双曲线的渐近线打标记，结尾按标记可靠删除
+                        TagAsymptoteStrokes(drawMultiStepShapeSpecialStrokeCollection, _currentAsymptoteTagGuid);
                     }
                     else
                     {
                         //第二笔：画双曲线
-                        // 先将第一笔的渐近线添加到strokes中
+                        // 先将第一笔的渐近线添加到 strokes 中
                         if (drawMultiStepShapeSpecialStrokeCollection != null && drawMultiStepShapeSpecialStrokeCollection.Count > 0)
                         {
+                            // 第一笔的渐近线原始笔画此刻仍在画布上（上一笔末尾 lastTempStrokeCollection 已被置空，
+                            // 旧的上一帧预览清理不会再移除它们）。必须先显式从画布移除，否则：
+                            // 1) 结尾删除（line ~3469）只能删到克隆体，原始渐近线会残留（表现为“删不掉渐近线”）；
+                            // 2) 下面再次 Add 相同引用会抛“重复笔画”异常。
+                            try { inkCanvas.Strokes.Remove(drawMultiStepShapeSpecialStrokeCollection); }
+                            catch { }
+
+                            // 记录真正要画到画布上的渐近线（克隆体），供结尾删除使用。
+                            // 必须 Clone：每次鼠标移动都会重建 strokes 并重新 Add，复用原始引用会与画布上已有引用冲突。
+                            var asymptoteStrokesOnCanvas = new StrokeCollection();
                             foreach (var asymptoteStroke in drawMultiStepShapeSpecialStrokeCollection)
                             {
-                                strokes.Add(asymptoteStroke.Clone());
+                                var clone = asymptoteStroke.Clone();
+                                strokes.Add(clone);
+                                asymptoteStrokesOnCanvas.Add(clone);
                             }
+                            // 让结尾的删除（line ~3469）命中画布上实际存在的克隆体渐近线
+                            drawMultiStepShapeSpecialStrokeCollection = asymptoteStrokesOnCanvas;
+                            // 克隆体也打上本次标记：结尾按标记删除，彻底摆脱引用跟踪
+                            TagAsymptoteStrokes(drawMultiStepShapeSpecialStrokeCollection, _currentAsymptoteTagGuid);
                         }
 
                         var k = drawMultiStepShapeSpecialParameter3;
@@ -1770,45 +2275,95 @@ namespace Ink_Canvas
                             stroke = new Stroke(point)
                             { DrawingAttributes = inkCanvas.DefaultDrawingAttributes.Clone() };
                             strokes.Add(stroke.Clone());
-                            if (drawingShapeMode == 25)
-                            {
-                                //画焦点
-                                c = Math.Sqrt(a * a + b * b);
-                                stylusPoint = isHyperbolaFocalPointOnXAxis
-                                    ? new StylusPoint(iniP.X + c, iniP.Y, (float)1.0)
-                                    : new StylusPoint(iniP.X, iniP.Y + c, (float)1.0);
-                                point = new StylusPointCollection();
-                                point.Add(stylusPoint);
-                                stroke = new Stroke(point)
-                                { DrawingAttributes = inkCanvas.DefaultDrawingAttributes.Clone() };
-                                strokes.Add(stroke.Clone());
-                                stylusPoint = isHyperbolaFocalPointOnXAxis
-                                    ? new StylusPoint(iniP.X - c, iniP.Y, (float)1.0)
-                                    : new StylusPoint(iniP.X, iniP.Y - c, (float)1.0);
-                                point = new StylusPointCollection();
-                                point.Add(stylusPoint);
-                                stroke = new Stroke(point)
-                                { DrawingAttributes = inkCanvas.DefaultDrawingAttributes.Clone() };
-                                strokes.Add(stroke.Clone());
-                            }
                         }
                         catch
                         {
+                            // 双曲线点列为空等异常时提前返回：上一帧预览已在 case 开头清理，这里保险再清一次
+                            try { inkCanvas.Strokes.Remove(_hyperbolaLastPreview); }
+                            catch { }
                             return;
                         }
                     }
 
-                    try
-                    {
-                        inkCanvas.Strokes.Remove(lastTempStrokeCollection);
-                    }
-                    catch
-                    {
-                        Trace.WriteLine("lastTempStrokeCollection failed.");
-                    }
-
                     lastTempStrokeCollection = strokes;
                     inkCanvas.Strokes.Add(strokes);
+                    // 记录本帧预览（含渐近线克隆体 + 双曲线），供下一帧开头清理
+                    // （lastTempStrokeCollection 在方法末尾会被置 null，无法用于跨帧清理）
+                    _hyperbolaLastPreview = strokes;
+                    break;
+                case 25:
+                    _currentCommitType = CommitReason.ShapeDrawing;
+                    // 二次贝塞尔曲线：第一步拖出两端点 P0→P2（弦），第二步拖出控制点 P1，实时预览
+                    if (drawMultiStepShapeCurrentStep == 0)
+                    {
+                        // 第一笔：记录两端点（P0=iniP，P2=endP），并以辅助弦作为预览
+                        if (Math.Abs(iniP.X - endP.X) < 0.01 && Math.Abs(iniP.Y - endP.Y) < 0.01) return;
+                        // 移除上一帧预览，避免拖动时堆叠残留
+                        try { inkCanvas.Strokes.Remove(_bezierLastPreview); }
+                        catch { }
+
+                        _bezierEndPoint = endP;
+                        var bezierChord = new Stroke(new StylusPointCollection(new List<Point> { iniP, endP }))
+                        {
+                            DrawingAttributes = inkCanvas.DefaultDrawingAttributes.Clone()
+                        };
+                        strokes.Add(bezierChord);
+                        // 第一步的辅助弦在第二步会被重新克隆加入，结尾统一移除（只保留曲线本身）
+                        drawMultiStepShapeSpecialStrokeCollection = strokes;
+                        lastTempStrokeCollection = strokes;
+                    }
+                    else
+                    {
+                        // 第二笔：P0=iniP（第一步起点，固定），P2=_bezierEndPoint，P1=endP（控制点），绘制二次贝塞尔曲线
+                        if (Math.Abs(iniP.X - _bezierEndPoint.X) < 0.01 && Math.Abs(iniP.Y - _bezierEndPoint.Y) < 0.01) return;
+                        try { inkCanvas.Strokes.Remove(_bezierLastPreview); }
+                        catch { }
+
+                        var p0 = iniP;
+                        var p2 = _bezierEndPoint;
+                        var p1 = endP;
+                        var bezPoints = new List<Point>();
+                        const int bezierSegments = 64;
+                        for (var i = 0; i <= bezierSegments; i++)
+                        {
+                            var t = (double)i / bezierSegments;
+                            var u = 1 - t;
+                            var bx = u * u * p0.X + 2 * u * t * p1.X + t * t * p2.X;
+                            var by = u * u * p0.Y + 2 * u * t * p1.Y + t * t * p2.Y;
+                            bezPoints.Add(new Point(bx, by));
+                        }
+
+                        var bezierCurve = new Stroke(new StylusPointCollection(bezPoints))
+                        {
+                            DrawingAttributes = inkCanvas.DefaultDrawingAttributes.Clone()
+                        };
+
+                        // 重新加入第一步的辅助弦（克隆），供结尾统一移除
+                        var guideStrokesOnCanvas = new StrokeCollection();
+                        if (drawMultiStepShapeSpecialStrokeCollection != null && drawMultiStepShapeSpecialStrokeCollection.Count > 0)
+                        {
+                            try { inkCanvas.Strokes.Remove(drawMultiStepShapeSpecialStrokeCollection); }
+                            catch { }
+
+                            foreach (var guideStroke in drawMultiStepShapeSpecialStrokeCollection)
+                            {
+                                var clone = guideStroke.Clone();
+                                strokes.Add(clone);
+                                guideStrokesOnCanvas.Add(clone);
+                            }
+
+                            drawMultiStepShapeSpecialStrokeCollection = guideStrokesOnCanvas;
+                        }
+
+                        strokes.Add(bezierCurve);
+                        // 撤销历史只记录曲线本身，辅助弦（已统一移除）不进入历史，避免撤销时残留辅助线
+                        lastTempStrokeCollection = new StrokeCollection { bezierCurve };
+                    }
+
+                    inkCanvas.Strokes.Add(strokes);
+                    // 记录本帧预览（含辅助弦 + 曲线），供下一帧开头清理
+                    // （lastTempStrokeCollection 方法末尾会被置 null，无法用于跨帧清理）
+                    _bezierLastPreview = strokes;
                     break;
                 case 20:
                     _currentCommitType = CommitReason.ShapeDrawing;
@@ -1823,18 +2378,34 @@ namespace Ink_Canvas
                         pointList2.Add(new Point(iniP.X - i, iniP.Y - a * i * i));
                     }
 
-                    point = new StylusPointCollection(pointList);
-                    stroke = new Stroke(point)
+                    if (Settings.Canvas.ParabolaSingleStroke)
                     {
-                        DrawingAttributes = inkCanvas.DefaultDrawingAttributes.Clone()
-                    };
-                    strokes.Add(stroke.Clone());
-                    point = new StylusPointCollection(pointList2);
-                    stroke = new Stroke(point)
+                        // 一笔绘制：左臂反序接顶点再接右臂，合成一条连续曲线（单个对象）
+                        var merged = new List<Point>(pointList2);
+                        merged.Reverse();
+                        merged.AddRange(pointList);
+                        point = new StylusPointCollection(merged);
+                        stroke = new Stroke(point)
+                        {
+                            DrawingAttributes = inkCanvas.DefaultDrawingAttributes.Clone()
+                        };
+                        strokes.Add(stroke.Clone());
+                    }
+                    else
                     {
-                        DrawingAttributes = inkCanvas.DefaultDrawingAttributes.Clone()
-                    };
-                    strokes.Add(stroke.Clone());
+                        point = new StylusPointCollection(pointList);
+                        stroke = new Stroke(point)
+                        {
+                            DrawingAttributes = inkCanvas.DefaultDrawingAttributes.Clone()
+                        };
+                        strokes.Add(stroke.Clone());
+                        point = new StylusPointCollection(pointList2);
+                        stroke = new Stroke(point)
+                        {
+                            DrawingAttributes = inkCanvas.DefaultDrawingAttributes.Clone()
+                        };
+                        strokes.Add(stroke.Clone());
+                    }
                     try
                     {
                         inkCanvas.Strokes.Remove(lastTempStrokeCollection);
@@ -1860,18 +2431,34 @@ namespace Ink_Canvas
                         pointList2.Add(new Point(iniP.X - a * i * i, iniP.Y - i));
                     }
 
-                    point = new StylusPointCollection(pointList);
-                    stroke = new Stroke(point)
+                    if (Settings.Canvas.ParabolaSingleStroke)
                     {
-                        DrawingAttributes = inkCanvas.DefaultDrawingAttributes.Clone()
-                    };
-                    strokes.Add(stroke.Clone());
-                    point = new StylusPointCollection(pointList2);
-                    stroke = new Stroke(point)
+                        // 一笔绘制：下臂反序接顶点再接上臂，合成一条连续曲线（单个对象）
+                        var merged = new List<Point>(pointList2);
+                        merged.Reverse();
+                        merged.AddRange(pointList);
+                        point = new StylusPointCollection(merged);
+                        stroke = new Stroke(point)
+                        {
+                            DrawingAttributes = inkCanvas.DefaultDrawingAttributes.Clone()
+                        };
+                        strokes.Add(stroke.Clone());
+                    }
+                    else
                     {
-                        DrawingAttributes = inkCanvas.DefaultDrawingAttributes.Clone()
-                    };
-                    strokes.Add(stroke.Clone());
+                        point = new StylusPointCollection(pointList);
+                        stroke = new Stroke(point)
+                        {
+                            DrawingAttributes = inkCanvas.DefaultDrawingAttributes.Clone()
+                        };
+                        strokes.Add(stroke.Clone());
+                        point = new StylusPointCollection(pointList2);
+                        stroke = new Stroke(point)
+                        {
+                            DrawingAttributes = inkCanvas.DefaultDrawingAttributes.Clone()
+                        };
+                        strokes.Add(stroke.Clone());
+                    }
                     try
                     {
                         inkCanvas.Strokes.Remove(lastTempStrokeCollection);
@@ -1898,18 +2485,35 @@ namespace Ink_Canvas
                         pointList2.Add(new Point(iniP.X - a * i * i, iniP.Y - i));
                     }
 
-                    point = new StylusPointCollection(pointList);
-                    stroke = new Stroke(point)
+                    if (Settings.Canvas.ParabolaSingleStroke)
                     {
-                        DrawingAttributes = inkCanvas.DefaultDrawingAttributes.Clone()
-                    };
-                    strokes.Add(stroke.Clone());
-                    point = new StylusPointCollection(pointList2);
-                    stroke = new Stroke(point)
+                        // 一笔绘制：下臂反序接顶点再接上臂，合成一条连续曲线（单个对象）；
+                        // 焦点因位置不连续仍为独立笔画
+                        var merged = new List<Point>(pointList2);
+                        merged.Reverse();
+                        merged.AddRange(pointList);
+                        point = new StylusPointCollection(merged);
+                        stroke = new Stroke(point)
+                        {
+                            DrawingAttributes = inkCanvas.DefaultDrawingAttributes.Clone()
+                        };
+                        strokes.Add(stroke.Clone());
+                    }
+                    else
                     {
-                        DrawingAttributes = inkCanvas.DefaultDrawingAttributes.Clone()
-                    };
-                    strokes.Add(stroke.Clone());
+                        point = new StylusPointCollection(pointList);
+                        stroke = new Stroke(point)
+                        {
+                            DrawingAttributes = inkCanvas.DefaultDrawingAttributes.Clone()
+                        };
+                        strokes.Add(stroke.Clone());
+                        point = new StylusPointCollection(pointList2);
+                        stroke = new Stroke(point)
+                        {
+                            DrawingAttributes = inkCanvas.DefaultDrawingAttributes.Clone()
+                        };
+                        strokes.Add(stroke.Clone());
+                    }
                     stylusPoint = new StylusPoint(iniP.X - p / 2, iniP.Y, (float)1.0);
                     point = new StylusPointCollection();
                     point.Add(stylusPoint);
@@ -2922,25 +3526,57 @@ namespace Ink_Canvas
                 else
                 {
                     drawMultiStepShapeCurrentStep = 0;
-                    if (drawMultiStepShapeSpecialStrokeCollection != null)
+                    if (drawingShapeMode == 24)
                     {
-                        var opFlag = false;
-                        switch (Settings.Canvas.HyperbolaAsymptoteOption)
+                        // 普通双曲线：按设置决定是否保留渐近线
+                        if (drawMultiStepShapeSpecialStrokeCollection != null)
                         {
-                            case OptionalOperation.Yes:
-                                opFlag = true;
-                                break;
-                            case OptionalOperation.No:
-                                opFlag = false;
-                                break;
-                            case OptionalOperation.Ask:
-                                opFlag = MessageBoxHelper.Show(this, Properties.CanvasStrings.Shape_RemoveAsymptote, "Ink Canvas", MessageBoxButton.YesNo) !=
-                                         MessageBoxResult.Yes;
-                                break;
+                            switch (Settings.Canvas.HyperbolaAsymptoteOption)
+                            {
+                                case OptionalOperation.Yes:
+                                    // 保留渐近线（不移除）
+                                    break;
+                                case OptionalOperation.No:
+                                    RemoveAsymptotesByTag(_currentAsymptoteTagGuid);
+                                    break;
+                                case OptionalOperation.Ask:
+                                    // 捕获本次双曲线的渐近线标记：延迟回调执行时按标记删除当前这次的渐近线，
+                                    // 避免字段被后续流程重置或引用跟踪失效导致删不掉。
+                                    var asymptoteTag = _currentAsymptoteTagGuid;
+                                    // 延迟到当前触摸/鼠标抬起事件处理完成后再弹窗，并改用自建对话框：
+                                    // 自建窗口可 Topmost + 强制前台 + 聚焦按钮，解决白板/触控下
+                                    // “点一次关不掉、需多次点击”的问题（iNKORE MessageBox 无法控制这些）。
+                                    this.Dispatcher.BeginInvoke(new Action(() =>
+                                    {
+                                        try
+                                        {
+                                            this.Activate();
+                                            this.Focus();
+                                            var confirm = new AsymptoteConfirmWindow { Owner = this };
+                                            confirm.ShowDialog();
+                                            // 问句为“是否移除渐近线？”：选“是”=移除，选“否”=保留
+                                            if (confirm.RemoveRequested) RemoveAsymptotesByTag(asymptoteTag);
+                                        }
+                                        catch { }
+                                    }), DispatcherPriority.Background);
+                                    break;
+                            }
                         }
 
-                        ;
-                        if (!opFlag) inkCanvas.Strokes.Remove(drawMultiStepShapeSpecialStrokeCollection);
+                        // 本次双曲线已提交：置空预览跟踪，避免下一笔开头清理时误删已完成的双曲线
+                        _hyperbolaLastPreview = null;
+                    }
+                    else
+                    {
+                        // 贝塞尔曲线（模式 25）：辅助弦始终移除，只保留曲线本身
+                        if (drawMultiStepShapeSpecialStrokeCollection != null && drawMultiStepShapeSpecialStrokeCollection.Count > 0)
+                        {
+                            try { inkCanvas.Strokes.Remove(drawMultiStepShapeSpecialStrokeCollection); }
+                            catch { }
+                        }
+
+                        _bezierLastPreview = null;
+                        _bezierEndPoint = default;
                     }
 
                     BtnPen_Click(null, null); //画完还原到笔模式

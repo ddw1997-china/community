@@ -148,9 +148,6 @@ namespace Ink_Canvas
             {
                 _suppressClearHistoryCommit = false;
             }
-
-            if (Settings.Canvas.NotifyAfterLongPressUndoClear)
-                ShowNotification(CanvasStrings.Canvas_LongPressUndoClearNotification);
         }
 
         #endregion

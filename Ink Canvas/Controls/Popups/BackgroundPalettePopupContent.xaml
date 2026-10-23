@@ -103,6 +103,73 @@ mc:Ignorable="d">
                         Background="#2563eb"
                         Foreground="Black"
                         HorizontalAlignment="Center" />
+                <Border Height="1" d:Background="Green"
+                        Background="{DynamicResource SettingsPageBorderBrush}"/>
+                <TextBlock Text="显示网格"
+                           Foreground="{DynamicResource TextForeground}"
+                           FontSize="10" FontWeight="Bold"
+                           HorizontalAlignment="Center"/>
+                <CheckBox x:Name="GridLinesCheckBox"
+                          Content="显示网格线"
+                          HorizontalAlignment="Center"
+                          Foreground="{DynamicResource TextForeground}"
+                          FontSize="10" />
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="密度:" Width="35"
+                               VerticalAlignment="Center"
+                               Foreground="{DynamicResource TextForeground}"
+                               FontSize="10"/>
+                    <Slider x:Name="GridDensitySlider"
+                            Minimum="10" Maximum="100" Value="20"
+                            Width="100"
+                            VerticalAlignment="Center" />
+                    <TextBlock x:Name="GridDensityValue"
+                               Text="20px" Width="40"
+                               VerticalAlignment="Center"
+                               TextAlignment="Right"
+                               Foreground="{DynamicResource TextForeground}"
+                               FontSize="10" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="亮度:" Width="35"
+                               VerticalAlignment="Center"
+                               Foreground="{DynamicResource TextForeground}"
+                               FontSize="10"/>
+                    <Slider x:Name="GridBrightnessSlider"
+                            Minimum="0" Maximum="255" Value="229"
+                            Width="100"
+                            VerticalAlignment="Center" />
+                    <TextBlock x:Name="GridBrightnessValue"
+                               Text="229" Width="30"
+                               VerticalAlignment="Center"
+                               TextAlignment="Right"
+                               Foreground="{DynamicResource TextForeground}"
+                               FontSize="10" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="水平线:" Width="35"
+                               VerticalAlignment="Center"
+                               Foreground="{DynamicResource TextForeground}"
+                               FontSize="10"/>
+                    <CheckBox x:Name="GridHorizontalLinesCheckBox"
+                              Content="显示"
+                              HorizontalAlignment="Left"
+                              Foreground="{DynamicResource TextForeground}"
+                              FontSize="10"
+                              IsChecked="True" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="竖直线:" Width="35"
+                               VerticalAlignment="Center"
+                               Foreground="{DynamicResource TextForeground}"
+                               FontSize="10"/>
+                    <CheckBox x:Name="GridVerticalLinesCheckBox"
+                              Content="显示"
+                              HorizontalAlignment="Left"
+                              Foreground="{DynamicResource TextForeground}"
+                              FontSize="10"
+                              IsChecked="True" />
+                </StackPanel>
             </ikw:SimpleStackPanel>
         </ContentControl>
     </Grid>

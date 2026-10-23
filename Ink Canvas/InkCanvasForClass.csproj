@@ -40,6 +40,7 @@
     <SuppressTfmSupportBuildWarnings>true</SuppressTfmSupportBuildWarnings>
     <ResolveAssemblyWarnOrErrorOnTargetArchitectureMismatch>None</ResolveAssemblyWarnOrErrorOnTargetArchitectureMismatch>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <CetCompat>false</CetCompat>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugType>embedded</DebugType>
@@ -54,7 +55,7 @@
     <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
   <PropertyGroup>
-    <ApplicationIcon>Resources\icc.ico</ApplicationIcon>
+    <ApplicationIcon>Resources\mylogo.ico</ApplicationIcon>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x86'">
     <OutputPath>bin\$(Configuration)\$(Platform)\</OutputPath>
@@ -118,11 +119,11 @@
     <None Include="app.manifest" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Costura.Fody" Version="6.0.0">
+    <PackageReference Include="Costura.Fody" Version="6.2.0">
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="gong-wpf-dragdrop" Version="4.0.0" />
-    <PackageReference Include="H.NotifyIcon.Wpf" Version="2.0.131" />
+    <PackageReference Include="H.NotifyIcon.Wpf" Version="2.4.1" />
     <PackageReference Include="iNKORE.UI.WPF.Modern" Version="0.10.2.1" />
     <PackageReference Include="iNKORE.UI.WPF" Version="1.2.8" />
     <PackageReference Include="MdXaml" Version="1.27.0" />
@@ -132,21 +133,20 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <PackageReference Include="MicrosoftOfficeCore" Version="15.0.0" />
-    <PackageReference Include="Microsoft.Toolkit.Uwp.Notifications" Version="7.1.3" />
     <PackageReference Include="Microsoft.International.Converters.PinYinConverter" Version="1.0.0" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="System.ComponentModel.Composition" Version="10.0.5" />
-    <PackageReference Include="System.Composition.AttributedModel" Version="10.0.5" />
+    <PackageReference Include="System.ComponentModel.Composition" Version="10.0.11" />
+    <PackageReference Include="System.Composition.AttributedModel" Version="10.0.11" />
     <PackageReference Include="System.Data.DataSetExtensions" Version="4.5.0" />
-    <PackageReference Include="System.Management" Version="6.0.2" />
+    <PackageReference Include="System.Management" Version="10.0.11" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
     <!-- UInk 1.0 规范：主文件为 MessagePack 对象流（Header/HeaderExtension/Canvas/Ink/Shape/Media），由 UInk/ 下的读写器使用 -->
     <PackageReference Include="MessagePack" Version="3.1.8" />
     <PackageReference Include="NHotkey.Wpf" Version="4.0.0" />
     <PackageReference Include="OSVersionExt" Version="4.1.0" />
     <!-- PDFsharp 6.1.x 是最后一个以 net6.0 为目标框架的版本；用于插件「背景 + 墨迹」导出 PDF -->
-    <PackageReference Include="PDFsharp" Version="6.1.1" />
+    <PackageReference Include="PDFsharp" Version="6.2.4" />
     <!-- AForge.Imaging / AForge.Math 仅用于照片校正（Grayscale/CannyEdgeDetector/BlobCounter/QuadrilateralTransformation）；摄像头采集已切换到 DirectShow（DirectShowLib） -->
     <PackageReference Include="AForge.Imaging" Version="2.2.5" />
     <PackageReference Include="AForge.Math" Version="2.2.5" />
@@ -155,12 +155,12 @@
     <PackageReference Include="OpenCvSharp4.Extensions" Version="4.13.0.20260627" />
 
     <PackageReference Include="WebDav.Client" Version="2.9.0" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="6.0.0" />
-    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
-    <PackageReference Include="Vortice.Direct2D1" Version="3.2.0" />
-    <PackageReference Include="Vortice.Direct3D11" Version="3.2.0" />
-    <PackageReference Include="Vortice.DirectComposition" Version="3.2.0" />
-    <PackageReference Include="Vortice.DXGI" Version="3.2.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.11" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <PackageReference Include="Vortice.Direct2D1" Version="3.8.3" />
+    <PackageReference Include="Vortice.Direct3D11" Version="3.8.3" />
+    <PackageReference Include="Vortice.DirectComposition" Version="3.8.3" />
+    <PackageReference Include="Vortice.DXGI" Version="3.8.3" />
     <!-- 视频展台：DirectShow + VMR9 Renderless + D3DImage 零拷贝 GPU 渲染 -->
     <PackageReference Include="WPFMediaKit" Version="3.0.1" />
   </ItemGroup>
@@ -172,24 +172,26 @@
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
       <Private>false</Private>
     </ProjectReference>
-    <ProjectReference Include="..\InkCanvas.LiquidGlassMagHost\InkCanvas.LiquidGlassMagHost.csproj">
-      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
-      <Private>false</Private>
-    </ProjectReference>
     <UpToDateCheckInput Include="..\InkCanvas.Controls\**\*.xaml" />
   </ItemGroup>
-  <Target Name="CopyVstoAgent" AfterTargets="Build">
+  <Target Name="CopyVstoAgent" AfterTargets="Build;Publish">
+    <ItemGroup>
+      <_VstoSrc Include="..\InkCanvas.PowerPointAddIn\bin\$(Configuration)\InkCanvas.PowerPointAddIn.dll" />
+      <_VstoSrc Include="..\InkCanvas.PowerPointAddIn\bin\$(Configuration)\InkCanvas.PowerPointAddIn.vsto" />
+      <_VstoSrc Include="..\InkCanvas.PowerPointAddIn\bin\$(Configuration)\InkCanvas.PowerPointAddIn.dll.manifest" />
+      <_VstoSrc Include="..\InkCanvas.PowerPointAddIn\bin\$(Configuration)\Microsoft.Office.Tools.Common.v4.0.Utilities.dll" />
+      <_VstoSrc Include="..\InkCanvas.PowerPointAddIn\bin\$(Configuration)\Microsoft.Office.Tools.Common.dll" />
+      <_VstoSrc Include="..\InkCanvas.PowerPointAddIn\bin\$(Configuration)\Microsoft.Office.Tools.dll" />
+      <_VstoSrc Include="..\InkCanvas.PowerPointAddIn\bin\$(Configuration)\Microsoft.Office.Tools.v4.0.Framework.dll" />
+      <_VstoSrc Include="..\InkCanvas.PowerPointAddIn\bin\$(Configuration)\Microsoft.VisualStudio.Tools.Applications.Runtime.dll" />
+      <_VstoSrc Include="..\InkCanvas.PowerPointAddIn\bin\$(Configuration)\InkCanvas.PPTAgent.Contracts.dll" />
+    </ItemGroup>
     <MakeDir Directories="$(OutputPath)ppt-agent" />
-    <Copy SourceFiles="..\InkCanvas.PowerPointAddIn\bin\$(Configuration)\InkCanvas.PowerPointAddIn.dll" DestinationFolder="$(OutputPath)ppt-agent" SkipUnchangedFiles="true" Condition="Exists('..\InkCanvas.PowerPointAddIn\bin\$(Configuration)\InkCanvas.PowerPointAddIn.dll')" />
-    <Copy SourceFiles="..\InkCanvas.PowerPointAddIn\bin\$(Configuration)\InkCanvas.PowerPointAddIn.vsto" DestinationFolder="$(OutputPath)ppt-agent" SkipUnchangedFiles="false" Condition="Exists('..\InkCanvas.PowerPointAddIn\bin\$(Configuration)\InkCanvas.PowerPointAddIn.vsto')" />
-    <Copy SourceFiles="..\InkCanvas.PowerPointAddIn\bin\$(Configuration)\InkCanvas.PowerPointAddIn.dll.manifest" DestinationFolder="$(OutputPath)ppt-agent" SkipUnchangedFiles="false" Condition="Exists('..\InkCanvas.PowerPointAddIn\bin\$(Configuration)\InkCanvas.PowerPointAddIn.dll.manifest')" />
-    <Copy SourceFiles="..\InkCanvas.PowerPointAddIn\bin\$(Configuration)\Microsoft.Office.Tools.Common.v4.0.Utilities.dll" DestinationFolder="$(OutputPath)ppt-agent" SkipUnchangedFiles="true" Condition="Exists('..\InkCanvas.PowerPointAddIn\bin\$(Configuration)\Microsoft.Office.Tools.Common.v4.0.Utilities.dll')" />
-    <Copy SourceFiles="..\InkCanvas.PowerPointAddIn\bin\$(Configuration)\Microsoft.Office.Tools.Common.dll" DestinationFolder="$(OutputPath)ppt-agent" SkipUnchangedFiles="true" Condition="Exists('..\InkCanvas.PowerPointAddIn\bin\$(Configuration)\Microsoft.Office.Tools.Common.dll')" />
-    <Copy SourceFiles="..\InkCanvas.PowerPointAddIn\bin\$(Configuration)\Microsoft.Office.Tools.dll" DestinationFolder="$(OutputPath)ppt-agent" SkipUnchangedFiles="true" Condition="Exists('..\InkCanvas.PowerPointAddIn\bin\$(Configuration)\Microsoft.Office.Tools.dll')" />
-    <Copy SourceFiles="..\InkCanvas.PowerPointAddIn\bin\$(Configuration)\Microsoft.Office.Tools.v4.0.Framework.dll" DestinationFolder="$(OutputPath)ppt-agent" SkipUnchangedFiles="true" Condition="Exists('..\InkCanvas.PowerPointAddIn\bin\$(Configuration)\Microsoft.Office.Tools.v4.0.Framework.dll')" />
-    <Copy SourceFiles="..\InkCanvas.PowerPointAddIn\bin\$(Configuration)\Microsoft.VisualStudio.Tools.Applications.Runtime.dll" DestinationFolder="$(OutputPath)ppt-agent" SkipUnchangedFiles="true" Condition="Exists('..\InkCanvas.PowerPointAddIn\bin\$(Configuration)\Microsoft.VisualStudio.Tools.Applications.Runtime.dll')" />
-    <Copy SourceFiles="..\InkCanvas.PowerPointAddIn\bin\$(Configuration)\InkCanvas.PPTAgent.Contracts.dll" DestinationFolder="$(OutputPath)ppt-agent" SkipUnchangedFiles="false" Condition="Exists('..\InkCanvas.PowerPointAddIn\bin\$(Configuration)\InkCanvas.PPTAgent.Contracts.dll')" />
+    <Copy SourceFiles="@(_VstoSrc)" DestinationFolder="$(OutputPath)ppt-agent" SkipUnchangedFiles="true" Condition="Exists('%(_VstoSrc.Identity)')" />
+    <MakeDir Directories="$(PublishDir)ppt-agent" Condition="'$(PublishDir)' != ''" />
+    <Copy SourceFiles="@(_VstoSrc)" DestinationFolder="$(PublishDir)ppt-agent" SkipUnchangedFiles="true" Condition="Exists('%(_VstoSrc.Identity)') And '$(PublishDir)' != ''" />
     <Copy SourceFiles="$(NuGetPackageRoot)newtonsoft.json\13.0.4\lib\net45\Newtonsoft.Json.dll" DestinationFolder="$(OutputPath)ppt-agent" SkipUnchangedFiles="true" Condition="Exists('$(NuGetPackageRoot)newtonsoft.json\13.0.4\lib\net45\Newtonsoft.Json.dll')" />
+    <Copy SourceFiles="$(NuGetPackageRoot)newtonsoft.json\13.0.4\lib\net45\Newtonsoft.Json.dll" DestinationFolder="$(PublishDir)ppt-agent" SkipUnchangedFiles="true" Condition="Exists('$(NuGetPackageRoot)newtonsoft.json\13.0.4\lib\net45\Newtonsoft.Json.dll') And '$(PublishDir)' != ''" />
   </Target>
   <ItemGroup Condition="'$(MSBuildRuntimeType)' == 'Full'">
     <COMReference Include="IWshRuntimeLibrary">
@@ -244,6 +246,7 @@
     <Resource Include="Resources\DeveloperAvatars\yuwenhui2020.png" />
     <Resource Include="Resources\DeveloperAvatars\CJKmkp.jpg" />
     <Resource Include="Resources\icc.ico" />
+    <Resource Include="Resources\mylogo.ico" />
     <Resource Include="Resources\Icons-png\AdmoxBooth.png" />
     <Resource Include="Resources\Icons-png\AdmoxWhiteboard.png" />
     <Resource Include="Resources\Icons-png\Donview.png" />
@@ -258,6 +261,7 @@
     <Resource Include="Resources\Icons-png\icc-noshadow.png" />
     <Resource Include="Resources\Icons-png\icc-sharpdark.png" />
     <Resource Include="Resources\Icons-png\icc-transparent-light-small.png" />
+    <Resource Include="Resources\Icons-png\dycz.png" />
     <Resource Include="Resources\Icons-png\InkCanvas.png" />
     <Resource Include="Resources\Icons-png\kuanciya.png" />
     <Resource Include="Resources\Icons-png\kuandogeyuanliangwo.png" />
@@ -272,8 +276,6 @@
     <Resource Include="Resources\new-icons\hand-move_white.png" />
     <Resource Include="Resources\new-icons\zoom_white.png" />
     <Resource Include="Resources\new-icons\rotate_white.png" />
-    <!-- 液态玻璃浮动栏折射着色器（必须是 Resource，否则 pack URI 找不到而退回无折射） -->
-    <Resource Include="Shaders\LiquidGlassEffect.ps" />
   </ItemGroup>
 <ItemGroup>
     <Resource Include="Resources\DeveloperAvatars\ChangSakura.png" />
@@ -411,6 +413,7 @@
   </ItemGroup>
   <ItemGroup>
     <Resource Include="Resources\Icons-png\geo-icons\cone.png" />
+    <Resource Include="Resources\Icons-png\geo-icons\compass.png" />
   </ItemGroup>
   <ItemGroup>
     <Resource Include="Resources\Icons-png\geo-icons\cube.png" />
@@ -442,6 +445,7 @@
   </ItemGroup>
   <ItemGroup>
     <Resource Include="Resources\Icons-png\geo-icons\cone_white.png" />
+    <Resource Include="Resources\Icons-png\geo-icons\compass_white.png" />
   </ItemGroup>
   <ItemGroup>
     <Resource Include="Resources\Icons-png\geo-icons\cube_white.png" />
@@ -506,6 +510,7 @@
     <None Remove="Resources\DeveloperAvatars\wwei.png" />
     <None Remove="Resources\DeveloperAvatars\yuwenhui2020.png" />
     <None Remove="Resources\icc.ico" />
+    <None Remove="Resources\mylogo.ico" />
     <None Remove="Resources\Icons-png\AdmoxBooth.png" />
     <None Remove="Resources\Icons-png\AdmoxWhiteboard.png" />
     <None Remove="Resources\Icons-png\Donview.png" />
@@ -575,6 +580,7 @@
     <Resource Include="Resources\Startup-animation\ICC Summer.png" />
     <Resource Include="Resources\Startup-animation\ICC Autumn.png" />
     <Resource Include="Resources\Startup-animation\ICC Winter.png" />
+    <Resource Include="Resources\Startup-animation\School.png" />
     <Resource Include="Resources\Startup-animation\ICC Horse.png" />
     <Resource Include="Resources\Icons-Fluent\ic_fluent_copy_24_regular_white.png" />
     <Resource Include="Resources\Icons-Fluent\ic_fluent_copy_add_24_regular_white.png" />
@@ -604,43 +610,12 @@
     <Delete Files="$(MSBuildProjectDirectory)\telemetry_token.generated.txt" />
   </Target>
 
-  <Target Name="CopyIACoreHelper" AfterTargets="Build" Condition="'$(PublishSingleFile)' != 'true'">
+  <Target Name="CopyIACoreHelper" AfterTargets="Build;Publish">
     <ItemGroup>
       <IACoreHelperFiles Include="$(MSBuildProjectDirectory)\..\InkCanvas.IACoreHelper\bin\$(Configuration)\*.*" />
     </ItemGroup>
     <Copy SourceFiles="@(IACoreHelperFiles)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" Condition="'@(IACoreHelperFiles)' != ''" />
-  </Target>
-
-  <!-- InkCanvas.LiquidGlassMagHost：独立放大镜抓屏辅助进程。
-       MagHost 是 SDK 项目，SDK 会按平台给输出目录加前缀：x86/x64 平台输出到
-       bin\$(Platform)\$(Configuration)\$(TargetFramework)\，AnyCPU 输出到 bin\$(Configuration)\$(TargetFramework)\。
-       这里在 Build / Publish 后把 exe 复制到主程序输出目录，与 IACoreHelper 的 Copy target 模式一致，
-       CI 的 AnyCPU(=x64 产物)/x86 构建都能带上辅助 exe；单文件发布走 Publish 分支。 -->
-  <Target Name="CopyLiquidGlassMagHost" AfterTargets="Build" Condition="'$(PublishSingleFile)' != 'true'">
-    <ItemGroup>
-      <LiquidGlassMagHostFiles Include="$(MSBuildProjectDirectory)\..\InkCanvas.LiquidGlassMagHost\bin\$(Platform)\$(Configuration)\$(TargetFramework)\InkCanvas.LiquidGlassMagHost.*"
-                                Condition="'$(Platform)' != 'AnyCPU'" />
-      <LiquidGlassMagHostFiles Include="$(MSBuildProjectDirectory)\..\InkCanvas.LiquidGlassMagHost\bin\$(Configuration)\$(TargetFramework)\InkCanvas.LiquidGlassMagHost.*"
-                                Condition="'$(Platform)' == 'AnyCPU'" />
-    </ItemGroup>
-    <Copy SourceFiles="@(LiquidGlassMagHostFiles)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" Condition="'@(LiquidGlassMagHostFiles)' != ''" />
-  </Target>
-
-  <Target Name="CopyLiquidGlassMagHostToPublishDirectory" AfterTargets="Publish" Condition="'$(PublishSingleFile)' == 'true'">
-    <ItemGroup>
-      <LiquidGlassMagHostPublishFiles Include="$(MSBuildProjectDirectory)\..\InkCanvas.LiquidGlassMagHost\bin\$(Platform)\$(Configuration)\$(TargetFramework)\InkCanvas.LiquidGlassMagHost.*"
-                                      Condition="'$(Platform)' != 'AnyCPU'" />
-      <LiquidGlassMagHostPublishFiles Include="$(MSBuildProjectDirectory)\..\InkCanvas.LiquidGlassMagHost\bin\$(Configuration)\$(TargetFramework)\InkCanvas.LiquidGlassMagHost.*"
-                                      Condition="'$(Platform)' == 'AnyCPU'" />
-    </ItemGroup>
-    <Copy SourceFiles="@(LiquidGlassMagHostPublishFiles)" DestinationFolder="$(PublishDir)" SkipUnchangedFiles="true" Condition="'@(LiquidGlassMagHostPublishFiles)' != ''" />
-  </Target>
-
-  <Target Name="CopyIACoreHelperToPublishDirectory" AfterTargets="Publish" Condition="'$(PublishSingleFile)' == 'true'">
-    <ItemGroup>
-      <IACoreHelperPublishFiles Include="$(MSBuildProjectDirectory)\..\InkCanvas.IACoreHelper\bin\$(Configuration)\*.*" />
-    </ItemGroup>
-    <Copy SourceFiles="@(IACoreHelperPublishFiles)" DestinationFolder="$(PublishDir)" SkipUnchangedFiles="true" Condition="'@(IACoreHelperPublishFiles)' != ''" />
+    <Copy SourceFiles="@(IACoreHelperFiles)" DestinationFolder="$(PublishDir)" SkipUnchangedFiles="true" Condition="'@(IACoreHelperFiles)' != '' And '$(PublishDir)' != ''" />
   </Target>
 
   <ItemGroup>
@@ -654,12 +629,13 @@
   
   <Target Name="SetAssemblyInformationalVersion" DependsOnTargets="GetBuildVersion" AfterTargets="GetBuildVersion">
     <PropertyGroup>
-      <!-- 如果没有GitCommitIdShort，就置为UNKNOWN -->
-      <_ShortSha7 Condition="'$(GitCommitIdShort)' == ''">UNKNOWN</_ShortSha7>
-      <!-- 如果有GitCommitIdShort，就取前7位 -->
+      <!-- 有 GitCommitIdShort 时取前 7 位 -->
       <_ShortSha Condition="'$(GitCommitIdShort)' != ''">$(GitCommitIdShort)</_ShortSha>
       <_ShortSha7 Condition="'$(GitCommitIdShort)' != ''">$(_ShortSha.Substring(0, 7))</_ShortSha7>
-      <AssemblyInformationalVersion>$(AssemblyVersion).$(_ShortSha7)</AssemblyInformationalVersion>
+      <!-- 无 git：信息版本即程序集版本，不再拼接任何后缀（避免出现 .UNKNOWN） -->
+      <AssemblyInformationalVersion>$(AssemblyVersion)</AssemblyInformationalVersion>
+      <!-- 有 git：信息版本 = 程序集版本 + 短 SHA -->
+      <AssemblyInformationalVersion Condition="'$(GitCommitIdShort)' != ''">$(AssemblyVersion).$(_ShortSha7)</AssemblyInformationalVersion>
     </PropertyGroup>
   </Target>
 </Project>

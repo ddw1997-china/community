@@ -63,7 +63,6 @@ namespace Ink_Canvas
                         if (!isFloatingBarFolded)
                         {
                             FoldFloatingBar_MouseUp(new object(), null);
-                            ShowNotification(Properties.MainWindowStrings.Main_Uri_EnterFoldMode);
                         }
                         return;
                     case "unfold":
@@ -71,38 +70,32 @@ namespace Ink_Canvas
                         if (isFloatingBarFolded)
                         {
                             UnFoldFloatingBar_MouseUp(new object(), null);
-                            ShowNotification(Properties.MainWindowStrings.Main_Uri_ExitFoldMode);
                         }
                         return;
                     case "toggle":
                         if (isFloatingBarFolded)
                         {
                             UnFoldFloatingBar_MouseUp(new object(), null);
-                            ShowNotification(Properties.MainWindowStrings.Main_Uri_ExitFoldMode);
                         }
                         else
                         {
                             FoldFloatingBar_MouseUp(new object(), null);
-                            ShowNotification(Properties.MainWindowStrings.Main_Uri_EnterFoldMode);
                         }
                         return;
                     case "thoroughhideon":
                         Settings.Automation.ThoroughlyHideWhenFolded = true;
                         SaveSettingsToFile();
-                        ShowNotification(Properties.MainWindowStrings.Main_Uri_HideOnFoldEnabled);
                         if (isFloatingBarFolded)
                             this.Visibility = Visibility.Hidden;
                         return;
                     case "thoroughhideoff":
                         Settings.Automation.ThoroughlyHideWhenFolded = false;
                         SaveSettingsToFile();
-                        ShowNotification(Properties.MainWindowStrings.Main_Uri_HideOnFoldDisabled);
                         this.Visibility = Visibility.Visible;
                         return;
                     case "thoroughhidetoggle":
                         Settings.Automation.ThoroughlyHideWhenFolded = !Settings.Automation.ThoroughlyHideWhenFolded;
                         SaveSettingsToFile();
-                        ShowNotification(Settings.Automation.ThoroughlyHideWhenFolded ? Properties.MainWindowStrings.Main_Uri_HideOnFoldEnabled : Properties.MainWindowStrings.Main_Uri_HideOnFoldDisabled);
                         if (isFloatingBarFolded)
                             this.Visibility = Settings.Automation.ThoroughlyHideWhenFolded ? Visibility.Hidden : Visibility.Visible;
                         return;
@@ -120,70 +113,57 @@ namespace Ink_Canvas
                         ImageBlackboard_MouseUp(null, null);
                         return;
                     case "restart":
-                        ShowNotification(Properties.MainWindowStrings.Main_Uri_Restart);
                         _ = Task.Delay(300).ContinueWith(_ => Dispatcher.Invoke(() => AppRestartHelper.RestartWithCurrentPrivileges()));
                         return;
                     case "restart/admin":
-                        ShowNotification(Properties.MainWindowStrings.Main_Uri_RestartAdmin);
                         _ = Task.Delay(300).ContinueWith(_ => Dispatcher.Invoke(() => AppRestartHelper.RestartAsAdmin()));
                         return;
                     case "restart/normal":
-                        ShowNotification(Properties.MainWindowStrings.Main_Uri_RestartNormal);
                         _ = Task.Delay(300).ContinueWith(_ => Dispatcher.Invoke(() => AppRestartHelper.RestartAsNormal()));
                         return;
                     case "exit":
                     case "quit":
-                        ShowNotification(Properties.MainWindowStrings.Main_Uri_Exit);
                         _ = Task.Delay(300).ContinueWith(_ => Dispatcher.Invoke(() => ExitApplication(null, null)));
                         return;
                     case "clear":
                     case "clearink":
                         EraserPanelSymbolIconDelete_MouseUp(null, null);
-                        ShowNotification(Properties.MainWindowStrings.Main_Uri_ClearInk);
                         return;
                     case "clearall":
                     case "clearinkandhistory":
                         BoardSymbolIconDeleteInkAndHistories_MouseUp(null, null);
-                        ShowNotification(Properties.MainWindowStrings.Main_Uri_ClearInkAndHistory);
                         return;
                     case "undo":
                         SymbolIconUndo_MouseUp(null, null);
-                        ShowNotification(Properties.MainWindowStrings.Main_Uri_Undo);
                         return;
                     case "redo":
                         SymbolIconRedo_MouseUp(null, null);
-                        ShowNotification(Properties.MainWindowStrings.Main_Uri_Redo);
                         return;
                     case "nextpage":
                     case "page/next":
                         SwitchToNextPage();
-                        ShowNotification(Properties.MainWindowStrings.Main_Uri_NextPage);
                         return;
                     case "previouspage":
                     case "prevpage":
                     case "page/previous":
                         SwitchToPreviousPage();
-                        ShowNotification(Properties.MainWindowStrings.Main_Uri_PreviousPage);
                         return;
                     case "newpage":
                     case "page/add":
                         AddWhiteboardPage();
-                        ShowNotification(Properties.MainWindowStrings.Main_Uri_NewPage);
                         return;
                     case "deletepage":
                     case "page/delete":
                         DeleteWhiteboardPage();
-                        ShowNotification(Properties.MainWindowStrings.Main_Uri_DeletePage);
                         return;
                     case "screenshot":
-                        ShowNotification(Properties.MainWindowStrings.Main_Uri_Screenshot);
                         _ = Task.Delay(300).ContinueWith(_ => Dispatcher.Invoke(async () => await CaptureScreenshotAndInsert()));
                         return;
                     case "freeze":
                     case "lock":
                     case "ink-freeze":
                     case "ink/lock":
-                        FreezePage(GetUriFreezePageOrCurrent(uri), true);
+                        FreezePage(GetUriFreezePageOrCurrent(uri));
                         return;
                     case "unfreeze":
                     case "unlock":
@@ -365,13 +345,11 @@ namespace Ink_Canvas
                 if (!ConfigProfileManager.ApplyProfile(profileName.Trim()))
                 {
                     File.WriteAllText(resultPath, "error: 方案不存在或应用失败", System.Text.Encoding.UTF8);
-                    ShowNotification(string.Format(Properties.MainWindowStrings.Main_Uri_SchemeNotFound, profileName));
                     return;
                 }
                 _lastAppliedProfileName = profileName.Trim();
                 ReloadSettingsFromFile();
                 File.WriteAllText(resultPath, "ok", System.Text.Encoding.UTF8);
-                ShowNotification(string.Format(Properties.MainWindowStrings.Main_Uri_SwitchedScheme, profileName));
                 LogHelper.WriteLogToFile($"URI 已切换配置方案: {profileName}", LogHelper.LogType.Event);
             }
             catch (Exception ex)

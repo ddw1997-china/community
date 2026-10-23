@@ -174,31 +174,6 @@
                     </ui:SettingsCard>
 
                     <TextBlock Style="{StaticResource SettingsSectionHeaderTextBlockStyle}"
-                        Text="{x:Static props:NotificationStrings.Type_Update}" />
-                    <ui:SettingsCard Header="{x:Static props:NotificationStrings.Type_Update}" Description="{x:Static props:HomeStrings.Home_UpdateSettings}"
-                        IsClickEnabled="True" Click="QuickNavCard_Click" Tag="UpdatePage">
-                        <ui:SettingsCard.HeaderIcon>
-                            <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Sync}" />
-                        </ui:SettingsCard.HeaderIcon>
-                    </ui:SettingsCard>
-
-                    <TextBlock Style="{StaticResource SettingsSectionHeaderTextBlockStyle}"
-                        Text="{x:Static props:NotificationStrings.DefaultTitle}" />
-                    <ui:SettingsCard Header="{x:Static props:NotificationStrings.DefaultTitle}" Description="{x:Static props:NotificationStrings.NavTooltip}"
-                        IsClickEnabled="True" Click="QuickNavCard_Click" Tag="NotificationPage">
-                        <ui:SettingsCard.HeaderIcon>
-                            <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Message}" />
-                        </ui:SettingsCard.HeaderIcon>
-                    </ui:SettingsCard>
-
-                    <ui:SettingsCard Header="{x:Static props:AnnouncementStrings.CenterTitle}" Description="{x:Static props:AnnouncementStrings.CenterHint}"
-                        IsClickEnabled="True" Click="QuickNavCard_Click" Tag="AnnouncementCenterPage">
-                        <ui:SettingsCard.HeaderIcon>
-                            <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.BulletedList}" />
-                        </ui:SettingsCard.HeaderIcon>
-                    </ui:SettingsCard>
-
-                    <TextBlock Style="{StaticResource SettingsSectionHeaderTextBlockStyle}"
                         Text="{x:Static props:NotificationStrings.Type_Other}" />
                     <ui:SettingsCard Header="{x:Static props:AdvancedStrings.Experimental}" Description="{x:Static props:AdvancedStrings.Experimental}"
                         IsClickEnabled="True" Click="QuickNavCard_Click" Tag="ExperimentalPage">

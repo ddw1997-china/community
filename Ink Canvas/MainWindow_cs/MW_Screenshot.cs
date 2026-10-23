@@ -83,7 +83,7 @@ namespace Ink_Canvas
                         var directory = Path.GetDirectoryName(path);
                         if (!Directory.Exists(directory))
                             Directory.CreateDirectory(directory);
-                        bitmapToSave.Save(path, ImageFormat.Png);
+                        Helpers.ScreenshotImageSaveHelper.Save(bitmapToSave, path);
                         bitmapToSave.Dispose();
                     }
 
@@ -108,11 +108,6 @@ namespace Ink_Canvas
                             try { if (File.Exists(tmpStrokePath)) File.Delete(tmpStrokePath); } catch { }
                             throw;
                         }
-                    }
-
-                    if (!hideNotification && !string.IsNullOrEmpty(path))
-                    {
-                        Dispatcher.Invoke(() => ShowNotification(string.Format(Properties.MainWindowStrings.Main_Screenshot_SaveSuccess, path)));
                     }
 
                     // 使用上传帮助类上传到所有启用的服务
@@ -256,7 +251,6 @@ namespace Ink_Canvas
 
                 if (!screenshotResult.HasValue)
                 {
-                    ShowNotification(Properties.MainWindowStrings.Main_Screenshot_Cancelled);
                     return;
                 }
 
@@ -268,7 +262,6 @@ namespace Ink_Canvas
 
                 if (screenshotResult.Value.Area.Width <= 0 || screenshotResult.Value.Area.Height <= 0)
                 {
-                    ShowNotification(Properties.MainWindowStrings.Main_Screenshot_NoValidArea);
                     return;
                 }
 
@@ -280,7 +273,6 @@ namespace Ink_Canvas
                 {
                     if (originalBitmap == null)
                     {
-                        ShowNotification(Properties.MainWindowStrings.Main_Screenshot_Failed);
                         return;
                     }
 
@@ -331,8 +323,6 @@ namespace Ink_Canvas
                             try { CopyImageToClipboard(ConvertBitmapToBitmapSource(finalBitmap), savePath); }
                             catch (Exception ex) { LogHelper.WriteLogToFile($"截图复制到剪贴板失败: {ex}", LogHelper.LogType.Warning); }
                         }
-
-                        ShowNotification(string.Format(Properties.MainWindowStrings.Main_Screenshot_SaveSuccess, savePath));
                     }
                     finally
                     {
@@ -346,9 +336,8 @@ namespace Ink_Canvas
                 if (Settings.Automation.IsAutoSaveStrokesAtScreenshot)
                     SaveInkCanvasStrokes(false);
             }
-            catch (Exception ex)
+            catch
             {
-                ShowNotification(string.Format(Properties.MainWindowStrings.Main_Screenshot_FailedWithError, ex.Message));
             }
             finally
             {
@@ -375,7 +364,6 @@ namespace Ink_Canvas
             {
                 if (screenshotResult.Area.Width <= 0 || screenshotResult.Area.Height <= 0)
                 {
-                    ShowNotification(Properties.MainWindowStrings.Main_Screenshot_NoValidArea);
                     return;
                 }
 
@@ -383,7 +371,6 @@ namespace Ink_Canvas
                 {
                     if (originalBitmap == null)
                     {
-                        ShowNotification(Properties.MainWindowStrings.Main_Screenshot_Failed);
                         return;
                     }
 
@@ -434,7 +421,6 @@ namespace Ink_Canvas
 
             if (bitmapSourceForClipboard == null)
             {
-                ShowNotification(Properties.MainWindowStrings.Main_Screenshot_ConvertFailed);
                 return;
             }
 
@@ -466,8 +452,7 @@ namespace Ink_Canvas
         /// 4. 确保保存目录存在
         /// 5. 保存为PNG格式
         /// 6. 若 copyToClipboard 为真，将截图复制到剪贴板
-        /// 7. 如果不隐藏通知，显示保存成功通知
-        /// 8. 异步上传截图到Dlass
+        /// 7. 异步上传截图到Dlass
         /// </remarks>
         private void CaptureAndSaveScreenshot(string savePath, bool isHideNotification, bool copyToClipboard = false)
         {
@@ -502,16 +487,6 @@ namespace Ink_Canvas
                 }
             }
 
-            if (!isHideNotification)
-            {
-                Task.Delay(100).ContinueWith(t =>
-                {
-                    Dispatcher.Invoke(() =>
-                    {
-                        ShowNotification(string.Format(Properties.MainWindowStrings.Main_Screenshot_SaveSuccess, savePath));
-                    });
-                });
-            }
             _ = Task.Run(async () =>
             {
                 try
@@ -554,7 +529,7 @@ namespace Ink_Canvas
                 basePath,
                 "Auto Saved - Screenshots",
                 dateFolder,
-                safeRelativePath + ".png");
+                safeRelativePath + Helpers.ScreenshotImageSaveHelper.GetExtension());
         }
 
         private static string SanitizeScreenshotRelativePath(string relativePath)
@@ -602,7 +577,7 @@ namespace Ink_Canvas
 
             return Path.Combine(
                 screenshotsFolder,
-                $"{GetScreenshotFileNameStem()}.png");
+                GetScreenshotFileNameStem() + Helpers.ScreenshotImageSaveHelper.GetExtension());
         }
 
         private string GetScreenshotFileNameStem()

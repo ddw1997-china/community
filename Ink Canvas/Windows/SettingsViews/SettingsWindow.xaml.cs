@@ -42,9 +42,6 @@ namespace Ink_Canvas.Windows.SettingsViews
             { "BoardAppearancePage", typeof(BoardAppearancePage) },
             { "BoardMenuPage", typeof(BoardMenuPage) },
             { "WhiteboardTipsPage", typeof(WhiteboardTipsPage) },
-            { "UpdatePage", typeof(UpdatePage) },
-            { "NotificationPage", typeof(NotificationPage) },
-            { "AnnouncementCenterPage", typeof(AnnouncementCenterPage) },
             { "ExperimentalPage", typeof(ExperimentalPage) },
             { "AdvancedPage", typeof(AdvancedPage) },
             { "StoragePage", typeof(StoragePage) },
@@ -57,13 +54,12 @@ namespace Ink_Canvas.Windows.SettingsViews
             { "InkRecognitionPage", typeof(InkRecognitionPage) },
             { "PerformancePage", typeof(PerformancePage) },
             { "DebugPage", typeof(DebugPage) },
-            { "FriendlyLinksPage", typeof(FriendlyLinksPage) },
-            { "AboutPage", typeof(AboutPage) },
             { "Settings", typeof(SettingsPage) },
             { "PluginPage", typeof(PluginPage) },
             { "PluginSettingsPage", typeof(PluginSettingsPage) },
             { "PluginMarketplacePage", typeof(PluginMarketplacePage) },
-            { "PPTPageFlipPreviewPage", typeof(PPTPageFlipPreviewPage) }
+            { "PPTPageFlipPreviewPage", typeof(PPTPageFlipPreviewPage) },
+            { "VersionInfoPage", typeof(VersionInfoPage) }
         };
         private readonly Dictionary<string, object> _pages = new Dictionary<string, object>();
         private readonly Dictionary<string, Ink_Canvas.Plugins.PluginInfo> _pluginPages = new Dictionary<string, Ink_Canvas.Plugins.PluginInfo>();
@@ -78,7 +74,6 @@ namespace Ink_Canvas.Windows.SettingsViews
         private bool _wasMaximized = false;
 
         private bool _isNavigating = false;
-        private bool _updateBadgeDismissed = false;
 
         /// <summary>
         /// 若为 true，则跳过 Loaded 中默认导航到 HomePage 的行为。
@@ -133,9 +128,6 @@ namespace Ink_Canvas.Windows.SettingsViews
                 { "BoardAppearancePage", typeof(BoardAppearancePage) },
                 { "BoardMenuPage", typeof(BoardMenuPage) },
                 { "WhiteboardTipsPage", typeof(WhiteboardTipsPage) },
-                { "UpdatePage", typeof(UpdatePage) },
-                { "NotificationPage", typeof(NotificationPage) },
-                { "AnnouncementCenterPage", typeof(AnnouncementCenterPage) },
                 { "ExperimentalPage", typeof(ExperimentalPage) },
                 { "AdvancedPage", typeof(AdvancedPage) },
                 { "StoragePage", typeof(StoragePage) },
@@ -148,13 +140,12 @@ namespace Ink_Canvas.Windows.SettingsViews
                 { "InkRecognitionPage", typeof(InkRecognitionPage) },
                 { "PerformancePage", typeof(PerformancePage) },
                 { "DebugPage", typeof(DebugPage) },
-                { "FriendlyLinksPage", typeof(FriendlyLinksPage) },
-                { "AboutPage", typeof(AboutPage) },
                 { "Settings", typeof(SettingsPage) },
                 { "PluginPage", typeof(PluginPage) },
                 { "PluginSettingsPage", typeof(PluginSettingsPage) },
                 { "PluginMarketplacePage", typeof(PluginMarketplacePage) },
-                { "PPTPageFlipPreviewPage", typeof(PPTPageFlipPreviewPage) }
+                { "PPTPageFlipPreviewPage", typeof(PPTPageFlipPreviewPage) },
+                { "VersionInfoPage", typeof(VersionInfoPage) }
             };
 
             // 初始页面统一在 Loaded 阶段导航，避免构造阶段与深链接导航互相覆盖。
@@ -177,8 +168,6 @@ namespace Ink_Canvas.Windows.SettingsViews
                     Dispatcher.BeginInvoke(new Action(() =>
                     {
                         LoadPluginSettingsPages();
-                        UpdateUpdateBadgeVisibility();
-                        UpdateAnnouncementUnreadBadge();
                         // 绑定设置窗口中的 ToggleSwitch 本地化文本
                         Ink_Canvas.Helpers.LocalizationHelper.BindToggleSwitchesInWindow(this);
                     }), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
@@ -187,13 +176,11 @@ namespace Ink_Canvas.Windows.SettingsViews
                 _ = PreloadAllPagesAsync();
             };
 
-            AnnouncementService.UnreadCountChanged += UpdateAnnouncementUnreadBadge;
             Ink_Canvas.Plugins.PluginManager.Instance.PluginLoaded += PluginManager_PluginsChanged;
             Ink_Canvas.Plugins.PluginManager.Instance.PluginUnloaded += PluginManager_PluginsChanged;
 
             this.Closed += (sender, e) =>
             {
-                AnnouncementService.UnreadCountChanged -= UpdateAnnouncementUnreadBadge;
                 Ink_Canvas.Plugins.PluginManager.Instance.PluginLoaded -= PluginManager_PluginsChanged;
                 Ink_Canvas.Plugins.PluginManager.Instance.PluginUnloaded -= PluginManager_PluginsChanged;
                 UnregisterDpiChangedListener();
@@ -410,12 +397,6 @@ namespace Ink_Canvas.Windows.SettingsViews
                         pluginSettingsPage.CurrentPlugin = pluginInfo;
                     }
                     NavigationViewControl.Header = selectedItem.Content;
-
-                    if (tag == "UpdatePage")
-                    {
-                        _updateBadgeDismissed = true;
-                        UpdateUpdateBadgeVisibility();
-                    }
                 }
             }
         }
@@ -1424,39 +1405,6 @@ namespace Ink_Canvas.Windows.SettingsViews
             {
                 System.Diagnostics.Debug.WriteLine(string.Format(NavStrings.Nav_PreloadPagesFailed, ex.Message));
             }
-        }
-
-        public void UpdateUpdateBadgeVisibility()
-        {
-            try
-            {
-                var mainWindow = Application.Current.Windows.OfType<MainWindow>().FirstOrDefault();
-                bool hasUpdate = mainWindow != null && !string.IsNullOrEmpty(mainWindow.AvailableLatestVersion);
-                var item = FindNavigationViewItemByTag("UpdatePage");
-                var badge = item?.InfoBadge;
-                if (badge != null)
-                {
-                    badge.Visibility = (hasUpdate && !_updateBadgeDismissed) ? Visibility.Visible : Visibility.Collapsed;
-                }
-            }
-            catch { }
-        }
-
-        public void UpdateAnnouncementUnreadBadge()
-        {
-            Dispatcher.InvokeAsync(() =>
-            {
-                try
-                {
-                    var count = AnnouncementService.GetUnreadCount(Helpers.SettingsManager.Settings);
-                    if (AnnouncementUnreadInfoBadge != null)
-                    {
-                        AnnouncementUnreadInfoBadge.Value = count;
-                        AnnouncementUnreadInfoBadge.Visibility = count > 0 ? Visibility.Visible : Visibility.Collapsed;
-                    }
-                }
-                catch { }
-            });
         }
     }
 }

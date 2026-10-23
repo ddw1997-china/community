@@ -17,7 +17,6 @@ namespace Ink_Canvas.Windows.SettingsViews.Pages
         private static readonly string[] BackupDirs = { "Backups" };
         private static readonly string[] CustomDirs = { "icons", "backgrounds" };
         private static readonly string[] PluginDirs = { "Plugins", "PluginPackages", "PluginConfigs", "PluginMarketCache", "PluginLogs" };
-        private static readonly string[] UpdateDirs = { "AutoUpdate" };
         private static readonly string[] ThemeDirs = { "FloatingBarThemes" };
         // 视为核心文件的目录（配置 / ppt-agent 联动组件 / 自动化工作流 / .NET 运行时等）
         private static readonly string[] ConfigDirs = { "Configs", "ppt-agent", "Automations", "runtimes" };
@@ -30,7 +29,7 @@ namespace Ink_Canvas.Windows.SettingsViews.Pages
         };
 
         private long _coreSize, _logsSize, _inkSize, _backupsSize,
-                     _customSize, _pluginsSize, _updateSize, _otherSize,
+                     _customSize, _pluginsSize, _otherSize,
                      _themeSize;
 
         public StoragePage()
@@ -83,7 +82,7 @@ namespace Ink_Canvas.Windows.SettingsViews.Pages
         private void CalculateSizes()
         {
             _coreSize = _logsSize = _inkSize = _backupsSize =
-                _customSize = _pluginsSize = _updateSize = _otherSize = _themeSize = 0;
+                _customSize = _pluginsSize = _otherSize = _themeSize = 0;
 
             string root = App.RootPath;
             if (string.IsNullOrEmpty(root) || !Directory.Exists(root)) return;
@@ -106,8 +105,6 @@ namespace Ink_Canvas.Windows.SettingsViews.Pages
                     _pluginsSize += size;
                 else if (ThemeDirs.Any(n => string.Equals(n, name, StringComparison.OrdinalIgnoreCase)))
                     _themeSize += size;
-                else if (UpdateDirs.Any(n => string.Equals(n, name, StringComparison.OrdinalIgnoreCase)))
-                    _updateSize += size;
                 else if (ConfigDirs.Any(n => string.Equals(n, name, StringComparison.OrdinalIgnoreCase)))
                     _coreSize += size;
                 else
@@ -129,7 +126,7 @@ namespace Ink_Canvas.Windows.SettingsViews.Pages
         private void UpdateUI()
         {
             long total = _coreSize + _logsSize + _inkSize + _backupsSize
-                       + _customSize + _pluginsSize + _updateSize + _otherSize + _themeSize;
+                       + _customSize + _pluginsSize + _otherSize + _themeSize;
 
             TotalSizeTextBlock.Text = FormatSize(total);
 
@@ -139,7 +136,6 @@ namespace Ink_Canvas.Windows.SettingsViews.Pages
             BackupsSizeText.Text = FormatSize(_backupsSize);
             CustomSizeText.Text = FormatSize(_customSize);
             PluginsSizeText.Text = FormatSize(_pluginsSize);
-            UpdateSizeText.Text = FormatSize(_updateSize);
             OtherSizeText.Text = FormatSize(_otherSize);
             ThemeSizeText.Text = FormatSize(_themeSize);
 
@@ -152,7 +148,6 @@ namespace Ink_Canvas.Windows.SettingsViews.Pages
                 BarBackupsCol.Width = new GridLength(_backupsSize, GridUnitType.Star);
                 BarCustomCol.Width = new GridLength(_customSize, GridUnitType.Star);
                 BarPluginsCol.Width = new GridLength(_pluginsSize, GridUnitType.Star);
-                BarUpdateCol.Width = new GridLength(_updateSize, GridUnitType.Star);
                 BarOtherCol.Width = new GridLength(_otherSize, GridUnitType.Star);
                 BarThemeCol.Width = new GridLength(_themeSize, GridUnitType.Star);
             }
@@ -160,7 +155,7 @@ namespace Ink_Canvas.Windows.SettingsViews.Pages
             {
                 BarCoreCol.Width = BarLogsCol.Width = BarInkCol.Width =
                     BarBackupsCol.Width = BarCustomCol.Width =
-                    BarPluginsCol.Width = BarUpdateCol.Width =
+                    BarPluginsCol.Width =
                     BarOtherCol.Width = BarThemeCol.Width =
                     new GridLength(0, GridUnitType.Star);
             }
@@ -193,7 +188,6 @@ namespace Ink_Canvas.Windows.SettingsViews.Pages
             BackupsSizeText.Text = text;
             CustomSizeText.Text = text;
             PluginsSizeText.Text = text;
-            UpdateSizeText.Text = text;
             OtherSizeText.Text = text;
             ThemeSizeText.Text = text;
         }
@@ -213,11 +207,6 @@ namespace Ink_Canvas.Windows.SettingsViews.Pages
         private void BtnCleanBackups_Click(object sender, RoutedEventArgs e)
         {
             CleanWithConfirm(LocalizationHelper.GetString("Storage_Backups_Header"), BackupDirs, keepRoot: true);
-        }
-
-        private void BtnCleanUpdate_Click(object sender, RoutedEventArgs e)
-        {
-            CleanWithConfirm(LocalizationHelper.GetString("Storage_Update_Header"), UpdateDirs, keepRoot: true);
         }
 
         private void BtnCleanTheme_Click(object sender, RoutedEventArgs e)

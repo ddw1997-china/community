@@ -25,10 +25,6 @@
                         <CheckBox x:Name="CheckAppVersion" IsChecked="True"
                                   Content="{x:Static props:FeedbackStrings.Page1_AppVersion}"/>
                     </ui:SettingsCard>
-                    <ui:SettingsCard ContentAlignment="Left">
-                        <CheckBox x:Name="CheckUpdateChannel" IsChecked="True"
-                                  Content="{x:Static props:FeedbackStrings.Page1_UpdateChannel}"/>
-                    </ui:SettingsCard>
                 </ui:SettingsExpander.Items>
             </ui:SettingsExpander>
 
