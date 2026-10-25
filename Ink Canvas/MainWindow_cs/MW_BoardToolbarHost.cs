@@ -26,7 +26,12 @@ namespace Ink_Canvas
         {
             _boardToolbarViews[id] = view;
             if (id == "board.pen")
+            {
                 UpdateBoardPenIconColor();
+                UpdateBoardPenButtonSelectedState(IsPenToolSelected);
+            }
+            if (id == "board.shape")
+                UpdateBoardShapeButtonHighlight();
             if (id == "board.undo" && view is BoardToolbarButton undoBtn)
                 AttachUndoLongPressHandlers(undoBtn);
         }
@@ -56,6 +61,38 @@ namespace Ink_Canvas
                         ? new SolidColorBrush(inkCanvas.DefaultDrawingAttributes.Color)
                         : Application.Current.TryFindResource("FloatingBarForegroundBrush") as Brush;
             }), System.Windows.Threading.DispatcherPriority.Loaded);
+        }
+
+        /// <summary>
+        /// 当前是否处于默认笔（批注）工具状态。
+        /// </summary>
+        private bool IsPenToolSelected =>
+            string.Equals(_currentToolMode, "pen", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(_currentToolMode, "color", StringComparison.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// 设置白板工具栏「笔」按钮的选中态：使用默认笔时以蓝底呈现，退出时恢复默认外观。
+        /// </summary>
+        internal void UpdateBoardPenButtonSelectedState(bool selected)
+        {
+            if (FindView("board.pen") is not BoardToolbarButton penButton) return;
+
+            if (selected)
+            {
+                var accent = Application.Current?.TryFindResource("FloatingBarAccentBrush") as Brush
+                             ?? new SolidColorBrush(Color.FromRgb(37, 99, 235));
+                penButton.Background = accent;
+                penButton.IconBrush = Brushes.White;
+                penButton.Foreground = Brushes.White;
+            }
+            else
+            {
+                penButton.Background = Brushes.Transparent;
+                penButton.LabelTextBlockControl?.SetResourceReference(TextBlock.ForegroundProperty, "FloatingBarForegroundBrush");
+                penButton.IconBrush = Settings.Appearance.ShowPenColorOnBoardToolbarIcon
+                    ? new SolidColorBrush(inkCanvas.DefaultDrawingAttributes.Color)
+                    : Application.Current?.TryFindResource("FloatingBarForegroundBrush") as Brush;
+            }
         }
 
         public void SwitchToPreviousPage()

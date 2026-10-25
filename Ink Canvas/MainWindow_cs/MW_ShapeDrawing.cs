@@ -10,6 +10,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Ink;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using MessageBox = iNKORE.UI.WPF.Modern.Controls.MessageBox;
@@ -154,7 +155,13 @@ namespace Ink_Canvas
         private int drawingShapeMode
         {
             get => _drawingShapeMode;
-            set => _drawingShapeMode = value;
+            set
+            {
+                if (_drawingShapeMode == value) return;
+                _drawingShapeMode = value;
+                // 图形对话框的选中状态变化后，同步白板工具栏「几何图形」按钮的高亮
+                UpdateBoardShapeButtonHighlight();
+            }
         }
 
         /// <summary>
@@ -337,6 +344,43 @@ namespace Ink_Canvas
             inkCanvas.EditingMode = InkCanvasEditingMode.Ink;
             inkCanvas.IsManipulationEnabled = true;
             CancelSingleFingerDragMode();
+
+            // 退出图形工具后回到默认笔：同步工具模式缓存与（浮动栏/白板工具栏的）选中态
+            UpdateCurrentToolMode("pen");
+            SetFloatingBarHighlightPosition("pen");
+        }
+
+        /// <summary>
+        /// 刷新白板工具栏「几何图形」按钮的高亮：图形对话框中有选中对象时以蓝底呈现。
+        /// 圆规 / 直尺 / 三角板是常驻覆盖层工具，不占用 <see cref="_drawingShapeMode"/>，
+        /// 因此只有圆规/直尺/三角板被选中时不会触发高亮。
+        /// </summary>
+        internal void UpdateBoardShapeButtonHighlight()
+        {
+            try
+            {
+                if (FindView("board.shape") is not BoardToolbarButton btn) return;
+
+                if (_drawingShapeMode != 0)
+                {
+                    var accent = Application.Current?.TryFindResource("FloatingBarAccentBrush") as Brush
+                                 ?? new SolidColorBrush(Color.FromRgb(37, 99, 235));
+                    btn.Background = accent;
+                    btn.IconBrush = Brushes.White;
+                    btn.Foreground = Brushes.White;
+                }
+                else
+                {
+                    btn.Background = Brushes.Transparent;
+                    // 与 XAML 一致地重新建立动态资源引用，保证文字/图标恢复为主题前景色并跟随主题切换
+                    btn.SetResourceReference(BoardToolbarButton.IconBrushProperty, "FloatingBarForegroundBrush");
+                    btn.LabelTextBlockControl?.SetResourceReference(TextBlock.ForegroundProperty, "FloatingBarForegroundBrush");
+                }
+            }
+            catch (Exception ex)
+            {
+                LogHelper.WriteLogToFile($"刷新几何图形按钮高亮失败: {ex.Message}", LogHelper.LogType.Warning);
+            }
         }
 
         #region 圆规工具

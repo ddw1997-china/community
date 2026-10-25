@@ -6411,6 +6411,10 @@ namespace Ink_Canvas
             // 工具模式变化后同步刷新工具栏形态（批注/鼠标布局按 IsAnnotating 决定），
             // 否则会出现指示器已切到鼠标、形态仍停在批注的失步（退出白板时的两步走流程即如此）。
             UpdateToolbarComponentVisibility();
+
+            // 使用默认笔（批注）时，白板工具栏的「笔」按钮同样需要呈现选中态。
+            // 放在最后：工具栏形态刷新可能重建按钮视图，重建后再落地选中态。
+            UpdateBoardPenButtonSelectedState(IsPenToolSelected);
         }
 
         /// <summary>
