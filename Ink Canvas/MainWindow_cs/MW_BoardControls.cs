@@ -1,0 +1,962 @@
+using Ink_Canvas.Controls;
+using Ink_Canvas.Helpers;
+using Ink_Canvas.Properties;
+using Ink_Canvas.Plugins;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Ink;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Threading;
+
+namespace Ink_Canvas
+{
+    public partial class MainWindow : Ink_Canvas.Helpers.PerformanceTransparentWin
+    {
+        /// <summary>
+        /// 存储每个白板页面的墨迹集合
+        /// </summary>
+        private StrokeCollection[] strokeCollections = new StrokeCollection[101];
+
+        /// <summary>
+        /// 存储每个白板页面的最后操作模式是否为重做
+        /// </summary>
+        private bool[] whiteboadLastModeIsRedo = new bool[101];
+
+        /// <summary>
+        /// 存储最后一次触摸按下时的墨迹集合
+        /// </summary>
+        private StrokeCollection lastTouchDownStrokeCollection = new StrokeCollection();
+
+        private int _currentWhiteboardIndex = 1;
+
+        /// <summary>
+        /// 当前白板页面索引（从 1 开始）
+        /// </summary>
+        internal int CurrentWhiteboardIndex
+        {
+            get => _currentWhiteboardIndex;
+            set
+            {
+                if (_currentWhiteboardIndex == value) return;
+                _currentWhiteboardIndex = value;
+                RaisePluginEvent(PluginWhiteboardPageChanged, _currentWhiteboardIndex, WhiteboardTotalCount, nameof(PluginWhiteboardPageChanged));
+            }
+        }
+
+        private int _whiteboardTotalCount = 1;
+
+        /// <summary>
+        /// 白板页面总数
+        /// </summary>
+        internal int WhiteboardTotalCount
+        {
+            get => _whiteboardTotalCount;
+            set
+            {
+                if (_whiteboardTotalCount == value) return;
+                _whiteboardTotalCount = value;
+                RaisePluginEvent(PluginWhiteboardPageChanged, CurrentWhiteboardIndex, _whiteboardTotalCount, nameof(PluginWhiteboardPageChanged));
+            }
+        }
+
+        /// <summary>
+        /// 存储每个白板页面的时间机器历史记录
+        /// </summary>
+        private TimeMachineHistory[][] TimeMachineHistories = new TimeMachineHistory[101][];
+
+        /// <summary>
+        /// 存储每个白板页面的多指书写模式状态
+        /// </summary>
+        private bool[] savedMultiTouchModeStates = new bool[101];
+
+        /// <summary>
+        /// 将当前画布上的所有未保存的图片/媒体和墨迹提交到时间机器历史并将导出结果保存为指定页的快照。
+        /// </summary>
+        /// <param name="isBackupMain">为 true 时将导出结果保存到主备份槽（索引 0）；为 false 时保存到当前白板索引。</param>
+        /// <remarks>
+        /// - 会提交画布上缺失于历史记录的 Image/MediaElement（但跳过 Tag 等于 VideoPresenterLiveFrameTag 的 Image）和缺失的墨迹；  
+        /// - 导出后把结果存入 TimeMachineHistories 的相应索引，并保存当前多指书写模式到 savedMultiTouchModeStates；  
+        /// - 导出后会清除时间机器的临时墨迹历史以释放内存。  
+        /// - 此方法有副作用：修改 TimeMachineHistories、savedMultiTouchModeStates，并通过 timeMachine 的提交方法改变其内部历史状态。
+        /// </remarks>
+        private void SaveStrokes(bool isBackupMain = false)
+        {
+            ApplyFreezeStateToCurrentStrokes();
+
+            // 确保画布上的所有UI元素都被保存到时间机器历史记录中
+            var currentHistory = timeMachine.ExportTimeMachineHistory();
+            var elementsInHistory = new HashSet<UIElement>();
+
+            // 收集已经在历史记录中的元素
+            if (currentHistory != null)
+            {
+                foreach (var h in currentHistory)
+                {
+                    if (h.CommitType == TimeMachineHistoryType.ElementInsert &&
+                        h.InsertedElement != null &&
+                        !h.StrokeHasBeenCleared)
+                    {
+                        elementsInHistory.Add(h.InsertedElement);
+                    }
+                }
+            }
+
+            // 检查画布上的所有UI元素，确保它们都在历史记录中
+            var missingElements = 0;
+            foreach (UIElement child in inkCanvas.Children)
+            {
+                if (child is Image || child is MediaElement || child is CanvasMediaControl || child is PdfEmbeddedView)
+                {
+                    if (child is Image img && img.Tag is string tag && tag == VideoPresenterLiveFrameTag)
+                    {
+                        continue;
+                    }
+                    if (!elementsInHistory.Contains(child))
+                    {
+                        timeMachine.CommitElementInsertHistory(child);
+                        missingElements++;
+                    }
+                }
+            }
+
+
+            // 确保画布上的所有墨迹都被保存
+            if (inkCanvas.Strokes.Count > 0)
+            {
+                // 检查是否有墨迹没有在时间机器历史记录中
+                var strokesInHistory = new HashSet<Stroke>();
+                if (currentHistory != null)
+                {
+                    foreach (var h in currentHistory)
+                    {
+                        if (h.CommitType == TimeMachineHistoryType.UserInput &&
+                            h.CurrentStroke != null &&
+                            !h.StrokeHasBeenCleared)
+                        {
+                            foreach (Stroke stroke in h.CurrentStroke)
+                            {
+                                strokesInHistory.Add(stroke);
+                            }
+                        }
+                    }
+                }
+
+                // 收集没有在历史记录中的墨迹
+                var missingStrokes = new StrokeCollection();
+                foreach (Stroke stroke in inkCanvas.Strokes)
+                {
+                    if (!strokesInHistory.Contains(stroke))
+                    {
+                        missingStrokes.Add(stroke);
+                    }
+                }
+
+                if (missingStrokes.Count > 0)
+                {
+                    timeMachine.CommitStrokeUserInputHistory(missingStrokes);
+                }
+            }
+
+            if (isBackupMain)
+            {
+                var timeMachineHistory = timeMachine.ExportTimeMachineHistory();
+                TimeMachineHistories[0] = timeMachineHistory;
+                // 保存多指书写模式状态
+                savedMultiTouchModeStates[0] = isInMultiTouchMode;
+                timeMachine.ClearStrokeHistory();
+
+
+            }
+            else
+            {
+                var timeMachineHistory = timeMachine.ExportTimeMachineHistory();
+                TimeMachineHistories[CurrentWhiteboardIndex] = timeMachineHistory;
+                // 保存多指书写模式状态
+                savedMultiTouchModeStates[CurrentWhiteboardIndex] = isInMultiTouchMode;
+                timeMachine.ClearStrokeHistory();
+
+
+            }
+        }
+
+        /// <summary>
+        /// 清除画布上的所有墨迹并执行内存清理
+        /// </summary>
+        /// <param name="isErasedByCode">是否由代码触发的清除操作</param>
+        /// <remarks>
+        /// - 根据参数设置当前提交类型
+        /// - 清除画布上的所有墨迹
+        /// - 恢复当前提交类型为用户输入
+        /// </remarks>
+        private void ClearStrokes(bool isErasedByCode)
+        {
+            _currentCommitType = CommitReason.ClearingCanvas;
+            if (isErasedByCode) _currentCommitType = CommitReason.CodeInput;
+
+            // SecAgent editable scenes are WPF children, not InkCanvas.Strokes. Remove them
+            // here as well so page switches, loads and code/UI clears cannot leave them behind.
+            ClearSecAgentSceneElements();
+            inkCanvas.Strokes.Clear();
+            // 只隐藏 hint，不暂停（ClearStrokes 在切换页面、保存加载时都会被调用，
+            // 设置 _edgeExpandHintSuspended 会导致后续书写永远无法触发提示）。
+            HideEdgeExpandHint();
+
+            _currentCommitType = CommitReason.UserInput;
+        }
+
+        /// <summary>
+        /// Clears ink strokes and SecAgent editable scene elements for automation and toolbar
+        /// integrations. The old automation action only cleared InkCanvas.Strokes, which left
+        /// SVG scene groups visible because they are WPF children.
+        /// </summary>
+        internal void ClearCanvasContentFromAutomation()
+        {
+            ClearStrokes(true);
+        }
+
+        private static HashSet<UIElement> CollectRemovedElementsFromHistory(TimeMachineHistory[] history)
+        {
+            var set = new HashSet<UIElement>();
+            if (history == null) return set;
+            foreach (var h in history)
+            {
+                if (h.CommitType == TimeMachineHistoryType.ElementInsert && h.StrokeHasBeenCleared && h.InsertedElement != null)
+                    set.Add(h.InsertedElement);
+            }
+            return set;
+        }
+
+        /// <summary>
+        /// 恢复指定白板页面的墨迹和元素信息
+        /// </summary>
+        /// <param name="isBackupMain">是否恢复主备份页面</param>
+        /// <remarks>
+        /// - 隐藏图片选择工具栏
+        /// - 清空当前画布的墨迹和所有内容
+        /// - 从时间机器历史记录中恢复页面内容
+        /// - 恢复多指书写模式状态
+        /// - 包含异常处理
+        /// </remarks>
+        private void RestoreStrokes(bool isBackupMain = false)
+        {
+            try
+            {
+                // 隐藏图片选择工具栏
+                if (currentSelectedElement != null)
+                {
+                    // 保存当前编辑模式
+                    var previousEditingMode = inkCanvas.EditingMode;
+                    UnselectElement(currentSelectedElement);
+                    // 恢复编辑模式
+                    inkCanvas.EditingMode = previousEditingMode;
+                    currentSelectedElement = null;
+                }
+
+                var targetIndex = isBackupMain ? 0 : CurrentWhiteboardIndex;
+
+                // 先清空当前画布的墨迹
+                inkCanvas.Strokes.Clear();
+
+                // 关闭所有媒体控件的播放器并释放文件句柄，再清空子元素
+                ShutdownAllCanvasMediaElements();
+
+                // 清空当前画布的所有内容（墨迹和图片）
+                // 这里必须清除图片，因为页面切换时需要完全重置画布状态
+                inkCanvas.Children.Clear();
+
+                // 如果历史记录为空，直接返回（新页面或空页面）
+                if (TimeMachineHistories[targetIndex] == null)
+                {
+                    timeMachine.ClearStrokeHistory();
+                    SyncPdfPageSidebarWithCanvas();
+                    ApplyFreezeStateToCurrentStrokes();
+                    UpdateInkFreezeButtonState();
+                    return;
+                }
+
+                if (isBackupMain)
+                {
+                    timeMachine.ImportTimeMachineHistory(TimeMachineHistories[0]);
+                    var removed0 = CollectRemovedElementsFromHistory(TimeMachineHistories[0]);
+                    var elementsToProcess = new List<UIElement>();
+                    foreach (var item in TimeMachineHistories[0])
+                    {
+                        if (item.CommitType == TimeMachineHistoryType.ElementInsert &&
+                            !item.StrokeHasBeenCleared &&
+                            item.InsertedElement != null &&
+                            !removed0.Contains(item.InsertedElement))
+                        {
+                            elementsToProcess.Add(item.InsertedElement);
+                        }
+                        ApplyHistoryToCanvas(item, null, removed0);
+                    }
+                    RestoreMultiTouchModeState(0);
+                    ProcessElementsAfterRestore(elementsToProcess);
+                }
+                else
+                {
+                    timeMachine.ImportTimeMachineHistory(TimeMachineHistories[CurrentWhiteboardIndex]);
+                    var removed = CollectRemovedElementsFromHistory(TimeMachineHistories[CurrentWhiteboardIndex]);
+                    var elementsToProcess = new List<UIElement>();
+                    foreach (var item in TimeMachineHistories[CurrentWhiteboardIndex])
+                    {
+                        if (item.CommitType == TimeMachineHistoryType.ElementInsert &&
+                            !item.StrokeHasBeenCleared &&
+                            item.InsertedElement != null &&
+                            !removed.Contains(item.InsertedElement))
+                        {
+                            elementsToProcess.Add(item.InsertedElement);
+                        }
+                        ApplyHistoryToCanvas(item, null, removed);
+                    }
+                    RestoreMultiTouchModeState(CurrentWhiteboardIndex);
+                    ProcessElementsAfterRestore(elementsToProcess);
+                }
+
+
+            }
+            catch
+            {
+                // ignored
+            }
+            finally
+            {
+                ApplyFreezeStateToCurrentStrokes();
+                UpdateInkFreezeButtonState();
+            }
+        }
+
+        /// <summary>
+        /// 在恢复页面后统一处理所有图片/媒体元素的位置和事件绑定，提升含图片页面的加载性能。
+        /// 先批量添加所有元素到画布，再统一处理位置和事件，减少布局更新次数。
+        /// </summary>
+        private void ProcessElementsAfterRestore(List<UIElement> elements)
+        {
+            if (elements == null || elements.Count == 0)
+            {
+                SyncPdfPageSidebarWithCanvas();
+                return;
+            }
+
+            // 使用低优先级异步处理，让 UI 先响应，图片位置和事件绑定稍后完成
+            Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
+            {
+                foreach (var element in elements)
+                {
+                    if (!inkCanvas.Children.Contains(element)) continue;
+
+                    if (element is Image img)
+                    {
+                        double left = InkCanvas.GetLeft(img);
+                        double top = InkCanvas.GetTop(img);
+                        if (double.IsNaN(left) || double.IsNaN(top))
+                        {
+                            CenterAndScaleElement(img);
+                        }
+                        BindElementEvents(img);
+                    }
+                    else if (element is MediaElement media)
+                    {
+                        double left = InkCanvas.GetLeft(media);
+                        double top = InkCanvas.GetTop(media);
+                        if (double.IsNaN(left) || double.IsNaN(top))
+                        {
+                            CenterAndScaleElement(media);
+                        }
+                        BindElementEvents(media);
+                    }
+                    else if (element is CanvasMediaControl mediaControl)
+                    {
+                        double left = InkCanvas.GetLeft(mediaControl);
+                        double top = InkCanvas.GetTop(mediaControl);
+                        if (double.IsNaN(left) || double.IsNaN(top))
+                        {
+                            CenterAndScaleElement(mediaControl);
+                        }
+                        BindElementEvents(mediaControl);
+                    }
+                    else if (element is PdfEmbeddedView pdf)
+                    {
+                        double left = InkCanvas.GetLeft(pdf);
+                        double top = InkCanvas.GetTop(pdf);
+                        if (double.IsNaN(left) || double.IsNaN(top))
+                        {
+                            CenterAndScaleElement(pdf);
+                        }
+                        BindElementEvents(pdf);
+                    }
+                    else if (element is FrameworkElement fe && !(element is Image) && !(element is MediaElement))
+                    {
+                        // 插件插入的自定义控件（见 ICanvasElementService）：翻页后重建变换与事件绑定，
+                        // 使拖动/缩放/旋转与内部子控件交互在恢复后依然可用。
+                        if (fe.RenderTransform == null || fe.RenderTransform == Transform.Identity)
+                        {
+                            InitializeElementTransform(fe);
+                        }
+                        BindElementEvents(fe);
+                    }
+                }
+
+                SyncPdfPageSidebarWithCanvas();
+            }));
+        }
+
+        /// <summary>
+        /// 恢复多指书写模式状态
+        /// </summary>
+        private void RestoreMultiTouchModeState(int pageIndex)
+        {
+            try
+            {
+                // 检查是否保存了多指书写模式状态
+                if (savedMultiTouchModeStates[pageIndex])
+                {
+                    // 更新UI状态
+                    if (ToggleSwitchEnableMultiTouchMode != null)
+                    {
+                        ToggleSwitchEnableMultiTouchMode.IsOn = true;
+                    }
+
+                    LogHelper.WriteLogToFile($"恢复多指书写模式状态 - 页面索引: {pageIndex}", LogHelper.LogType.Info);
+                }
+                else
+                {
+                    // 更新UI状态
+                    if (ToggleSwitchEnableMultiTouchMode != null)
+                    {
+                        ToggleSwitchEnableMultiTouchMode.IsOn = false;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                LogHelper.WriteLogToFile($"恢复多指书写模式状态失败: {ex.Message}", LogHelper.LogType.Error);
+            }
+        }
+
+        /// <summary>
+        /// 处理白板页面索引按钮点击事件，显示或隐藏侧边页面列表
+        /// </summary>
+        /// <param name="sender">事件发送者</param>
+        /// <param name="e">事件参数</param>
+        /// <remarks>
+        /// - 处理左侧页面列表按钮点击：显示或隐藏左侧页面列表
+        /// - 处理右侧页面列表按钮点击：显示或隐藏右侧页面列表
+        /// - 显示页面列表时会刷新列表内容并滚动到当前页面
+        /// </remarks>
+        /// <summary>
+        /// 打开页列表面板前，按屏幕高度与页码按钮位置调整面板尺寸：
+        /// 目标约为屏幕高度的 60%（上限 640），面板底部钉在按钮上方，
+        /// 增加的高度通过上移面板吸收，顶部至少保留约 24px。
+        /// </summary>
+        private void EnsurePageListPanelHeight(Border panel, ScrollViewer scrollViewer, FrameworkElement anchorButton)
+        {
+            if (panel == null || scrollViewer == null || anchorButton == null) return;
+
+            var screenHeight = SystemParameters.WorkArea.Height;
+            var desiredHeight = Math.Min(screenHeight * 0.6, 640);
+
+            // 按钮顶部位置限制可上移空间（原始布局：-465 顶部边距 + 460 高度，
+            // 面板底部正好在按钮上方 5px，高度增量全部向上扩展）
+            var buttonTop = anchorButton.TransformToAncestor(this).Transform(new Point(0, 0)).Y;
+            var height = Math.Min(desiredHeight, Math.Max(320, buttonTop + 20));
+
+            scrollViewer.Height = height;
+
+            var baseMargin = panel.Tag is Thickness tag ? tag : panel.Margin;
+            panel.Margin = new Thickness(baseMargin.Left,
+                baseMargin.Top - (height - 460),
+                baseMargin.Right,
+                baseMargin.Bottom);
+        }
+
+        private async void BtnWhiteBoardPageIndex_Click(object sender, EventArgs e)
+        {
+            var BtnLeftPageListWB = FindView("board.pageList.leftBtn") as Border;
+            var BtnRightPageListWB = FindView("board.pageList.rightBtn") as Border;
+            var BoardBorderLeftPageListView = FindView("board.pageList.leftBorder") as Border;
+            var BoardBorderRightPageListView = FindView("board.pageList.rightBorder") as Border;
+            var BlackBoardLeftSidePageListView = FindView("board.pageList.left") as System.Windows.Controls.ListView;
+            var BlackBoardRightSidePageListView = FindView("board.pageList.right") as System.Windows.Controls.ListView;
+            var BlackBoardLeftSidePageListScrollViewer = FindView("board.pageList.leftScrollViewer") as ScrollViewer;
+            var BlackBoardRightSidePageListScrollViewer = FindView("board.pageList.rightScrollViewer") as ScrollViewer;
+
+            if (sender == BtnLeftPageListWB)
+            {
+                if (BoardBorderLeftPageListView?.Visibility == Visibility.Visible)
+                {
+                    AnimationsHelper.HideWithSlideAndFade(BoardBorderLeftPageListView);
+                }
+                else
+                {
+                    AnimationsHelper.HideWithSlideAndFade(BoardBorderRightPageListView);
+                    // 视频展台特殊模式：刷新虚拟分页项（直播页文字 + 照片缩略图），不刷新普通白板页
+                    // 否则 RefreshBlackBoardSidePageListView 会用普通白板页的墨迹预览覆盖虚拟分页项
+                    if (_isVideoPresenterSpecialMode)
+                        RefreshBoothPageListView();
+                    else
+                        RefreshBlackBoardSidePageListView();
+                    EnsurePageListPanelHeight(BoardBorderLeftPageListView, BlackBoardLeftSidePageListScrollViewer, BtnLeftPageListWB);
+                    AnimationsHelper.ShowWithSlideFromBottomAndFade(BoardBorderLeftPageListView);
+                    await Task.Delay(1);
+                    if (BlackBoardLeftSidePageListView != null)
+                    {
+                        // 特殊模式下滚动到当前虚拟页（-1=直播页→0，0..N-1=照片页→index+1）
+                        int scrollIndex = _isVideoPresenterSpecialMode
+                            ? (_boothCurrentPhotoIndex + 1)
+                            : CurrentWhiteboardIndex - 1;
+                        var leftContainer = BlackBoardLeftSidePageListView.ItemContainerGenerator.ContainerFromIndex(
+                            scrollIndex) as ListViewItem;
+                        if (leftContainer != null)
+                        {
+                            ScrollViewToVerticalTop(leftContainer, BlackBoardLeftSidePageListScrollViewer);
+                        }
+                    }
+                }
+            }
+            else if (sender == BtnRightPageListWB)
+            {
+                if (BoardBorderRightPageListView?.Visibility == Visibility.Visible)
+                {
+                    AnimationsHelper.HideWithSlideAndFade(BoardBorderRightPageListView);
+                }
+                else
+                {
+                    AnimationsHelper.HideWithSlideAndFade(BoardBorderLeftPageListView);
+                    // 视频展台特殊模式：刷新虚拟分页项（直播页文字 + 照片缩略图），不刷新普通白板页
+                    if (_isVideoPresenterSpecialMode)
+                        RefreshBoothPageListView();
+                    else
+                        RefreshBlackBoardSidePageListView();
+                    EnsurePageListPanelHeight(BoardBorderRightPageListView, BlackBoardRightSidePageListScrollViewer, BtnRightPageListWB);
+                    AnimationsHelper.ShowWithSlideFromBottomAndFade(BoardBorderRightPageListView);
+                    await Task.Delay(1);
+                    if (BlackBoardRightSidePageListView != null)
+                    {
+                        int scrollIndex = _isVideoPresenterSpecialMode
+                            ? (_boothCurrentPhotoIndex + 1)
+                            : CurrentWhiteboardIndex - 1;
+                        var rightContainer = BlackBoardRightSidePageListView.ItemContainerGenerator.ContainerFromIndex(
+                            scrollIndex) as ListViewItem;
+                        if (rightContainer != null)
+                        {
+                            ScrollViewToVerticalTop(rightContainer, BlackBoardRightSidePageListScrollViewer);
+                        }
+                    }
+                }
+            }
+
+        }
+
+        /// <summary>
+        /// 切换到前一白板页并在切换过程中保存与恢复画布和相关状态（如果当前已是第一页则不执行任何操作）。
+        /// </summary>
+        /// <remarks>
+        /// 该方法在切换前会取消当前选中元素（同时保留并恢复编辑模式）、调用视频呈现器的离开页前钩子、保存当前页的笔迹与元素、清空画布；切换到前一页后恢复该页内容、调用视频呈现器的页已更改钩子并刷新页面索引显示。
+        /// </remarks>
+        private void BoardBtnWhiteBoardSwitchPrevious_MouseUp(object sender, MouseButtonEventArgs e)
+            => BtnWhiteBoardSwitchPrevious_Click(sender, e);
+
+        private void BtnWhiteBoardSwitchPrevious_Click(object sender, RoutedEventArgs e)
+        {
+            // 视频展台特殊模式：虚拟分页导航
+            if (_isVideoPresenterSpecialMode)
+            {
+                if (_boothCurrentPhotoIndex < 0) return; // 已在直播页，不能上一页
+                if (_boothCurrentPhotoIndex == 0)
+                    SwitchBoothToLivePage(); // 照片0 → 直播页
+                else
+                    SwitchBoothToPhotoPage(_boothCurrentPhotoIndex - 1); // 照片k → 照片k-1
+                return;
+            }
+
+            if (CurrentWhiteboardIndex <= 1) return;
+
+            // 隐藏图片选择工具栏
+            if (currentSelectedElement != null)
+            {
+                // 保存当前编辑模式
+                var previousEditingMode = inkCanvas.EditingMode;
+                UnselectElement(currentSelectedElement);
+                // 恢复编辑模式
+                inkCanvas.EditingMode = previousEditingMode;
+                currentSelectedElement = null;
+            }
+
+            VideoPresenter_BeforePageLeave();
+            PauseAllCanvasMediaPlayback();
+            var previousPluginPageIndex = CurrentWhiteboardIndex;
+            BeginPluginWhiteboardPageChange(CurrentWhiteboardIndex - 1);
+            SaveStrokes();
+
+            ClearStrokes(true);
+            CurrentWhiteboardIndex--;
+
+            RestoreStrokes();
+            CompletePluginWhiteboardPageChange(previousPluginPageIndex);
+            VideoPresenter_OnPageChanged();
+
+            UpdateIndexInfoDisplay();
+        }
+
+        /// <summary>
+        /// 切换到白板的下一页；在到达最后一页时会新增一页。方法在切页前保存当前页面的笔迹/多媒体状态，在切页后恢复目标页面的内容并更新界面状态。
+        /// </summary>
+        /// <param name="sender">触发事件的源对象（通常为按钮）。</param>
+        /// <param name="e">事件参数。</param>
+        private void BoardBtnWhiteBoardSwitchNext_MouseUp(object sender, MouseButtonEventArgs e)
+            => BtnWhiteBoardSwitchNext_Click(sender, e);
+
+        private void BtnWhiteBoardSwitchNext_Click(object sender, RoutedEventArgs e)
+        {
+            // 视频展台特殊模式：虚拟分页导航
+            if (_isVideoPresenterSpecialMode)
+            {
+                if (_boothCurrentPhotoIndex >= _capturedPhotos.Count - 1) return; // 已在最后一张，不能下一页
+                // 直播页(-1) → 照片0，照片k → 照片k+1
+                SwitchBoothToPhotoPage(_boothCurrentPhotoIndex + 1);
+                return;
+            }
+
+            if (CurrentWhiteboardIndex < WhiteboardTotalCount &&
+                Settings.Automation.IsAutoSaveScreenshotAtClear &&
+                inkCanvas.Strokes.Count > Settings.Automation.MinimumAutomationStrokeNumber)
+                CaptureAndEnqueueScreenshotSave(isHideNotification: true);
+
+            if (CurrentWhiteboardIndex >= WhiteboardTotalCount)
+            {
+                // 在最后一页时，点击"新页面"按钮直接新增一页
+                BtnWhiteBoardAdd_Click(sender, e);
+                return;
+            }
+
+            // 隐藏图片选择工具栏
+            if (currentSelectedElement != null)
+            {
+                // 保存当前编辑模式
+                var previousEditingMode = inkCanvas.EditingMode;
+                UnselectElement(currentSelectedElement);
+                // 恢复编辑模式
+                inkCanvas.EditingMode = previousEditingMode;
+                currentSelectedElement = null;
+            }
+
+            VideoPresenter_BeforePageLeave();
+            PauseAllCanvasMediaPlayback();
+            var previousPluginPageIndex = CurrentWhiteboardIndex;
+            BeginPluginWhiteboardPageChange(CurrentWhiteboardIndex + 1);
+            SaveStrokes();
+
+            ClearStrokes(true);
+            CurrentWhiteboardIndex++;
+
+            RestoreStrokes();
+            CompletePluginWhiteboardPageChange(previousPluginPageIndex);
+            VideoPresenter_OnPageChanged();
+
+            UpdateIndexInfoDisplay();
+        }
+
+        /// <summary>
+        /// 在白板集合中添加一个新页面：在切换前保存并清除当前页面的笔迹与状态，插入新空白页面，恢复并刷新与页面相关的 UI 状态。
+        /// </summary>
+        /// <remarks>
+        /// - 在达到最大页面数（99）时不执行任何操作。  
+        /// - 在切换前若启用了自动保存且笔迹数量超过阈值，会保存当前画面截图。  
+        /// - 若有选中元素，会取消选中并恢复编辑模式。  
+        /// - 将当前页面的历史保存到时间轴并清空画布，然后在白板集合中插入一个空白页面（其历史为 null），随后恢复该页面并触发页面变更回调。  
+        /// - 更新页码显示并在达到上限时禁用添加按钮；若侧边页列表可见，则刷新该列表。  
+        /// </remarks>
+        private void BoardBtnWhiteBoardAdd_MouseUp(object sender, MouseButtonEventArgs e)
+            => BtnWhiteBoardAdd_Click(sender, e);
+
+        private void BtnWhiteBoardAdd_Click(object sender, RoutedEventArgs e)
+        {
+            var BlackBoardLeftSidePageListView = FindView("board.pageList.left") as System.Windows.Controls.ListView;
+
+            MarkCurrentPageInkChanged();
+            if (WhiteboardTotalCount >= 99) return;
+            if (Settings.Automation.IsAutoSaveScreenshotAtClear &&
+                inkCanvas.Strokes.Count > Settings.Automation.MinimumAutomationStrokeNumber)
+                CaptureAndEnqueueScreenshotSave(isHideNotification: true);
+
+            // 隐藏图片选择工具栏
+            if (currentSelectedElement != null)
+            {
+                // 保存当前编辑模式
+                var previousEditingMode = inkCanvas.EditingMode;
+                UnselectElement(currentSelectedElement);
+                // 恢复编辑模式
+                inkCanvas.EditingMode = previousEditingMode;
+                currentSelectedElement = null;
+            }
+
+            VideoPresenter_BeforePageLeave();
+            PauseAllCanvasMediaPlayback();
+            var previousPluginPageIndex = CurrentWhiteboardIndex;
+            var newPluginPageId = CreatePluginWhiteboardPageId();
+            BeginPluginWhiteboardPageChange(CurrentWhiteboardIndex + 1, newPluginPageId);
+            SaveStrokes();
+            ClearStrokes(true);
+
+            WhiteboardTotalCount++;
+            CurrentWhiteboardIndex++;
+            InsertPluginWhiteboardPageId(CurrentWhiteboardIndex, newPluginPageId);
+
+            if (CurrentWhiteboardIndex != WhiteboardTotalCount)
+            {
+                for (var i = WhiteboardTotalCount; i > CurrentWhiteboardIndex; i--)
+                {
+                    TimeMachineHistories[i] = TimeMachineHistories[i - 1];
+                    savedMultiTouchModeStates[i] = savedMultiTouchModeStates[i - 1];
+                    frozenPages[i] = frozenPages[i - 1];
+                    pageLastUserInkMutationUtc[i] = pageLastUserInkMutationUtc[i - 1];
+                }
+            }
+
+            // 确保新页面的历史记录为空
+            TimeMachineHistories[CurrentWhiteboardIndex] = null;
+            frozenPages[CurrentWhiteboardIndex] = false;
+            pageLastUserInkMutationUtc[CurrentWhiteboardIndex] = DateTime.MinValue;
+
+            // 恢复新页面（这会清空画布，因为历史记录为null）
+            RestoreStrokes();
+            CompletePluginWhiteboardPageChange(previousPluginPageIndex);
+            VideoPresenter_OnPageChanged();
+
+            UpdateIndexInfoDisplay();
+
+            if (WhiteboardTotalCount >= 99) BtnWhiteBoardAdd.IsEnabled = false;
+
+            if (BlackBoardLeftSidePageListView?.Visibility == Visibility.Visible)
+            {
+                RefreshBlackBoardSidePageListView();
+            }
+        }
+
+        /// <summary>
+        /// 处理白板页面删除按钮点击事件，删除当前白板页面
+        /// </summary>
+        private void BtnWhiteBoardDelete_Click(object sender, RoutedEventArgs e)
+        {
+            DeleteWhiteBoardPageByIndex(CurrentWhiteboardIndex);
+        }
+
+        /// <summary>
+        /// 按页码删除指定白板页（用于预览列表等）。仅当总页数大于 1 时有效。
+        /// </summary>
+        /// <param name="pageIndex">要删除的页码（1 到 WhiteboardTotalCount）</param>
+        private void DeleteWhiteBoardPageByIndex(int pageIndex)
+        {
+            var BoardBorderLeftPageListView = FindView("board.pageList.leftBorder") as Border;
+            var BoardBorderRightPageListView = FindView("board.pageList.rightBorder") as Border;
+
+            if (WhiteboardTotalCount <= 1 || pageIndex < 1 || pageIndex > WhiteboardTotalCount)
+                return;
+
+            if (IsPageFrozen(pageIndex))
+            {
+                return;
+            }
+
+            if (currentSelectedElement != null)
+            {
+                var previousEditingMode = inkCanvas.EditingMode;
+                UnselectElement(currentSelectedElement);
+                inkCanvas.EditingMode = previousEditingMode;
+                currentSelectedElement = null;
+            }
+
+            var oldPluginPageCount = WhiteboardTotalCount;
+            var deletingCurrentPluginPage = pageIndex == CurrentWhiteboardIndex;
+            if (deletingCurrentPluginPage) CaptureCurrentPluginPageStates();
+            var removedPluginPage = RemovePluginWhiteboardPageId(pageIndex, oldPluginPageCount);
+
+            if (pageIndex == CurrentWhiteboardIndex)
+            {
+                PauseAllCanvasMediaPlayback();
+                ClearStrokes(true);
+
+                var oldTotal = WhiteboardTotalCount;
+                if (CurrentWhiteboardIndex != oldTotal)
+                {
+                    for (var i = CurrentWhiteboardIndex; i < oldTotal; i++)
+                    {
+                        TimeMachineHistories[i] = FlattenPageHistory(TimeMachineHistories[i + 1]);
+                        savedMultiTouchModeStates[i] = savedMultiTouchModeStates[i + 1];
+                        frozenPages[i] = frozenPages[i + 1];
+                        pageLastUserInkMutationUtc[i] = pageLastUserInkMutationUtc[i + 1];
+                    }
+                }
+                else
+                {
+                    CurrentWhiteboardIndex--;
+                }
+
+                TimeMachineHistories[oldTotal] = null;
+                WhiteboardTotalCount--;
+                RestoreStrokes();
+                RestoreCurrentPluginPageStates();
+            }
+            else if (pageIndex < CurrentWhiteboardIndex)
+            {
+                for (var i = pageIndex; i < WhiteboardTotalCount; i++)
+                {
+                    TimeMachineHistories[i] = FlattenPageHistory(TimeMachineHistories[i + 1]);
+                    savedMultiTouchModeStates[i] = savedMultiTouchModeStates[i + 1];
+                    frozenPages[i] = frozenPages[i + 1];
+                    pageLastUserInkMutationUtc[i] = pageLastUserInkMutationUtc[i + 1];
+                }
+                TimeMachineHistories[WhiteboardTotalCount] = null;
+                WhiteboardTotalCount--;
+                CurrentWhiteboardIndex--;
+            }
+            else
+            {
+                for (var i = pageIndex; i < WhiteboardTotalCount; i++)
+                {
+                    TimeMachineHistories[i] = FlattenPageHistory(TimeMachineHistories[i + 1]);
+                    savedMultiTouchModeStates[i] = savedMultiTouchModeStates[i + 1];
+                    frozenPages[i] = frozenPages[i + 1];
+                    pageLastUserInkMutationUtc[i] = pageLastUserInkMutationUtc[i + 1];
+                }
+                TimeMachineHistories[WhiteboardTotalCount] = null;
+                WhiteboardTotalCount--;
+            }
+
+            frozenPages[WhiteboardTotalCount + 1] = false;
+            pageLastUserInkMutationUtc[WhiteboardTotalCount + 1] = DateTime.MinValue;
+
+            if (deletingCurrentPluginPage)
+            {
+                PluginWhiteboardDocumentChanged?.Invoke(this, new WhiteboardPageChangedEventArgs
+                {
+                    PreviousPage = removedPluginPage,
+                    CurrentPage = CreatePluginWhiteboardPageInfo(CurrentWhiteboardIndex)
+                });
+            }
+            NotifyPluginWhiteboardPageRemoved(removedPluginPage);
+
+            UpdateIndexInfoDisplay();
+            if (WhiteboardTotalCount < 99) BtnWhiteBoardAdd.IsEnabled = true;
+            if (BoardBorderLeftPageListView?.Visibility == Visibility.Visible ||
+                BoardBorderRightPageListView?.Visibility == Visibility.Visible)
+                RefreshBlackBoardSidePageListView();
+        }
+
+        /// <summary>
+        /// 更新白板页码信息显示和按钮状态
+        /// </summary>
+        /// <remarks>
+        /// - 更新页码显示文本
+        /// - 设置下一页按钮文本（根据是否为最后一页）
+        /// - 启用或禁用下一页按钮（根据是否为最后一页和最大页面数）
+        /// - 设置按钮颜色和透明度
+        /// - 启用或禁用上一页按钮（根据是否为第一页）
+        /// - 设置删除按钮状态（根据页面总数）
+        /// </remarks>
+        private void UpdateIndexInfoDisplay()
+        {
+            var BtnLeftWhiteBoardSwitchNext = FindView("board.nextPage.left") as BoardToolbarButton;
+            var BtnRightWhiteBoardSwitchNext = FindView("board.nextPage.right") as BoardToolbarButton;
+            var BtnLeftWhiteBoardSwitchPrevious = FindView("board.previousPage.left") as BoardToolbarButton;
+            var BtnRightWhiteBoardSwitchPrevious = FindView("board.previousPage.right") as BoardToolbarButton;
+
+            TextBlockWhiteBoardIndexInfo.Text =
+                $"{CurrentWhiteboardIndex}/{WhiteboardTotalCount}";
+
+            UpdatePageInfo();
+
+            // 视频展台特殊模式：按钮文字/IsEnabled 由 UpdateBoothPagingButtonsState 统一管理，
+            // 跳过白板分页的按钮逻辑（否则 isLastPage/CanAddNewPage 会错误启用"下一页"/改成"新页面"文字）
+            if (_isVideoPresenterSpecialMode)
+            {
+                UpdateBoothPageInfoDisplay();
+                return;
+            }
+
+            bool isLastPage = CurrentWhiteboardIndex == WhiteboardTotalCount;
+            bool isMaxPage = WhiteboardTotalCount >= 99;
+
+            if (BtnLeftWhiteBoardSwitchNext != null) BtnLeftWhiteBoardSwitchNext.LabelTextBlockControl.Text = isLastPage ? FloatingBarStrings.Board_NewPage : FloatingBarStrings.Board_NextPage;
+            if (BtnRightWhiteBoardSwitchNext != null) BtnRightWhiteBoardSwitchNext.LabelTextBlockControl.Text = isLastPage ? FloatingBarStrings.Board_NewPage : FloatingBarStrings.Board_NextPage;
+
+            if (isLastPage)
+            {
+                BtnWhiteBoardSwitchNext.IsEnabled = !isMaxPage;
+                if (BtnLeftWhiteBoardSwitchNext != null) BtnLeftWhiteBoardSwitchNext.IsEnabled = !isMaxPage;
+                if (BtnRightWhiteBoardSwitchNext != null) BtnRightWhiteBoardSwitchNext.IsEnabled = !isMaxPage;
+            }
+            else
+            {
+                BtnWhiteBoardSwitchNext.IsEnabled = true;
+                if (BtnLeftWhiteBoardSwitchNext != null) BtnLeftWhiteBoardSwitchNext.IsEnabled = true;
+                if (BtnRightWhiteBoardSwitchNext != null) BtnRightWhiteBoardSwitchNext.IsEnabled = true;
+            }
+
+            var iconForegroundBrush = Application.Current.FindResource("IconForeground") as SolidColorBrush;
+
+            if (iconForegroundBrush != null)
+            {
+                if (BtnLeftWhiteBoardSwitchNext != null) BtnLeftWhiteBoardSwitchNext.IconGeometryDrawing.Brush = iconForegroundBrush;
+                if (BtnRightWhiteBoardSwitchNext != null) BtnRightWhiteBoardSwitchNext.IconGeometryDrawing.Brush = iconForegroundBrush;
+            }
+            if (BtnLeftWhiteBoardSwitchNext != null) BtnLeftWhiteBoardSwitchNext.LabelTextBlockControl.Opacity = 1;
+            if (BtnRightWhiteBoardSwitchNext != null) BtnRightWhiteBoardSwitchNext.LabelTextBlockControl.Opacity = 1;
+
+            BtnWhiteBoardSwitchPrevious.IsEnabled = true;
+            if (BtnLeftWhiteBoardSwitchPrevious != null) BtnLeftWhiteBoardSwitchPrevious.IsEnabled = true;
+            if (BtnRightWhiteBoardSwitchPrevious != null) BtnRightWhiteBoardSwitchPrevious.IsEnabled = true;
+
+            if (CurrentWhiteboardIndex == 1)
+            {
+                BtnWhiteBoardSwitchPrevious.IsEnabled = false;
+                if (BtnLeftWhiteBoardSwitchPrevious != null) BtnLeftWhiteBoardSwitchPrevious.IsEnabled = false;
+                if (BtnRightWhiteBoardSwitchPrevious != null) BtnRightWhiteBoardSwitchPrevious.IsEnabled = false;
+                if (iconForegroundBrush != null)
+                {
+                    var disabledBrush = new SolidColorBrush(Color.FromArgb(127, iconForegroundBrush.Color.R, iconForegroundBrush.Color.G, iconForegroundBrush.Color.B));
+                    if (BtnLeftWhiteBoardSwitchPrevious != null) BtnLeftWhiteBoardSwitchPrevious.IconGeometryDrawing.Brush = disabledBrush;
+                    if (BtnRightWhiteBoardSwitchPrevious != null) BtnRightWhiteBoardSwitchPrevious.IconGeometryDrawing.Brush = disabledBrush;
+                }
+                if (BtnLeftWhiteBoardSwitchPrevious != null) BtnLeftWhiteBoardSwitchPrevious.LabelTextBlockControl.Opacity = 0.5;
+                if (BtnRightWhiteBoardSwitchPrevious != null) BtnRightWhiteBoardSwitchPrevious.LabelTextBlockControl.Opacity = 0.5;
+            }
+            else
+            {
+                if (iconForegroundBrush != null)
+                {
+                    if (BtnLeftWhiteBoardSwitchPrevious != null) BtnLeftWhiteBoardSwitchPrevious.IconGeometryDrawing.Brush = iconForegroundBrush;
+                    if (BtnRightWhiteBoardSwitchPrevious != null) BtnRightWhiteBoardSwitchPrevious.IconGeometryDrawing.Brush = iconForegroundBrush;
+                }
+                if (BtnLeftWhiteBoardSwitchPrevious != null) BtnLeftWhiteBoardSwitchPrevious.LabelTextBlockControl.Opacity = 1;
+                if (BtnRightWhiteBoardSwitchPrevious != null) BtnRightWhiteBoardSwitchPrevious.LabelTextBlockControl.Opacity = 1;
+            }
+
+            BtnWhiteBoardDelete.IsEnabled = WhiteboardTotalCount != 1;
+            UpdateInkFreezeButtonState();
+            UpdateBoardToolbarState();
+        }
+
+        /// <summary>
+        /// 关闭画布上所有媒体控件的播放器并释放文件句柄，在清空画布前调用以防止内存泄漏。
+        /// </summary>
+        private void ShutdownAllCanvasMediaElements()
+        {
+            foreach (var mediaControl in inkCanvas.Children.OfType<CanvasMediaControl>())
+            {
+                mediaControl.Shutdown();
+            }
+            foreach (var media in inkCanvas.Children.OfType<System.Windows.Controls.MediaElement>())
+            {
+                media.Stop();
+                media.Source = null;
+            }
+        }
+    }
+}

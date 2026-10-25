@@ -1,0 +1,339 @@
+<UserControl xmlns:props="clr-namespace:Ink_Canvas.Properties" x:Class="Ink_Canvas.Windows.PPTQuickPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:ui="http://schemas.inkore.net/lib/ui/wpf/modern"
+             mc:Ignorable="d"
+             d:DesignHeight="420" d:DesignWidth="260">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <!-- 展开 / 折叠动画 -->
+            <Storyboard x:Key="ExpandAnimation">
+                <DoubleAnimation Storyboard.TargetName="PanelTransform"
+                                 Storyboard.TargetProperty="X"
+                                 Duration="0:0:0.28">
+                    <DoubleAnimation.EasingFunction>
+                        <CubicEase EasingMode="EaseOut"/>
+                    </DoubleAnimation.EasingFunction>
+                </DoubleAnimation>
+            </Storyboard>
+            <Storyboard x:Key="CollapseAnimation">
+                <DoubleAnimation Storyboard.TargetName="PanelTransform"
+                                 Storyboard.TargetProperty="X"
+                                 Duration="0:0:0.28">
+                    <DoubleAnimation.EasingFunction>
+                        <CubicEase EasingMode="EaseIn"/>
+                    </DoubleAnimation.EasingFunction>
+                </DoubleAnimation>
+            </Storyboard>
+
+            <!-- Game Bar 风格扁平按钮 -->
+            <Style x:Key="GameBarFlatButton" TargetType="Button">
+                <Setter Property="Foreground" Value="White"/>
+                <Setter Property="FontSize" Value="12"/>
+                <Setter Property="Cursor" Value="Hand"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="Padding" Value="10,0"/>
+                <Setter Property="Height" Value="34"/>
+                <Setter Property="Background" Value="#28FFFFFF"/>
+                <Setter Property="HorizontalContentAlignment" Value="Center"/>
+                <Setter Property="VerticalContentAlignment" Value="Center"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="Bd"
+                                    Background="{TemplateBinding Background}"
+                                    CornerRadius="6"
+                                    Padding="{TemplateBinding Padding}">
+                                <ContentPresenter HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="#40FFFFFF"/>
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="#55FFFFFF"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!-- 区段标题 -->
+            <Style x:Key="GameBarSectionTitle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="10"/>
+                <Setter Property="FontWeight" Value="SemiBold"/>
+                <Setter Property="Opacity" Value="0.7"/>
+                <Setter Property="Margin" Value="2,0,0,4"/>
+            </Style>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <Grid>
+        <Canvas x:Name="MainCanvas" HorizontalAlignment="Right" VerticalAlignment="Top">
+            <Grid x:Name="MainPanel" Canvas.Right="0" Canvas.Top="50">
+                <Grid.RenderTransform>
+                    <TranslateTransform x:Name="PanelTransform" X="0"/>
+                </Grid.RenderTransform>
+
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="20"/>
+                    <!-- 内容区域：宽度必须为 200 (与 _collapsedOffset 对应) -->
+                    <ColumnDefinition Width="200"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- 内容区域外壳：圆角 + 背景 + 阴影 (只覆盖内容列，折叠后完全滑出视区) -->
+                <Border Grid.Column="1"
+                        CornerRadius="12">
+                    <Border.Background>
+                        <SolidColorBrush x:Name="ContentBackgroundBrush" Color="#CC1F1F1F"/>
+                    </Border.Background>
+                    <Border.Effect>
+                        <DropShadowEffect BlurRadius="18" ShadowDepth="0" Opacity="0.35" Color="Black"/>
+                    </Border.Effect>
+                </Border>
+
+                <!-- 左侧箭头交互区（独立小胶囊，折叠后仍可见） -->
+                <Border x:Name="ArrowButtonBorder"
+                        Grid.Column="0"
+                        Width="14"
+                        Height="44"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        CornerRadius="7"
+                        Cursor="Hand"
+                        MouseLeftButtonDown="ArrowButton_MouseLeftButtonDown"
+                        MouseEnter="ArrowButton_MouseEnter"
+                        MouseLeave="ArrowButton_MouseLeave">
+                    <Border.Background>
+                        <SolidColorBrush x:Name="ArrowButtonBackgroundBrush" Color="#CC1F1F1F"/>
+                    </Border.Background>
+                    <Border.Effect>
+                        <DropShadowEffect BlurRadius="8" ShadowDepth="0" Opacity="0.3" Color="Black"/>
+                    </Border.Effect>
+
+                    <Viewbox Width="7" Height="7"
+                             VerticalAlignment="Center"
+                             HorizontalAlignment="Center">
+                        <Path x:Name="ArrowPath"
+                              Data="M 0,0 L 12,6 L 0,12 Z"
+                              Stretch="Uniform"
+                              RenderTransformOrigin="0.5,0.5">
+                            <Path.Fill>
+                                <SolidColorBrush x:Name="ArrowPathFillBrush" Color="White"/>
+                            </Path.Fill>
+                            <Path.RenderTransform>
+                                <RotateTransform x:Name="ArrowRotateTransform" Angle="180"/>
+                            </Path.RenderTransform>
+                        </Path>
+                    </Viewbox>
+                </Border>
+
+                <!-- 内容区域（透明，仅承担事件与裁剪） -->
+                <Border x:Name="ContentBorder"
+                        Grid.Column="1"
+                        Background="Transparent"
+                        CornerRadius="0,12,12,0"
+                        MouseLeftButtonDown="ContentBorder_MouseLeftButtonDown"
+                        MouseMove="ContentBorder_MouseMove"
+                        MouseLeftButtonUp="ContentBorder_MouseLeftButtonUp"
+                        TouchDown="ContentBorder_TouchDown"
+                        TouchMove="ContentBorder_TouchMove"
+                        TouchUp="ContentBorder_TouchUp">
+
+                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  Padding="0">
+                        <StackPanel x:Name="ContentPanel" Margin="12,12,12,12" Orientation="Vertical">
+
+                            <!-- 区段：声音 -->
+                            <TextBlock Text="{x:Static props:PPTStrings.PPTQuickPanel_Sound}" Style="{StaticResource GameBarSectionTitle}">
+                                <TextBlock.Foreground>
+                                    <SolidColorBrush x:Name="MagnifierTitleForegroundBrush" Color="White"/>
+                                </TextBlock.Foreground>
+                            </TextBlock>
+
+                            <Border CornerRadius="8" Background="#1AFFFFFF" Padding="6" Margin="0,0,0,12">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <!-- 静音按钮 -->
+                                    <Button x:Name="VolumeMuteButton"
+                                            Grid.Column="0"
+                                            Width="28" Height="28"
+                                            Background="Transparent"
+                                            BorderThickness="0"
+                                            Cursor="Hand"
+                                            Padding="0"
+                                            Click="VolumeMuteButton_Click"
+                                            VerticalAlignment="Center"
+                                            HorizontalAlignment="Center">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border x:Name="Bd"
+                                                        Background="{TemplateBinding Background}"
+                                                        CornerRadius="6">
+                                                    <ContentPresenter HorizontalAlignment="Center"
+                                                                      VerticalAlignment="Center"/>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="Bd" Property="Background" Value="#33FFFFFF"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                        <Viewbox Width="16" Height="16" Stretch="Uniform">
+                                            <Grid>
+                                                <Path x:Name="VolumeIconPath"
+                                                      Data="M 3,9 v 6 h 4 l 5,5 v -16 l -5,5 h -4 z"
+                                                      Stretch="Uniform">
+                                                    <Path.Fill>
+                                                        <SolidColorBrush x:Name="VolumeIconFillBrush" Color="White"/>
+                                                    </Path.Fill>
+                                                </Path>
+                                                <Path x:Name="VolumeIconPath2"
+                                                      Data=""
+                                                      Stretch="Uniform"
+                                                      Opacity="0.5"
+                                                      Visibility="Collapsed">
+                                                    <Path.Fill>
+                                                        <SolidColorBrush x:Name="VolumeIconFillBrush2" Color="White"/>
+                                                    </Path.Fill>
+                                                </Path>
+                                            </Grid>
+                                        </Viewbox>
+                                    </Button>
+
+                                    <!-- 音量滑块 -->
+                                    <Slider x:Name="VolumeSlider"
+                                            Grid.Column="1"
+                                            Margin="8,0,8,0"
+                                            VerticalAlignment="Center"
+                                            Stylus.IsPressAndHoldEnabled="False"
+                                            Minimum="0"
+                                            Maximum="100"
+                                            Value="50"
+                                            TickFrequency="1"
+                                            IsSnapToTickEnabled="True"
+                                            ValueChanged="VolumeSlider_ValueChanged"
+                                            PreviewMouseLeftButtonUp="VolumeSlider_PreviewMouseLeftButtonUp"
+                                            ManipulationCompleted="VolumeSlider_ManipulationCompleted"/>
+
+                                    <!-- 数值 -->
+                                    <TextBlock x:Name="VolumeValueText"
+                                               Grid.Column="2"
+                                               Text="50%"
+                                               FontSize="11"
+                                               FontWeight="SemiBold"
+                                               VerticalAlignment="Center"
+                                               MinWidth="32"
+                                               TextAlignment="Right">
+                                        <TextBlock.Foreground>
+                                            <SolidColorBrush x:Name="VolumeValueForegroundBrush" Color="#E6FFFFFF"/>
+                                        </TextBlock.Foreground>
+                                    </TextBlock>
+                                </Grid>
+                            </Border>
+
+                            <!-- 隐藏的占位分隔线（保留命名元素以满足 .cs 引用） -->
+                            <Separator x:Name="Separator1" Visibility="Collapsed" Height="0">
+                                <Separator.Background>
+                                    <SolidColorBrush x:Name="Separator1BackgroundBrush" Color="Transparent"/>
+                                </Separator.Background>
+                            </Separator>
+
+                            <!-- 区段：插入图片 -->
+                            <TextBlock Text="{x:Static props:PPTStrings.PPTQuickPanel_Insert}" Style="{StaticResource GameBarSectionTitle}"/>
+
+                            <StackPanel Orientation="Vertical" Margin="0,0,0,4">
+                                <Button x:Name="InsertImageSelectFileButton"
+                                        Content="{x:Static props:TimerStrings.Timer_ProgressiveSelectFile}"
+                                        Style="{StaticResource GameBarFlatButton}"
+                                        Margin="0,0,0,6"
+                                        Click="InsertImageSelectFileButton_Click"/>
+
+                                <Button x:Name="InsertImageScreenshotButton"
+                                        Content="{x:Static props:PPTStrings.PPTQuickPanel_ScreenshotInsert}"
+                                        Style="{StaticResource GameBarFlatButton}"
+                                        Click="InsertImageScreenshotButton_Click"/>
+                            </StackPanel>
+
+                            <!-- 区段：聚焦放大镜 -->
+                            <Border x:Name="MagnifierSection">
+                                <StackPanel>
+                                    <TextBlock x:Name="MagnifierTitleText"
+                                               Text="{x:Static props:PPTStrings.PPTQuickPanel_FocusMagnifier}"
+                                               Style="{StaticResource GameBarSectionTitle}">
+                                        <TextBlock.Foreground>
+                                            <SolidColorBrush x:Name="MagnifierTitleForeground2Brush" Color="White"/>
+                                        </TextBlock.Foreground>
+                                    </TextBlock>
+
+                                    <Button x:Name="MagnifierToggleButton"
+                                            Content="{x:Static props:PPTStrings.PPTQuickPanel_OpenMagnifier}"
+                                            Style="{StaticResource GameBarFlatButton}"
+                                            Margin="0,0,0,6"
+                                            Click="MagnifierToggleButton_Click"/>
+
+                                    <Border CornerRadius="8" Background="#1AFFFFFF" Padding="6" Margin="0,0,0,4">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0"
+                                                       Text="{x:Static props:PPTStrings.PPTQuickPanel_Zoom}"
+                                                       FontSize="11"
+                                                       VerticalAlignment="Center"
+                                                       Margin="4,0,8,0"
+                                                       Foreground="White"/>
+                                            <Slider x:Name="MagnifierZoomSlider"
+                                                    Grid.Column="1"
+                                                    VerticalAlignment="Center"
+                                                    Stylus.IsPressAndHoldEnabled="False"
+                                                    Minimum="1.5"
+                                                    Maximum="6"
+                                                    Value="2"
+                                                    TickFrequency="0.5"
+                                                    IsSnapToTickEnabled="True"
+                                                    ValueChanged="MagnifierZoomSlider_ValueChanged"/>
+                                            <TextBlock x:Name="MagnifierZoomValueText"
+                                                       Grid.Column="2"
+                                                       Text="2.0x"
+                                                       FontSize="11"
+                                                       FontWeight="SemiBold"
+                                                       VerticalAlignment="Center"
+                                                       MinWidth="36"
+                                                       TextAlignment="Right"
+                                                       Foreground="#E6FFFFFF"/>
+                                        </Grid>
+                                    </Border>
+
+                                    <TextBlock x:Name="MagnifierDescText"
+                                               Text="{x:Static props:PPTStrings.PPTQuickPanel_MagnifierHint}"
+                                               FontSize="11"
+                                               Margin="2,0,0,0"
+                                               TextWrapping="Wrap">
+                                        <TextBlock.Foreground>
+                                            <SolidColorBrush x:Name="MagnifierDescForegroundBrush" Color="#80FFFFFF"/>
+                                        </TextBlock.Foreground>
+                                    </TextBlock>
+                                </StackPanel>
+                            </Border>
+
+                        </StackPanel>
+                    </ScrollViewer>
+                </Border>
+            </Grid>
+        </Canvas>
+    </Grid>
+</UserControl>

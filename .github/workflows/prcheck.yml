@@ -1,0 +1,159 @@
+name: PR Check
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+    branches: [net6, net10]
+    paths-ignore:
+      - "**/*.md"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}-${{ github.head_ref || github.sha }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-package:
+    name: Build & Package
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        architecture: [AnyCPU, x86]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v3
+
+      - name: Setup dotnet
+        uses: actions/setup-dotnet@v5
+
+      - name: Restore Package
+        run: dotnet restore "Ink Canvas.sln" --locked-mode
+
+      - name: Install VSTO Runtime
+        shell: pwsh
+        run: |
+          $url = "https://go.microsoft.com/fwlink/?LinkId=158918"
+          $out = "$env:TEMP\VSTORuntime.exe"
+          Invoke-WebRequest -Uri $url -OutFile $out -MaximumRedirection 10
+          Start-Process -FilePath $out -ArgumentList "/quiet /norestart" -Wait -NoNewWindow
+
+      - name: Restore signing certificate
+        shell: pwsh
+        run: |
+          $ok = $false
+          if ("${{ secrets.CERT_PFX_BASE64 }}" -ne "") {
+            try {
+              $bytes = [Convert]::FromBase64String("${{ secrets.CERT_PFX_BASE64 }}")
+              [IO.File]::WriteAllBytes("clickonce.pfx", $bytes)
+              $pwd = ConvertTo-SecureString "${{ secrets.CERT_PFX_PASSWORD }}" -AsPlainText -Force
+              Import-PfxCertificate -FilePath "clickonce.pfx" -CertStoreLocation Cert:\CurrentUser\My -Password $pwd | Out-Null
+              $ok = $true
+            } catch {
+              Write-Host "Import failed, falling back to self-signed: $($_.Exception.Message)"
+            }
+          }
+          if (-not $ok) {
+            New-SelfSignedCertificate -Type CodeSigningCert -Subject "CN=ICC PowerPoint Agent PR" -CertStoreLocation "Cert:\CurrentUser\My" -KeyExportPolicy Exportable -NotAfter (Get-Date).AddYears(2) | Out-Null
+          }
+          $found = Get-ChildItem Cert:\CurrentUser\My | Where-Object { $_.HasPrivateKey -and $_.Subject -like "*ICC*" } | Select-Object -First 1
+          if (-not $found) { throw "No signing certificate found" }
+          echo "SIGN_THUMBPRINT=$($found.Thumbprint)" >> $env:GITHUB_ENV
+
+      - name: Build the Solution
+        run: msbuild /p:platform="${{ matrix.architecture }}" /p:configuration="Debug" /p:GitFlow="$GITFLOW" "Ink Canvas/InkCanvasForClass.csproj" /m /p:UseMultiToolTask=true /p:EnforceProcessCountAcrossBuilds=true /verbosity:minimal -maxcpucount /p:RunAnalyzers=false
+
+      - name: Build VSTO Add-in
+        shell: pwsh
+        run: |
+          msbuild "InkCanvas.PowerPointAddIn/InkCanvas.PowerPointAddIn.csproj" `
+            /p:Configuration=Debug `
+            /p:SignManifests=true `
+            /p:ManifestCertificateThumbprint=$env:SIGN_THUMBPRINT `
+            /verbosity:minimal -maxcpucount
+          $pptAgentDir = "Ink Canvas\bin\Debug\${{ matrix.architecture }}\net10.0-windows10.0.19041.0\ppt-agent"
+          New-Item -ItemType Directory -Force -Path $pptAgentDir | Out-Null
+          Copy-Item "InkCanvas.PowerPointAddIn\bin\Debug\*" $pptAgentDir -Recurse -Force
+          Copy-Item "InkCanvas.PPTAgent.Contracts\bin\Debug\netstandard2.0\InkCanvas.PPTAgent.Contracts.dll" $pptAgentDir -Force
+          Get-ChildItem $pptAgentDir | Select-Object Name
+          if (-not (Test-Path "$pptAgentDir\Microsoft.Office.Tools.Common.v4.0.Utilities.dll")) {
+            Write-Error "缺少 VSTO 依赖 DLL，artifact 不完整"
+            exit 1
+          }
+
+      - name: Check VSTO DLL exists
+        run: |
+          if (Test-Path "InkCanvas.PowerPointAddIn\bin\Debug\InkCanvas.PowerPointAddIn.dll") {
+            Write-Host "VSTO DLL OK"
+          } else {
+            Write-Error "VSTO DLL not found"
+            exit 1
+          }
+
+      - name: Check if exe file is generated
+        id: check-exe
+        run: |
+          $exePath = "Ink Canvas\bin\Debug\${{ matrix.architecture }}\net10.0-windows10.0.19041.0\InkCanvasForClass.exe"
+
+          if (Test-Path $exePath) {
+            echo "build_success=true" >> $env:GITHUB_OUTPUT
+          } else {
+            echo "build_success=false" >> $env:GITHUB_OUTPUT
+            exit 1
+          }
+
+      - name: Create Package (if build succeeded)
+        id: create-archive
+        if: steps.check-exe.outputs.build_success == 'true'
+        env:
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          $shortSha = $env:GITHUB_SHA.Substring(0, 7)
+          $version = "debug-$shortSha-$env:GITHUB_RUN_NUMBER"
+          echo "archive_name=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Upload Artifact (if build succeeded)
+        if: steps.check-exe.outputs.build_success == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: InkCanvasForClass.CE.debug.${{ matrix.architecture }}
+          path: "Ink Canvas/bin/Debug/${{ matrix.architecture }}/net10.0-windows10.0.19041.0/*"
+
+      - name: Create Summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "# Build Summary"
+            echo ""
+
+            if [ "${{ steps.check-exe.outputs.build_success }}" = "true" ]; then
+              echo "## ✅ Build Successful"
+              echo ""
+              echo "**Commit:** \`${{ github.sha }}\`"
+              echo "**Run:** #${{ github.run_number }}"
+              echo "**Version:** ${{ steps.create-archive.outputs.archive_name }}"
+              echo "**Architecture:** ${{ matrix.architecture }}"
+              echo ""
+              echo "[Download Artifact](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+              echo ""
+              echo "[Nightly.link Download](https://nightly.link/${{ github.repository }}/actions/runs/${{ github.run_id }}/InkCanvasForClass.CE.debug.${{ matrix.architecture }}.zip) \([GhProxy Fastly Mirror](https://cdn.gh-proxy.com/nightly.link/${{ github.repository }}/actions/runs/${{ github.run_id }}/InkCanvasForClass.CE.debug.${{ matrix.architecture }}.zip) / [GhProxy Mirror](https://gh-proxy.com/nightly.link/${{ github.repository }}/actions/runs/${{ github.run_id }}/InkCanvasForClass.CE.debug.${{ matrix.architecture }}.zip)\)"
+            else
+              echo "## ❌ Build Failed"
+              echo ""
+              echo "**Event:** ${{ github.event_name }} (${{ github.event.action || 'N/A' }})"
+              echo "**Commit:** \`${{ github.sha }}\`"
+              echo "**Architecture:** ${{ matrix.architecture }}"
+              echo "**Run:** #${{ github.run_number }}"
+              echo ""
+              echo "Check build logs for details."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

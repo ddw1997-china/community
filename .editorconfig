@@ -1,0 +1,93 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = crlf
+
+# 说明：以下均为 IDE 实时分析产生的 info 级代码质量建议（非编译警告、非 bug）。
+# 逐条修复侵入面大、收益低，统一静默以保持"问题"面板干净。
+# 如后续需要恢复某条规则，把对应 severity 改回 info 即可。
+[*.cs]
+dotnet_diagnostic.CA1401.severity = silent
+dotnet_diagnostic.CA1510.severity = silent
+dotnet_diagnostic.CA1512.severity = silent
+dotnet_diagnostic.CA1513.severity = silent
+dotnet_diagnostic.CA1806.severity = silent
+dotnet_diagnostic.CA1816.severity = silent
+dotnet_diagnostic.CA1822.severity = silent
+dotnet_diagnostic.CA1825.severity = silent
+dotnet_diagnostic.CA1827.severity = silent
+dotnet_diagnostic.CA1829.severity = silent
+dotnet_diagnostic.CA1835.severity = silent
+dotnet_diagnostic.CA1836.severity = silent
+dotnet_diagnostic.CA1837.severity = silent
+dotnet_diagnostic.CA1839.severity = silent
+dotnet_diagnostic.CA1840.severity = silent
+dotnet_diagnostic.CA1845.severity = silent
+dotnet_diagnostic.CA1846.severity = silent
+dotnet_diagnostic.CA1847.severity = silent
+dotnet_diagnostic.CA1850.severity = silent
+dotnet_diagnostic.CA1853.severity = silent
+dotnet_diagnostic.CA1854.severity = silent
+dotnet_diagnostic.CA1859.severity = silent
+dotnet_diagnostic.CA1860.severity = silent
+dotnet_diagnostic.CA1861.severity = silent
+dotnet_diagnostic.CA1862.severity = silent
+dotnet_diagnostic.CA1865.severity = silent
+dotnet_diagnostic.CA1866.severity = silent
+dotnet_diagnostic.CA1868.severity = silent
+dotnet_diagnostic.CA1869.severity = silent
+dotnet_diagnostic.CA1870.severity = silent
+dotnet_diagnostic.CA1872.severity = silent
+dotnet_diagnostic.CA2012.severity = silent
+dotnet_diagnostic.CA2016.severity = silent
+dotnet_diagnostic.CA2020.severity = silent
+dotnet_diagnostic.CA2101.severity = silent
+dotnet_diagnostic.CA2211.severity = silent
+dotnet_diagnostic.CA2249.severity = silent
+dotnet_diagnostic.CA2263.severity = silent
+dotnet_diagnostic.SYSLIB1045.severity = silent
+dotnet_diagnostic.SYSLIB1054.severity = silent
+dotnet_diagnostic.SYSLIB1096.severity = silent
+
+# IDE00xx：代码风格建议（写法偏好类，如集合初始化器、模式匹配、命名等），非功能问题，统一静默
+dotnet_diagnostic.IDE0016.severity = silent
+dotnet_diagnostic.IDE0017.severity = silent
+dotnet_diagnostic.IDE0018.severity = silent
+dotnet_diagnostic.IDE0019.severity = silent
+dotnet_diagnostic.IDE0028.severity = silent
+dotnet_diagnostic.IDE0031.severity = silent
+dotnet_diagnostic.IDE0034.severity = silent
+dotnet_diagnostic.IDE0037.severity = silent
+dotnet_diagnostic.IDE0038.severity = silent
+dotnet_diagnostic.IDE0039.severity = silent
+dotnet_diagnostic.IDE0041.severity = silent
+dotnet_diagnostic.IDE0042.severity = silent
+dotnet_diagnostic.IDE0044.severity = silent
+dotnet_diagnostic.IDE0054.severity = silent
+dotnet_diagnostic.IDE0056.severity = silent
+dotnet_diagnostic.IDE0057.severity = silent
+dotnet_diagnostic.IDE0059.severity = silent
+dotnet_diagnostic.IDE0060.severity = silent
+dotnet_diagnostic.IDE0062.severity = silent
+dotnet_diagnostic.IDE0063.severity = silent
+dotnet_diagnostic.IDE0066.severity = silent
+dotnet_diagnostic.IDE0071.severity = silent
+dotnet_diagnostic.IDE0074.severity = silent
+dotnet_diagnostic.IDE0075.severity = silent
+dotnet_diagnostic.IDE0083.severity = silent
+dotnet_diagnostic.IDE0090.severity = silent
+dotnet_diagnostic.IDE0130.severity = silent
+dotnet_diagnostic.IDE0150.severity = silent
+dotnet_diagnostic.IDE0180.severity = silent
+dotnet_diagnostic.IDE0220.severity = silent
+dotnet_diagnostic.IDE0251.severity = silent
+dotnet_diagnostic.IDE0260.severity = silent
+dotnet_diagnostic.IDE0270.severity = silent
+dotnet_diagnostic.IDE0290.severity = silent
+dotnet_diagnostic.IDE0300.severity = silent
+dotnet_diagnostic.IDE0301.severity = silent
+dotnet_diagnostic.IDE0305.severity = silent
+dotnet_diagnostic.IDE0306.severity = silent
+dotnet_diagnostic.IDE1005.severity = silent
+dotnet_diagnostic.IDE1006.severity = silent

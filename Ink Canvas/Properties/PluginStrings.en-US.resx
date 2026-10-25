@@ -1,0 +1,338 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="Plugin_Title" xml:space="preserve">
+    <value>Plugin Management</value>
+  </data>
+  <data name="Plugin_Loading" xml:space="preserve">
+    <value>Loading plugins...</value>
+  </data>
+  <data name="Plugin_LoadedCount" xml:space="preserve">
+    <value>{0} plugin(s) loaded</value>
+  </data>
+  <data name="Plugin_NoPlugins" xml:space="preserve">
+    <value>No plugins found. Please place plugin files in the Plugins directory.</value>
+  </data>
+  <data name="Plugin_LoadError" xml:space="preserve">
+    <value>Error loading plugins: {0}</value>
+  </data>
+  <data name="Plugin_Author" xml:space="preserve">
+    <value>Author: {0}</value>
+  </data>
+  <data name="Plugin_Settings" xml:space="preserve">
+    <value>Plugin Settings</value>
+  </data>
+  <data name="Market_Title" xml:space="preserve">
+    <value>Plugin Marketplace</value>
+  </data>
+  <data name="Market_SearchPlaceholder" xml:space="preserve">
+    <value>Search plugins...</value>
+  </data>
+  <data name="Market_TabMarket" xml:space="preserve">
+    <value>Marketplace</value>
+  </data>
+  <data name="Market_TabInstalled" xml:space="preserve">
+    <value>Installed</value>
+  </data>
+  <data name="Market_Refresh" xml:space="preserve">
+    <value>Refresh plugin source</value>
+  </data>
+  <data name="Market_OpenPluginsFolder" xml:space="preserve">
+    <value>Open plugins folder</value>
+  </data>
+  <data name="Market_InstallFromLocal" xml:space="preserve">
+    <value>Install from local file</value>
+  </data>
+  <data name="Market_Install" xml:space="preserve">
+    <value>Install</value>
+  </data>
+  <data name="Market_Update" xml:space="preserve">
+    <value>Update</value>
+  </data>
+  <data name="Market_UpdateAvailable" xml:space="preserve">
+    <value>Update available</value>
+  </data>
+  <data name="Market_RestartRequired" xml:space="preserve">
+    <value>Pending</value>
+  </data>
+  <data name="Market_RestartToApply" xml:space="preserve">
+    <value>Apply now</value>
+  </data>
+  <data name="Market_ApplyPendingUpdate" xml:space="preserve">
+    <value>Apply now</value>
+  </data>
+  <data name="Market_SelectPluginHint" xml:space="preserve">
+    <value>Select a plugin on the left to view details</value>
+  </data>
+  <data name="Market_ProjectHomepage" xml:space="preserve">
+    <value>Project homepage</value>
+  </data>
+  <data name="Market_TabOverview" xml:space="preserve">
+    <value>Overview</value>
+  </data>
+  <data name="Market_TabDependencies" xml:space="preserve">
+    <value>Dependencies</value>
+  </data>
+  <data name="Market_ReadmeLoading" xml:space="preserve">
+    <value>Loading documentation...</value>
+  </data>
+  <data name="Market_ReadmeLoadFailed" xml:space="preserve">
+    <value>Failed to load documentation.</value>
+  </data>
+  <data name="Market_NoReadme" xml:space="preserve">
+    <value>No documentation available for this plugin.</value>
+  </data>
+  <data name="Market_DependencyWarning" xml:space="preserve">
+    <value>This plugin depends on the following plugins, which will be installed together: {0}
+
+Continue?</value>
+  </data>
+  <data name="Market_DependencyTitle" xml:space="preserve">
+    <value>Install Dependencies</value>
+  </data>
+  <data name="Market_InstallLocalSuccess" xml:space="preserve">
+    <value>Plugin installed and hot-loaded successfully.</value>
+  </data>
+  <data name="Market_InstallLocalFailed" xml:space="preserve">
+    <value>Installation failed: {0}</value>
+  </data>
+  <data name="Market_HotUpdateMessage" xml:space="preserve">
+    <value>The plugin will be downloaded and hot-updated immediately without restarting. Continue?</value>
+  </data>
+  <data name="Market_HotInstallPending" xml:space="preserve">
+    <value>The package was downloaded but could not be hot-loaded. Click "Apply now" to retry, or restart the app to apply automatically.</value>
+  </data>
+  <data name="Market_HotInstallFailedRestart" xml:space="preserve">
+    <value>Hot-loading did not complete (the files may still be locked). Restart the app now to finish installation?</value>
+  </data>
+  <data name="Market_RestartMessage" xml:space="preserve">
+    <value>The app needs to restart to complete the plugin operation. Restart now?</value>
+  </data>
+  <data name="Market_RestartTitle" xml:space="preserve">
+    <value>Restart Confirmation</value>
+  </data>
+  <data name="Market_RestartFailed" xml:space="preserve">
+    <value>Restart failed: {0}</value>
+  </data>
+  <data name="Plugin_Update" xml:space="preserve">
+    <value>Update</value>
+  </data>
+  <data name="Plugin_Reload" xml:space="preserve">
+    <value>Hot reload plugin</value>
+  </data>
+  <data name="Plugin_Unload" xml:space="preserve">
+    <value>Unload plugin</value>
+  </data>
+  <data name="Plugin_Load" xml:space="preserve">
+    <value>Load plugin</value>
+  </data>
+  <data name="Plugin_UnloadSuccess" xml:space="preserve">
+    <value>Plugin unloaded.</value>
+  </data>
+  <data name="Plugin_LoadSuccess" xml:space="preserve">
+    <value>Plugin loaded.</value>
+  </data>
+  <data name="Plugin_LoadFailed" xml:space="preserve">
+    <value>Plugin load failed: {0}</value>
+  </data>
+  <data name="Plugin_ReloadPartial" xml:space="preserve">
+    <value>The plugin was reloaded, but the old assembly is still in memory. Restart the app to release the old version completely.</value>
+  </data>
+  <data name="Plugin_ReloadFailed" xml:space="preserve">
+    <value>Plugin hot reload failed: {0}</value>
+  </data>
+  <data name="Plugin_Delete" xml:space="preserve">
+    <value>Delete</value>
+  </data>
+  <data name="Plugin_DeleteConfirm" xml:space="preserve">
+    <value>Are you sure you want to delete plugin "{0}"? It will be unloaded immediately without restarting.</value>
+  </data>
+  <data name="Plugin_DeleteTitle" xml:space="preserve">
+    <value>Delete Plugin</value>
+  </data>
+  <data name="Plugin_UpdateAvailable" xml:space="preserve">
+    <value>Update available: v{0}</value>
+  </data>
+  <data name="Plugin_ErrorTitle" xml:space="preserve">
+    <value>Plugin Error</value>
+  </data>
+  <data name="Plugin_ErrorAutoDisabled" xml:space="preserve">
+    <value>Plugin auto-disabled: {1} failures within {0} minutes. Reset manually to re-enable.</value>
+  </data>
+  <data name="Plugin_ErrorReset" xml:space="preserve">
+    <value>Reset &#38; reload</value>
+  </data>
+  <data name="Plugin_ErrorResetConfirm" xml:space="preserve">
+    <value>Clear the error record and try reloading the plugin immediately. Continue?</value>
+  </data>
+  <data name="Plugin_ExportConfig" xml:space="preserve">
+    <value>Export Config</value>
+  </data>
+  <data name="Plugin_ImportConfig" xml:space="preserve">
+    <value>Import Config</value>
+  </data>
+  <data name="Plugin_ExportTitle" xml:space="preserve">
+    <value>Export plugin configuration</value>
+  </data>
+  <data name="Plugin_ExportSuccess" xml:space="preserve">
+    <value>Plugin configuration exported to: {0}</value>
+  </data>
+  <data name="Plugin_ExportFailed" xml:space="preserve">
+    <value>Export failed: {0}</value>
+  </data>
+  <data name="Plugin_ImportTitle" xml:space="preserve">
+    <value>Import plugin configuration</value>
+  </data>
+  <data name="Plugin_ImportSuccess" xml:space="preserve">
+    <value>Import succeeded, overwrote {0} files.</value>
+  </data>
+  <data name="Plugin_ImportFailed" xml:space="preserve">
+    <value>Import failed: {0}</value>
+  </data>
+  <data name="Plugin_ExternalDllAuthorizationTitle" xml:space="preserve">
+    <value>External DLL authorization</value>
+  </data>
+  <data name="Plugin_ExternalDllAuthorizationMessage" xml:space="preserve">
+    <value>Plugin "{0}" (author: {1}) requests loading external DLLs:
+{2}
+
+Once allowed, this plugin's other external DLLs will not be asked again. A DLL can execute arbitrary code; allow it only if you trust this plugin.
+Authorize?</value>
+  </data>
+  <data name="Market_SecurityWarning" xml:space="preserve">
+    <value>This plugin comes from an unknown source. Continuing may be risky. Please confirm you trust the source.</value>
+  </data>
+  <data name="Market_SecurityTitle" xml:space="preserve">
+    <value>Security Notice</value>
+  </data>
+  <data name="Market_UntrustedInstallConfirmation" xml:space="preserve">
+    <value>This plugin has not passed the trust check.
+Plugin ID: {0}
+SHA256: {1}
+Declared permissions: {2}
+Reasons:
+{3}
+
+Plugin DLLs can execute arbitrary code. Continue only if you trust the source.
+Continue installation?</value>
+  </data>
+  <data name="Market_SecurityUnknownReason" xml:space="preserve">
+    <value>No specific reason was provided.</value>
+  </data>
+  <data name="Market_SecurityNone" xml:space="preserve">
+    <value>None</value>
+  </data>
+  <data name="Market_OpenLogsFolder" xml:space="preserve">
+    <value>Open plugin logs folder</value>
+  </data>
+  <data name="Market_LoadErrorOnInstall" xml:space="preserve">
+    <value>The following issues were detected with this plugin. Please review before installing:</value>
+  </data>
+  <data name="Market_ManageSources" xml:space="preserve">
+    <value>Plugin Sources</value>
+  </data>
+  <data name="Market_ActiveSource" xml:space="preserve">
+    <value>Active source</value>
+  </data>
+  <data name="Market_AddSource" xml:space="preserve">
+    <value>Add source</value>
+  </data>
+  <data name="Market_EditSource" xml:space="preserve">
+    <value>Edit source</value>
+  </data>
+  <data name="Market_RemoveSource" xml:space="preserve">
+    <value>Remove source</value>
+  </data>
+  <data name="Market_SourceIdLabel" xml:space="preserve">
+    <value>Source name</value>
+  </data>
+  <data name="Market_SourceUrlLabel" xml:space="preserve">
+    <value>Index URL</value>
+  </data>
+  <data name="Market_SourceOfficial" xml:space="preserve">
+    <value>Official source (read-only)</value>
+  </data>
+  <data name="Market_MirrorGroup" xml:space="preserve">
+    <value>Download mirror</value>
+  </data>
+  <data name="Market_NoMirrors" xml:space="preserve">
+    <value>This index does not provide download mirrors</value>
+  </data>
+  <data name="Market_MirrorAuto" xml:space="preserve">
+    <value>Auto (default)</value>
+  </data>
+  <data name="Market_SaveSource" xml:space="preserve">
+    <value>Save</value>
+  </data>
+  <data name="Market_CancelSource" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="Market_SourceInvalidUrl" xml:space="preserve">
+    <value>URL must start with http:// or https://</value>
+  </data>
+  <data name="Market_SourceDuplicate" xml:space="preserve">
+    <value>A source with this id already exists</value>
+  </data>
+  <data name="Market_SourceRemoved" xml:space="preserve">
+    <value>Source removed</value>
+  </data>
+  <data name="Market_SourceSaved" xml:space="preserve">
+    <value>Source saved</value>
+  </data>
+  <data name="Market_SourceNameRequired" xml:space="preserve">
+    <value>Please enter a source name</value>
+  </data>
+  <data name="Market_RemoveSourceConfirmation" xml:space="preserve">
+    <value>Remove source “{0}”?</value>
+  </data>
+  <data name="Compat_HostVersionTooLow" xml:space="preserve">
+    <value>This plugin requires host version ≥ {0}, but the current host is {1}</value>
+  </data>
+  <data name="Compat_ApiVersionMismatch" xml:space="preserve">
+    <value>This plugin requires API version {0}, but the current host API is {1}</value>
+  </data>
+  <data name="Compat_HostVersionOutOfRange" xml:space="preserve">
+    <value>The current host version {0} is outside the range supported by this plugin ({1})</value>
+  </data>
+</root>

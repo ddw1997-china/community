@@ -1,0 +1,1111 @@
+using Ink_Canvas.Properties;
+using Microsoft.Win32;
+using System;
+using System.Diagnostics;
+using System.IO;
+using System.Security;
+using System.Text;
+using System.Threading;
+using System.Windows;
+using Windows.Win32;
+using Windows.Win32.UI.Shell;
+
+namespace Ink_Canvas.Helpers
+{
+    /// <summary>
+    /// 文件关联管理器，用于注册和处理.icstk文件的关联
+    /// </summary>
+    public static class FileAssociationManager
+    {
+        private const string FileExtension = ".icstk";
+        private const string FileTypeName = "InkCanvasStrokesFile";
+        private const string AppName = "Ink Canvas";
+        private const string AppDescription = "Ink Canvas Strokes File";
+
+        // IPC相关常量
+        private const string IpcMutexName = "InkCanvasFileAssociationIpc";
+        private const string IpcEventName = "InkCanvasFileAssociationEvent";
+        private const string IpcFilePrefix = "InkCanvasFileAssociation_";
+        private const string IpcBoardModePrefix = "InkCanvasBoardMode_";
+        private const string IpcShowModePrefix = "InkCanvasShowMode_";
+        private const string IpcUriCommandPrefix = "InkCanvasUriCommand_";
+        // 插件文件打开（文件关联双击）的 IPC 前缀
+        private const string IpcPluginFileOpenPrefix = "InkCanvasPluginFileOpen_";
+
+        /// <summary>插件文件关联在 HKCU\Software\Classes\.ext 扩展名键下记录的归属插件 ID 命名值。</summary>
+        private const string PluginIdRegistryValueName = "InkCanvasPluginId";
+
+        private const int IpcTimeout = 5000; // 5秒超时
+
+        /// <summary>
+        /// 注册.icstk文件关联
+        /// </summary>
+        public static bool RegisterFileAssociation()
+        {
+            try
+            {
+                string exePath = Process.GetCurrentProcess().MainModule.FileName;
+
+                // 注册文件类型
+                using (RegistryKey fileTypeKey = Registry.ClassesRoot.CreateSubKey(FileTypeName))
+                {
+                    fileTypeKey.SetValue("", AppDescription);
+                    fileTypeKey.SetValue("FriendlyTypeName", AppDescription);
+
+                    // 设置默认图标
+                    using (RegistryKey defaultIconKey = fileTypeKey.CreateSubKey("DefaultIcon"))
+                    {
+                        defaultIconKey.SetValue("", $"\"{exePath}\",0");
+                    }
+
+                    // 设置打开命令
+                    using (RegistryKey shellKey = fileTypeKey.CreateSubKey("shell"))
+                    using (RegistryKey openKey = shellKey.CreateSubKey("open"))
+                    using (RegistryKey commandKey = openKey.CreateSubKey("command"))
+                    {
+                        commandKey.SetValue("", $"\"{exePath}\" \"%1\"");
+                    }
+                }
+
+                // 注册文件扩展名
+                using (RegistryKey extensionKey = Registry.ClassesRoot.CreateSubKey(FileExtension))
+                {
+                    extensionKey.SetValue("", FileTypeName);
+                }
+
+                // 刷新系统文件关联缓存
+                RefreshSystemFileAssociations();
+
+                LogHelper.WriteLogToFile($"成功注册{FileExtension}文件关联", LogHelper.LogType.Event);
+                return true;
+            }
+            catch (SecurityException ex)
+            {
+                LogHelper.WriteLogToFile($"注册文件关联时权限不足: {ex.Message}", LogHelper.LogType.Error);
+                return false;
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                LogHelper.WriteLogToFile($"注册文件关联时访问被拒绝: {ex.Message}", LogHelper.LogType.Error);
+                return false;
+            }
+            catch (Exception ex)
+            {
+                LogHelper.WriteLogToFile($"注册文件关联时出错: {ex.Message}", LogHelper.LogType.Error);
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// 注销.icstk文件关联
+        /// </summary>
+        public static bool UnregisterFileAssociation()
+        {
+            try
+            {
+                // 删除文件扩展名关联
+                Registry.ClassesRoot.DeleteSubKeyTree(FileExtension, false);
+
+                // 删除文件类型定义
+                Registry.ClassesRoot.DeleteSubKeyTree(FileTypeName, false);
+
+                // 刷新系统文件关联缓存
+                RefreshSystemFileAssociations();
+
+                LogHelper.WriteLogToFile($"成功注销{FileExtension}文件关联", LogHelper.LogType.Event);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                LogHelper.WriteLogToFile($"注销文件关联时出错: {ex.Message}", LogHelper.LogType.Error);
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// 检查文件关联是否已注册
+        /// </summary>
+        public static bool IsFileAssociationRegistered()
+        {
+            try
+            {
+                using (RegistryKey extensionKey = Registry.ClassesRoot.OpenSubKey(FileExtension))
+                {
+                    if (extensionKey == null) return false;
+
+                    string fileType = extensionKey.GetValue("") as string;
+                    if (string.IsNullOrEmpty(fileType)) return false;
+
+                    using (RegistryKey fileTypeKey = Registry.ClassesRoot.OpenSubKey(fileType))
+                    {
+                        if (fileTypeKey == null) return false;
+
+                        using (RegistryKey shellKey = fileTypeKey.OpenSubKey("shell\\open\\command"))
+                        {
+                            if (shellKey == null) return false;
+
+                            string command = shellKey.GetValue("") as string;
+                            if (string.IsNullOrEmpty(command)) return false;
+
+                            // 检查命令是否指向当前应用程序
+                            string currentExePath = Process.GetCurrentProcess().MainModule.FileName;
+                            return command.Contains(currentExePath);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                LogHelper.WriteLogToFile($"检查文件关联状态时出错: {ex.Message}", LogHelper.LogType.Error);
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// 显示文件关联状态
+        /// </summary>
+        public static void ShowFileAssociationStatus()
+        {
+            bool isRegistered = IsFileAssociationRegistered();
+            LogHelper.WriteLogToFile($"{FileExtension}文件关联状态: {(isRegistered ? "已注册" : "未注册")}", LogHelper.LogType.Event);
+        }
+
+        #region 插件自定义扩展名关联
+
+        // 禁止插件覆盖的系统关键/可执行类型，避免插件注册恶意或危险的文件关联
+        private static readonly string[] ProtectedExtensions =
+        {
+            ".exe", ".dll", ".bat", ".cmd", ".com", ".msi", ".msp", ".ps1", ".vbs", ".vbe",
+            ".js", ".jse", ".wsf", ".wsh", ".scr", ".reg", ".sys", ".inf", ".jar", ".lnk",
+            ".url", ".pif", ".hta", ".cpl", ".sh", ".bash", ".ico", ".ocx", ".drv",
+            ".docm", ".xlsm", ".pptm",
+            ".icstk" // 宿主自身的文件类型，不允许插件覆盖
+        };
+
+        private static bool IsProtectedExtension(string extension)
+        {
+            return Array.IndexOf(ProtectedExtensions, extension) >= 0;
+        }
+
+        private static string NormalizeExtension(string extension)
+        {
+            string ext = extension.Trim().ToLowerInvariant();
+            if (!ext.StartsWith(".")) ext = "." + ext;
+            return ext;
+        }
+
+        /// <summary>
+        /// 注册自定义文件扩展名关联（供插件使用）。
+        /// 写入 <c>HKCU\Software\Classes</c>（无需管理员权限），把该扩展名的打开命令指向宿主 exe。
+        /// <paramref name="pluginId"/> 非空时在扩展名键下写入 <see cref="PluginIdRegistryValueName"/>，
+        /// 使宿主在双击打开该扩展名文件时能把路径派发回对应插件。
+        /// </summary>
+        /// <returns>是否注册成功；扩展名/ProgId 无效或扩展名受保护时返回 false。</returns>
+        public static bool RegisterFileAssociation(string extension, string progId, string description, string iconPath = null, string pluginId = null)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(extension) || string.IsNullOrWhiteSpace(progId)) return false;
+
+                string normalizedExtension = NormalizeExtension(extension);
+                if (IsProtectedExtension(normalizedExtension)) return false;
+
+                string normalizedProgId = progId.Trim();
+                string exePath = Process.GetCurrentProcess().MainModule.FileName;
+                string normalizedDescription = description ?? "";
+
+                // 注册文件类型
+                using (RegistryKey fileTypeKey = Registry.CurrentUser.CreateSubKey(@"Software\Classes\" + normalizedProgId))
+                {
+                    fileTypeKey.SetValue("", normalizedDescription);
+                    fileTypeKey.SetValue("FriendlyTypeName", normalizedDescription);
+
+                    // 设置默认图标
+                    using (RegistryKey defaultIconKey = fileTypeKey.CreateSubKey("DefaultIcon"))
+                    {
+                        string iconValue = string.IsNullOrEmpty(iconPath)
+                            ? $"\"{exePath}\",0"
+                            : $"\"{iconPath}\",0";
+                        defaultIconKey.SetValue("", iconValue);
+                    }
+
+                    // 设置打开命令：打开该扩展名文件时启动宿主 exe 并传入文件路径
+                    using (RegistryKey shellKey = fileTypeKey.CreateSubKey("shell"))
+                    using (RegistryKey openKey = shellKey.CreateSubKey("open"))
+                    using (RegistryKey commandKey = openKey.CreateSubKey("command"))
+                    {
+                        commandKey.SetValue("", $"\"{exePath}\" \"%1\"");
+                    }
+                }
+
+                // 注册文件扩展名
+                using (RegistryKey extensionKey = Registry.CurrentUser.CreateSubKey(@"Software\Classes\" + normalizedExtension))
+                {
+                    extensionKey.SetValue("", normalizedProgId);
+                    // 记录归属插件：宿主要据此把该扩展名文件派发回对应插件
+                    if (!string.IsNullOrWhiteSpace(pluginId))
+                        extensionKey.SetValue(PluginIdRegistryValueName, pluginId.Trim());
+                }
+
+                // 刷新系统文件关联缓存
+                RefreshSystemFileAssociations();
+
+                LogHelper.WriteLogToFile($"成功注册{normalizedExtension}文件关联（ProgId: {normalizedProgId}）", LogHelper.LogType.Event);
+                return true;
+            }
+            catch (SecurityException ex)
+            {
+                LogHelper.WriteLogToFile($"注册文件关联时权限不足: {ex.Message}", LogHelper.LogType.Error);
+                return false;
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                LogHelper.WriteLogToFile($"注册文件关联时访问被拒绝: {ex.Message}", LogHelper.LogType.Error);
+                return false;
+            }
+            catch (Exception ex)
+            {
+                LogHelper.WriteLogToFile($"注册文件关联时出错: {ex.Message}", LogHelper.LogType.Error);
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// 注销自定义文件扩展名关联（供插件使用）。
+        /// 自动读取扩展名当前指向的 ProgId 并一并清理，无需调用方提供。
+        /// </summary>
+        /// <returns>是否注销成功。</returns>
+        public static bool UnregisterFileAssociation(string extension)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(extension)) return false;
+
+                string normalizedExtension = NormalizeExtension(extension);
+                if (IsProtectedExtension(normalizedExtension)) return false;
+
+                // 先读取扩展名当前指向的 ProgId，用于清理文件类型定义
+                string linkedProgId = null;
+                using (RegistryKey extensionKey = Registry.CurrentUser.OpenSubKey(@"Software\Classes\" + normalizedExtension))
+                {
+                    linkedProgId = extensionKey?.GetValue("") as string;
+                }
+
+                // 删除文件扩展名关联
+                Registry.CurrentUser.DeleteSubKeyTree(@"Software\Classes\" + normalizedExtension, false);
+
+                // 删除文件类型定义（排除宿主自身的 InkCanvasStrokesFile）
+                if (!string.IsNullOrWhiteSpace(linkedProgId)
+                    && !string.Equals(linkedProgId, FileTypeName, StringComparison.OrdinalIgnoreCase))
+                {
+                    Registry.CurrentUser.DeleteSubKeyTree(@"Software\Classes\" + linkedProgId, false);
+                }
+
+                // 刷新系统文件关联缓存
+                RefreshSystemFileAssociations();
+
+                LogHelper.WriteLogToFile($"成功注销{normalizedExtension}文件关联", LogHelper.LogType.Event);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                LogHelper.WriteLogToFile($"注销文件关联时出错: {ex.Message}", LogHelper.LogType.Error);
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// 检查自定义文件扩展名关联是否已注册且指向宿主 exe（供插件使用）。
+        /// </summary>
+        /// <param name="progId">可选的 ProgId；非空时校验扩展名指向的 ProgId 是否与之匹配。</param>
+        /// <returns>已注册且命令指向宿主 exe 时返回 true。</returns>
+        public static bool IsFileAssociationRegistered(string extension, string progId = null)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(extension)) return false;
+
+                string normalizedExtension = NormalizeExtension(extension);
+
+                using (RegistryKey extensionKey = Registry.CurrentUser.OpenSubKey(@"Software\Classes\" + normalizedExtension))
+                {
+                    if (extensionKey == null) return false;
+
+                    string fileType = extensionKey.GetValue("") as string;
+                    if (string.IsNullOrEmpty(fileType)) return false;
+
+                    // 指定了 ProgId 时校验是否一致
+                    if (!string.IsNullOrWhiteSpace(progId)
+                        && !string.Equals(fileType, progId.Trim(), StringComparison.OrdinalIgnoreCase))
+                        return false;
+
+                    using (RegistryKey shellKey = Registry.CurrentUser.OpenSubKey(@"Software\Classes\" + fileType + @"\shell\open\command"))
+                    {
+                        if (shellKey == null) return false;
+
+                        string command = shellKey.GetValue("") as string;
+                        if (string.IsNullOrEmpty(command)) return false;
+
+                        // 检查命令是否指向当前应用程序
+                        string currentExePath = Process.GetCurrentProcess().MainModule.FileName;
+                        return command.Contains(currentExePath);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                LogHelper.WriteLogToFile($"检查文件关联状态时出错: {ex.Message}", LogHelper.LogType.Error);
+            }
+
+            return false;
+        }
+
+        #endregion
+
+        /// <summary>
+        /// 刷新系统文件关联缓存
+        /// </summary>
+        private static void RefreshSystemFileAssociations()
+        {
+            try
+            {
+                // 通知系统文件关联已更改
+                unsafe { PInvoke.SHChangeNotify(SHCNE_ID.SHCNE_ASSOCCHANGED, 0, null, null); }
+            }
+            catch (Exception ex)
+            {
+                LogHelper.WriteLogToFile($"刷新文件关联缓存时出错: {ex.Message}", LogHelper.LogType.Warning);
+            }
+        }
+
+        /// <summary>
+        /// 处理命令行参数中的文件路径
+        /// </summary>
+        /// <param name="args">命令行参数</param>
+        /// <returns>找到的.icstk文件路径，如果没有找到则返回null</returns>
+        public static string GetIcstkFileFromArgs(string[] args)
+        {
+            if (args == null || args.Length == 0) return null;
+
+            foreach (string arg in args)
+            {
+                if (string.IsNullOrEmpty(arg)) continue;
+
+                // 检查是否为.icstk文件
+                if (Path.GetExtension(arg).Equals(FileExtension, StringComparison.OrdinalIgnoreCase))
+                {
+                    // 检查文件是否存在
+                    if (File.Exists(arg))
+                    {
+                        LogHelper.WriteLogToFile($"从命令行参数中找到.icstk文件: {arg}", LogHelper.LogType.Event);
+                        return arg;
+                    }
+                    else
+                    {
+                        LogHelper.WriteLogToFile($"命令行参数中的.icstk文件不存在: {arg}", LogHelper.LogType.Warning);
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// 读取某扩展名注册的归属插件 ID（插件文件关联用）。
+        /// 从 <c>HKCU\Software\Classes\.ext</c> 扩展名键的 <see cref="PluginIdRegistryValueName"/> 命名值读取。
+        /// </summary>
+        /// <param name="extension">文件扩展名（可带或不带点，忽略大小写）。</param>
+        /// <returns>归属插件 ID；扩展名无效/受保护/未记录时返回 null。</returns>
+        public static string GetPluginIdForExtension(string extension)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(extension)) return null;
+
+                string normalizedExtension = NormalizeExtension(extension);
+                if (IsProtectedExtension(normalizedExtension)) return null;
+
+                using (RegistryKey extensionKey = Registry.CurrentUser.OpenSubKey(@"Software\Classes\" + normalizedExtension))
+                {
+                    if (extensionKey == null) return null;
+                    string pluginId = extensionKey.GetValue(PluginIdRegistryValueName) as string;
+                    return string.IsNullOrWhiteSpace(pluginId) ? null : pluginId.Trim();
+                }
+            }
+            catch (Exception ex)
+            {
+                LogHelper.WriteLogToFile($"读取扩展名归属插件失败: {ex.Message}", LogHelper.LogType.Warning);
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// 处理命令行参数中「已注册插件文件关联」的文件路径（文件关联打开）。
+        /// 只有扩展名能映射到某个插件（注册表记录了归属插件 ID）的现存文件才会被识别。
+        /// </summary>
+        /// <param name="args">命令行参数</param>
+        /// <returns>找到的插件文件路径；没有则返回 null。</returns>
+        public static string GetPluginFileFromArgs(string[] args)
+        {
+            if (args == null || args.Length == 0) return null;
+
+            foreach (string arg in args)
+            {
+                if (string.IsNullOrEmpty(arg)) continue;
+
+                string extension = Path.GetExtension(arg);
+                if (string.IsNullOrEmpty(extension)) continue;
+
+                if (string.IsNullOrEmpty(GetPluginIdForExtension(extension))) continue;
+
+                if (File.Exists(arg))
+                {
+                    LogHelper.WriteLogToFile($"从命令行参数中找到插件关联文件: {arg}", LogHelper.LogType.Event);
+                    return arg;
+                }
+
+                LogHelper.WriteLogToFile($"命令行参数中的插件关联文件不存在: {arg}", LogHelper.LogType.Warning);
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// 把一个插件关联文件（双击打开）派发给注册该扩展名的插件。
+        /// 构造 <c>icc://plugin/&lt;pluginId&gt;/open?path=&lt;urlencoded&gt;</c> 直接 <see cref="Plugins.PluginManager.TryDispatchUri"/>，
+        /// 不走 <c>MainWindow.HandleUriCommand</c>，避免受「启用 URI 协议」设置门禁。
+        /// </summary>
+        /// <param name="filePath">要打开的文件路径。</param>
+        /// <returns>是否已派发（插件未注册处理器或未加载返回 false）。</returns>
+        public static bool DispatchPluginFileOpen(string filePath)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(filePath)) return false;
+
+                string extension = Path.GetExtension(filePath);
+                if (string.IsNullOrEmpty(extension)) return false;
+
+                string pluginId = GetPluginIdForExtension(extension);
+                if (string.IsNullOrEmpty(pluginId))
+                {
+                    LogHelper.WriteLogToFile($"无法派发文件（扩展名 {extension} 未记录归属插件）: {filePath}", LogHelper.LogType.Warning);
+                    return false;
+                }
+
+                string uri = "icc://plugin/" + pluginId + "/open?path=" + Uri.EscapeDataString(filePath);
+                bool handled = Plugins.PluginManager.Instance.TryDispatchUri(pluginId, "open", uri);
+                if (handled)
+                    LogHelper.WriteLogToFile($"已派发文件给插件 {pluginId}: {filePath}", LogHelper.LogType.Event);
+                else
+                    LogHelper.WriteLogToFile($"派发文件打开失败（插件 {pluginId} 未注册处理器或未加载）: {uri}", LogHelper.LogType.Warning);
+                return handled;
+            }
+            catch (Exception ex)
+            {
+                LogHelper.WriteLogToFile($"派发插件文件打开失败: {ex.Message}", LogHelper.LogType.Error);
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// 尝试通过IPC将文件路径发送给已运行的实例
+        /// </summary>
+        /// <param name="filePath">要打开的文件路径</param>
+        /// <returns>是否成功发送</returns>
+        public static bool TrySendFileToExistingInstance(string filePath)
+        {
+            try
+            {
+                LogHelper.WriteLogToFile($"尝试通过IPC发送文件路径给已运行实例: {filePath}", LogHelper.LogType.Event);
+
+                // 创建IPC文件
+                string tempDir = Path.GetTempPath();
+                string ipcFileName = IpcFilePrefix + Guid.NewGuid().ToString("N") + ".tmp";
+                string ipcFilePath = Path.Combine(tempDir, ipcFileName);
+
+                // 写入文件路径到IPC文件
+                File.WriteAllText(ipcFilePath, filePath, Encoding.UTF8);
+
+                // 创建事件通知已运行实例
+                using (EventWaitHandle ipcEvent = new EventWaitHandle(false, EventResetMode.ManualReset, IpcEventName))
+                {
+                    ipcEvent.Set();
+                }
+
+                // 等待一段时间让已运行实例处理文件
+                Thread.Sleep(1000);
+
+                // 清理IPC文件
+                try
+                {
+                    if (File.Exists(ipcFilePath))
+                    {
+                        File.Delete(ipcFilePath);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    LogHelper.WriteLogToFile($"清理IPC文件失败: {ex.Message}", LogHelper.LogType.Warning);
+                }
+
+                LogHelper.WriteLogToFile("IPC文件路径发送完成", LogHelper.LogType.Event);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                LogHelper.WriteLogToFile($"通过IPC发送文件路径失败: {ex.Message}", LogHelper.LogType.Error);
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// 尝试通过IPC将插件关联文件路径发送给已运行的实例（从文件关联打开）。
+        /// 已运行实例收到后在 UI 线程把路径派发给注册该扩展名的插件。
+        /// </summary>
+        /// <param name="filePath">要打开的插件关联文件路径</param>
+        /// <returns>是否成功发送</returns>
+        public static bool TrySendPluginFileToExistingInstance(string filePath)
+        {
+            try
+            {
+                LogHelper.WriteLogToFile($"尝试通过IPC发送插件关联文件路径给已运行实例: {filePath}", LogHelper.LogType.Event);
+
+                string tempDir = Path.GetTempPath();
+                string ipcFileName = IpcPluginFileOpenPrefix + Guid.NewGuid().ToString("N") + ".tmp";
+                string ipcFilePath = Path.Combine(tempDir, ipcFileName);
+
+                File.WriteAllText(ipcFilePath, filePath, Encoding.UTF8);
+
+                using (EventWaitHandle ipcEvent = new EventWaitHandle(false, EventResetMode.ManualReset, IpcEventName))
+                {
+                    ipcEvent.Set();
+                }
+
+                Thread.Sleep(1000);
+
+                try
+                {
+                    if (File.Exists(ipcFilePath))
+                    {
+                        File.Delete(ipcFilePath);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    LogHelper.WriteLogToFile($"清理插件文件 IPC 失败: {ex.Message}", LogHelper.LogType.Warning);
+                }
+
+                LogHelper.WriteLogToFile("插件文件 IPC 路径发送完成", LogHelper.LogType.Event);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                LogHelper.WriteLogToFile($"通过IPC发送插件关联文件路径失败: {ex.Message}", LogHelper.LogType.Error);
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// 尝试通过IPC将白板模式命令发送给已运行的实例
+        /// </summary>
+        /// <returns>是否成功发送</returns>
+        public static bool TrySendBoardModeCommandToExistingInstance()
+        {
+            try
+            {
+                LogHelper.WriteLogToFile("尝试通过IPC发送白板模式命令给已运行实例", LogHelper.LogType.Event);
+
+                // 创建IPC文件
+                string tempDir = Path.GetTempPath();
+                string ipcFileName = IpcBoardModePrefix + Guid.NewGuid().ToString("N") + ".tmp";
+                string ipcFilePath = Path.Combine(tempDir, ipcFileName);
+
+                // 写入白板模式命令到IPC文件
+                File.WriteAllText(ipcFilePath, "BOARD_MODE", Encoding.UTF8);
+
+                // 创建事件通知已运行实例
+                using (EventWaitHandle ipcEvent = new EventWaitHandle(false, EventResetMode.ManualReset, IpcEventName))
+                {
+                    ipcEvent.Set();
+                }
+
+                // 等待一段时间让已运行实例处理命令
+                Thread.Sleep(1000);
+
+                // 清理IPC文件
+                try
+                {
+                    if (File.Exists(ipcFilePath))
+                    {
+                        File.Delete(ipcFilePath);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    LogHelper.WriteLogToFile($"清理IPC文件失败: {ex.Message}", LogHelper.LogType.Warning);
+                }
+
+                LogHelper.WriteLogToFile("IPC白板模式命令发送完成", LogHelper.LogType.Event);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                LogHelper.WriteLogToFile($"通过IPC发送白板模式命令失败: {ex.Message}", LogHelper.LogType.Error);
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// 尝试通过IPC将展开浮动栏命令发送给已运行的实例
+        /// </summary>
+        /// <returns>是否成功发送</returns>
+        public static bool TrySendShowModeCommandToExistingInstance()
+        {
+            try
+            {
+                LogHelper.WriteLogToFile("尝试通过IPC发送展开浮动栏命令给已运行实例", LogHelper.LogType.Event);
+
+                // 创建IPC文件
+                string tempDir = Path.GetTempPath();
+                string ipcFileName = IpcShowModePrefix + Guid.NewGuid().ToString("N") + ".tmp";
+                string ipcFilePath = Path.Combine(tempDir, ipcFileName);
+
+                // 写入展开浮动栏命令到IPC文件
+                File.WriteAllText(ipcFilePath, "SHOW_MODE", Encoding.UTF8);
+
+                // 创建事件通知已运行实例
+                using (EventWaitHandle ipcEvent = new EventWaitHandle(false, EventResetMode.ManualReset, IpcEventName))
+                {
+                    ipcEvent.Set();
+                }
+
+                // 等待一段时间让已运行实例处理命令
+                Thread.Sleep(1000);
+
+                // 清理IPC文件
+                try
+                {
+                    if (File.Exists(ipcFilePath))
+                    {
+                        File.Delete(ipcFilePath);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    LogHelper.WriteLogToFile($"清理IPC文件失败: {ex.Message}", LogHelper.LogType.Warning);
+                }
+
+                LogHelper.WriteLogToFile("IPC展开浮动栏命令发送完成", LogHelper.LogType.Event);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                LogHelper.WriteLogToFile($"通过IPC发送展开浮动栏命令失败: {ex.Message}", LogHelper.LogType.Error);
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// 尝试通过IPC将URI命令发送给已运行的实例
+        /// </summary>
+        /// <param name="uri">URI命令</param>
+        /// <returns>是否成功发送</returns>
+        public static bool TrySendUriCommandToExistingInstance(string uri)
+        {
+            try
+            {
+                LogHelper.WriteLogToFile($"尝试通过IPC发送URI命令给已运行实例: {uri}", LogHelper.LogType.Event);
+
+                // 创建IPC文件
+                string tempDir = Path.GetTempPath();
+                string ipcFileName = IpcUriCommandPrefix + Guid.NewGuid().ToString("N") + ".tmp";
+                string ipcFilePath = Path.Combine(tempDir, ipcFileName);
+
+                // 写入URI命令到IPC文件
+                File.WriteAllText(ipcFilePath, uri, Encoding.UTF8);
+
+                // 创建事件通知已运行实例
+                using (EventWaitHandle ipcEvent = new EventWaitHandle(false, EventResetMode.ManualReset, IpcEventName))
+                {
+                    ipcEvent.Set();
+                }
+
+                // 等待一段时间让已运行实例处理命令
+                Thread.Sleep(1000);
+
+                // 清理IPC文件
+                try
+                {
+                    if (File.Exists(ipcFilePath))
+                    {
+                        File.Delete(ipcFilePath);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    LogHelper.WriteLogToFile($"清理IPC文件失败: {ex.Message}", LogHelper.LogType.Warning);
+                }
+
+                LogHelper.WriteLogToFile("IPC URI命令发送完成", LogHelper.LogType.Event);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                LogHelper.WriteLogToFile($"通过IPC发送URI命令失败: {ex.Message}", LogHelper.LogType.Error);
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// 清理可能残留的旧 IPC 文件，防止重启后重复执行上次未处理的命令
+        /// </summary>
+        private static void CleanupStaleIpcFiles()
+        {
+            try
+            {
+                string tempDir = Path.GetTempPath();
+                string[] prefixes = { IpcFilePrefix, IpcBoardModePrefix, IpcShowModePrefix, IpcUriCommandPrefix, IpcPluginFileOpenPrefix };
+                int cleaned = 0;
+                foreach (string prefix in prefixes)
+                {
+                    string[] files = Directory.GetFiles(tempDir, prefix + "*.tmp");
+                    foreach (string file in files)
+                    {
+                        try { File.Delete(file); cleaned++; }
+                        catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex); }
+                    }
+                }
+                if (cleaned > 0)
+                    LogHelper.WriteLogToFile($"IPC 启动清理：删除了 {cleaned} 个残留 IPC 文件", LogHelper.LogType.Event);
+            }
+            catch (Exception ex)
+            {
+                LogHelper.WriteLogToFile($"IPC 启动清理失败: {ex.Message}", LogHelper.LogType.Warning);
+            }
+        }
+
+        /// <summary>
+        /// 启动IPC监听器，等待其他实例发送文件路径
+        /// </summary>
+        public static void StartIpcListener()
+        {
+            try
+            {
+                Thread ipcThread = new Thread(() =>
+                {
+                    try
+                    {
+                        LogHelper.WriteLogToFile("启动IPC监听器", LogHelper.LogType.Event);
+
+                        // 启动前清理旧的 IPC 文件，防止重启后重复执行上次的命令
+                        CleanupStaleIpcFiles();
+
+                        using (EventWaitHandle ipcEvent = new EventWaitHandle(false, EventResetMode.ManualReset, IpcEventName))
+                        {
+                            // 重置事件，清除可能残留的信号
+                            ipcEvent.Reset();
+
+                            while (true)
+                            {
+                                // 等待IPC事件
+                                if (ipcEvent.WaitOne(IpcTimeout))
+                                {
+                                    // 处理IPC文件
+                                    ProcessIpcFiles();
+
+                                    // 重置事件
+                                    ipcEvent.Reset();
+                                }
+
+                                // 检查应用是否还在运行
+                                if (Application.Current == null || Application.Current.Dispatcher == null)
+                                {
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        LogHelper.WriteLogToFile($"IPC监听器出错: {ex.Message}", LogHelper.LogType.Error);
+                    }
+                });
+
+                ipcThread.IsBackground = true;
+                ipcThread.Start();
+            }
+            catch (Exception ex)
+            {
+                LogHelper.WriteLogToFile($"启动IPC监听器失败: {ex.Message}", LogHelper.LogType.Error);
+            }
+        }
+
+        /// <summary>
+        /// 处理IPC文件
+        /// </summary>
+        private static void ProcessIpcFiles()
+        {
+            try
+            {
+                string tempDir = Path.GetTempPath();
+
+                // 处理文件路径IPC文件
+                string[] ipcFiles = Directory.GetFiles(tempDir, IpcFilePrefix + "*.tmp");
+                foreach (string ipcFile in ipcFiles)
+                {
+                    try
+                    {
+                        // 读取文件路径
+                        string filePath = File.ReadAllText(ipcFile, Encoding.UTF8);
+
+                        if (!string.IsNullOrEmpty(filePath) && File.Exists(filePath))
+                        {
+                            LogHelper.WriteLogToFile($"IPC接收到文件路径: {filePath}", LogHelper.LogType.Event);
+
+                            // 在UI线程中处理文件打开
+                            Application.Current.Dispatcher.BeginInvoke(new Action(() =>
+                            {
+                                try
+                                {
+                                    // 获取主窗口并打开文件
+                                    if (Application.Current.MainWindow is MainWindow mainWindow)
+                                    {
+                                        mainWindow.OpenSingleStrokeFile(filePath);
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    LogHelper.WriteLogToFile($"IPC处理文件打开失败: {ex.Message}", LogHelper.LogType.Error);
+                                }
+                            }));
+                        }
+
+                        // 删除IPC文件
+                        File.Delete(ipcFile);
+                    }
+                    catch (Exception ex)
+                    {
+                        LogHelper.WriteLogToFile($"处理IPC文件失败: {ex.Message}", LogHelper.LogType.Warning);
+
+                        // 尝试删除损坏的IPC文件
+                        try
+                        {
+                            if (File.Exists(ipcFile))
+                            {
+                                File.Delete(ipcFile);
+                            }
+                        }
+                        catch (Exception innerEx) { System.Diagnostics.Debug.WriteLine(innerEx); }
+                    }
+                }
+
+                // 处理插件关联文件路径IPC文件（文件关联打开）
+                string[] pluginOpenFiles = Directory.GetFiles(tempDir, IpcPluginFileOpenPrefix + "*.tmp");
+                foreach (string ipcFile in pluginOpenFiles)
+                {
+                    try
+                    {
+                        string filePath = File.ReadAllText(ipcFile, Encoding.UTF8);
+
+                        if (!string.IsNullOrEmpty(filePath) && File.Exists(filePath))
+                        {
+                            LogHelper.WriteLogToFile($"IPC接收到插件关联文件路径: {filePath}", LogHelper.LogType.Event);
+
+                            Application.Current.Dispatcher.BeginInvoke(new Action(() =>
+                            {
+                                try
+                                {
+                                    // 派发给注册该扩展名的插件。不走 MainWindow.HandleUriCommand，
+                                    // 避免受「启用 URI 协议」设置门禁；PluginManager.TryDispatchUri 本身无该守卫。
+                                    DispatchPluginFileOpen(filePath);
+                                }
+                                catch (Exception ex)
+                                {
+                                    LogHelper.WriteLogToFile($"IPC处理插件文件打开失败: {ex.Message}", LogHelper.LogType.Error);
+                                }
+                            }));
+                        }
+
+                        File.Delete(ipcFile);
+                    }
+                    catch (Exception ex)
+                    {
+                        LogHelper.WriteLogToFile($"处理插件文件 IPC 失败: {ex.Message}", LogHelper.LogType.Warning);
+
+                        try
+                        {
+                            if (File.Exists(ipcFile))
+                            {
+                                File.Delete(ipcFile);
+                            }
+                        }
+                        catch (Exception innerEx) { System.Diagnostics.Debug.WriteLine(innerEx); }
+                    }
+                }
+
+                // 处理白板模式命令IPC文件
+                string[] boardModeFiles = Directory.GetFiles(tempDir, IpcBoardModePrefix + "*.tmp");
+                foreach (string ipcFile in boardModeFiles)
+                {
+                    try
+                    {
+                        // 读取命令内容
+                        string command = File.ReadAllText(ipcFile, Encoding.UTF8);
+
+                        if (command == "BOARD_MODE")
+                        {
+                            LogHelper.WriteLogToFile("IPC接收到白板模式命令", LogHelper.LogType.Event);
+
+                            // 在UI线程中处理白板模式切换
+                            Application.Current.Dispatcher.BeginInvoke(new Action(() =>
+                            {
+                                try
+                                {
+                                    // 获取主窗口并切换到白板模式
+                                    if (Application.Current.MainWindow is MainWindow mainWindow)
+                                    {
+                                        mainWindow.SwitchToBoardMode();
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    LogHelper.WriteLogToFile($"IPC处理白板模式切换失败: {ex.Message}", LogHelper.LogType.Error);
+                                }
+                            }));
+                        }
+
+                        // 删除IPC文件
+                        File.Delete(ipcFile);
+                    }
+                    catch (Exception ex)
+                    {
+                        LogHelper.WriteLogToFile($"处理白板模式IPC文件失败: {ex.Message}", LogHelper.LogType.Warning);
+
+                        // 尝试删除损坏的IPC文件
+                        try
+                        {
+                            if (File.Exists(ipcFile))
+                            {
+                                File.Delete(ipcFile);
+                            }
+                        }
+                        catch (Exception innerEx) { System.Diagnostics.Debug.WriteLine(innerEx); }
+                    }
+                }
+
+                // 处理展开浮动栏命令IPC文件
+                string[] showModeFiles = Directory.GetFiles(tempDir, IpcShowModePrefix + "*.tmp");
+                foreach (string ipcFile in showModeFiles)
+                {
+                    try
+                    {
+                        // 读取命令内容
+                        string command = File.ReadAllText(ipcFile, Encoding.UTF8);
+
+                        if (command == "SHOW_MODE")
+                        {
+                            LogHelper.WriteLogToFile("IPC接收到展开浮动栏命令", LogHelper.LogType.Event);
+
+                            // 在UI线程中处理展开浮动栏
+                            Application.Current.Dispatcher.BeginInvoke(new Action(async () =>
+                            {
+                                try
+                                {
+                                    // 获取主窗口并展开浮动栏
+                                    if (Application.Current.MainWindow is MainWindow mainWindow)
+                                    {
+                                        // 如果当前处于收纳模式，则展开浮动栏
+                                        if (mainWindow.isFloatingBarFolded)
+                                        {
+                                            await mainWindow.UnFoldFloatingBar(new object());
+                                        }
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    LogHelper.WriteLogToFile($"IPC处理展开浮动栏失败: {ex.Message}", LogHelper.LogType.Error);
+                                }
+                            }));
+                        }
+
+                        // 删除IPC文件
+                        File.Delete(ipcFile);
+                    }
+                    catch (Exception ex)
+                    {
+                        LogHelper.WriteLogToFile($"处理展开浮动栏IPC文件失败: {ex.Message}", LogHelper.LogType.Warning);
+
+                        // 尝试删除损坏的IPC文件
+                        try
+                        {
+                            if (File.Exists(ipcFile))
+                            {
+                                File.Delete(ipcFile);
+                            }
+                        }
+                        catch (Exception innerEx) { System.Diagnostics.Debug.WriteLine(innerEx); }
+                    }
+                }
+
+                // 处理URI命令IPC文件
+                string[] uriCommandFiles = Directory.GetFiles(tempDir, IpcUriCommandPrefix + "*.tmp");
+                foreach (string ipcFile in uriCommandFiles)
+                {
+                    try
+                    {
+                        // 读取命令内容
+                        string uri = File.ReadAllText(ipcFile, Encoding.UTF8);
+
+                        if (!string.IsNullOrEmpty(uri))
+                        {
+                            LogHelper.WriteLogToFile($"IPC接收到URI命令: {uri}", LogHelper.LogType.Event);
+
+                            // 在UI线程中处理URI命令
+                            Application.Current.Dispatcher.BeginInvoke(new Action(() =>
+                            {
+                                try
+                                {
+                                    // 获取主窗口并处理URI命令
+                                    if (Application.Current.MainWindow is MainWindow mainWindow)
+                                    {
+                                        mainWindow.HandleUriCommand(uri);
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    LogHelper.WriteLogToFile($"IPC处理URI命令失败: {ex.Message}", LogHelper.LogType.Error);
+                                }
+                            }));
+                        }
+
+                        // 删除IPC文件
+                        File.Delete(ipcFile);
+                    }
+                    catch (Exception ex)
+                    {
+                        LogHelper.WriteLogToFile($"处理URI命令IPC文件失败: {ex.Message}", LogHelper.LogType.Warning);
+
+                        // 尝试删除损坏的IPC文件
+                        try
+                        {
+                            if (File.Exists(ipcFile))
+                            {
+                                File.Delete(ipcFile);
+                            }
+                        }
+                        catch (Exception innerEx) { System.Diagnostics.Debug.WriteLine(innerEx); }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                LogHelper.WriteLogToFile($"处理IPC文件时出错: {ex.Message}", LogHelper.LogType.Error);
+            }
+        }
+
+        //[DllImport("shell32.dll")]
+        //private static extern void SHChangeNotify(uint wEventId, uint uFlags, IntPtr dwItem1, IntPtr dwItem2);
+    }
+}

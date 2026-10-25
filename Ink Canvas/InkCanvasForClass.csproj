@@ -1,0 +1,641 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RuntimeIdentifiers>win-x86;win-x64;win-arm64</RuntimeIdentifiers>
+    <OutputType>WinExe</OutputType>
+    <RootNamespace>Ink_Canvas</RootNamespace>
+    <AssemblyName>InkCanvasForClass</AssemblyName>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <ProjectTypeGuids>{60dc8134-eba5-43b8-bcc9-bb4bc16c2548};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+    <IsWebBootstrapper>false</IsWebBootstrapper>
+    <PublishUrl>publish\</PublishUrl>
+    <Install>true</Install>
+    <InstallFrom>Disk</InstallFrom>
+    <UpdateEnabled>false</UpdateEnabled>
+    <UpdateMode>Foreground</UpdateMode>
+    <UpdateInterval>7</UpdateInterval>
+    <UpdateIntervalUnits>Days</UpdateIntervalUnits>
+    <UpdatePeriodically>false</UpdatePeriodically>
+    <UpdateRequired>false</UpdateRequired>
+    <MapFileExtensions>true</MapFileExtensions>
+    <UseApplicationTrust>false</UseApplicationTrust>
+    <BootstrapperEnabled>false</BootstrapperEnabled>
+    <GenerateAssemblyInfo>True</GenerateAssemblyInfo>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <EmbeddedOnlyCultures>en-US;zh-ME</EmbeddedOnlyCultures>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <Configurations>Debug;Release</Configurations>
+    <Platforms>AnyCPU;x86;x64;ARM64;ARM64EC</Platforms>
+    <LangVersion>12</LangVersion>
+    <NoWarn>$(NoWarn);CA1416;NU1701;MSB3270;CS8012;NETSDK1138;CS9269</NoWarn>
+    <!-- PolySharp (传递依赖，经 Vortice→SharpGen.Runtime 引入) 在 .NET 10 SDK 下与既有的
+         UnscopedRefAttribute 定义冲突 (CS0101/CS0579)。该 polyfill 类型已由其他来源提供，
+         故排除 PolySharp 对该类型的生成。CS9269 仅来自 CsWin32 生成的 InlineArrays.g.cs
+         （在 net6.0/C#10 下 [UnscopedRef] 为 no-op），属于生成代码的良性提示，予以屏蔽。 -->
+    <PolySharpExcludeGeneratedTypes>System.Diagnostics.CodeAnalysis.UnscopedRefAttribute</PolySharpExcludeGeneratedTypes>
+    <SuppressTfmSupportBuildWarnings>true</SuppressTfmSupportBuildWarnings>
+    <ResolveAssemblyWarnOrErrorOnTargetArchitectureMismatch>None</ResolveAssemblyWarnOrErrorOnTargetArchitectureMismatch>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <CetCompat>false</CetCompat>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugType>embedded</DebugType>
+    <OutputPath>bin\$(Configuration)\$(Platform)\</OutputPath>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>embedded</DebugType>
+    <OutputPath>bin\$(Configuration)\$(Platform)\</OutputPath>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
+  </PropertyGroup>
+  <PropertyGroup>
+    <ApplicationIcon>Resources\mylogo.ico</ApplicationIcon>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x86'">
+    <OutputPath>bin\$(Configuration)\$(Platform)\</OutputPath>
+    <DebugType>embedded</DebugType>
+    <PlatformTarget>x86</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x86'">
+    <OutputPath>bin\$(Configuration)\$(Platform)\</OutputPath>
+    <DebugType>embedded</DebugType>
+    <PlatformTarget>x86</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
+  </PropertyGroup>
+  <PropertyGroup>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Title>InkCanvasForClass</Title>
+    <Authors>CJK_mkp</Authors>
+    <Product>InkCanvasForClass</Product>
+    <Copyright>© Copyright  CJK_mkp 2025-now</Copyright>
+    <PackageProjectUrl>https://inkcanvasforclass.github.io</PackageProjectUrl>
+    <GeneratePackageOnBuild>False</GeneratePackageOnBuild>
+  </PropertyGroup>
+  <!-- ARM64 平台：.NET 6 在 ARM64 上 JIT 成本相对 x64 高 30%，
+       启用 Tiered Compilation + PGO 让循环/分支预测迅速收敛；
+       Release 启用 ReadyToRun Composite 把多程序集合并为单一 R2R 映像，
+       冷启动时间比纯 JIT 快 30%+。ARM 设备一般不预装 .NET 6，
+       单文件+自包含发布时这些属性同时生效。 -->
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|ARM64'">
+    <OutputPath>bin\$(Configuration)\$(Platform)\</OutputPath>
+    <DebugType>full</DebugType>
+    <PlatformTarget>ARM64</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
+    <TieredCompilation>true</TieredCompilation>
+    <TieredPGO>true</TieredPGO>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|ARM64'">
+    <OutputPath>bin\$(Configuration)\$(Platform)\</OutputPath>
+    <DebugType>pdbonly</DebugType>
+    <PlatformTarget>ARM64</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
+    <TieredCompilation>true</TieredCompilation>
+    <TieredPGO>true</TieredPGO>
+    <PublishReadyToRun>true</PublishReadyToRun>
+    <PublishReadyToRunComposite>true</PublishReadyToRunComposite>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">
+    <OutputPath>bin\$(Configuration)\$(Platform)\</OutputPath>
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+    <PlatformTarget>x64</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'">
+    <OutputPath>bin\$(Configuration)\$(Platform)\</OutputPath>
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+    <PlatformTarget>x64</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
+  </PropertyGroup>
+  <ItemGroup>
+    <None Include="app.manifest" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Costura.Fody" Version="6.2.0">
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="gong-wpf-dragdrop" Version="4.0.0" />
+    <PackageReference Include="H.NotifyIcon.Wpf" Version="2.4.1" />
+    <PackageReference Include="iNKORE.UI.WPF.Modern" Version="0.10.2.1" />
+    <PackageReference Include="iNKORE.UI.WPF" Version="1.2.8" />
+    <PackageReference Include="MdXaml" Version="1.27.0" />
+    <PackageReference Include="Microsoft.Office.Interop.PowerPoint" Version="15.0.4420.1018" />
+    <PackageReference Include="Microsoft.Windows.CsWin32" Version="0.3.298">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="MicrosoftOfficeCore" Version="15.0.0" />
+    <PackageReference Include="Microsoft.International.Converters.PinYinConverter" Version="1.0.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="System.ComponentModel.Composition" Version="10.0.11" />
+    <PackageReference Include="System.Composition.AttributedModel" Version="10.0.11" />
+    <PackageReference Include="System.Data.DataSetExtensions" Version="4.5.0" />
+    <PackageReference Include="System.Management" Version="10.0.11" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+    <!-- UInk 1.0 规范：主文件为 MessagePack 对象流（Header/HeaderExtension/Canvas/Ink/Shape/Media），由 UInk/ 下的读写器使用 -->
+    <PackageReference Include="MessagePack" Version="3.1.8" />
+    <PackageReference Include="NHotkey.Wpf" Version="4.0.0" />
+    <PackageReference Include="OSVersionExt" Version="4.1.0" />
+    <!-- PDFsharp 6.1.x 是最后一个以 net6.0 为目标框架的版本；用于插件「背景 + 墨迹」导出 PDF -->
+    <PackageReference Include="PDFsharp" Version="6.2.4" />
+    <!-- AForge.Imaging / AForge.Math 仅用于照片校正（Grayscale/CannyEdgeDetector/BlobCounter/QuadrilateralTransformation）；摄像头采集已切换到 DirectShow（DirectShowLib） -->
+    <PackageReference Include="AForge.Imaging" Version="2.2.5" />
+    <PackageReference Include="AForge.Math" Version="2.2.5" />
+    <!-- 照片校正：OpenCvSharp4（OpenCV 4.13 封装，.NET 10 原生、MIT 免费），用于纸张角点检测 + 透视矫正 -->
+    <PackageReference Include="OpenCvSharp4.Windows" Version="4.13.0.20260627" />
+    <PackageReference Include="OpenCvSharp4.Extensions" Version="4.13.0.20260627" />
+
+    <PackageReference Include="WebDav.Client" Version="2.9.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.11" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <PackageReference Include="Vortice.Direct2D1" Version="3.8.3" />
+    <PackageReference Include="Vortice.Direct3D11" Version="3.8.3" />
+    <PackageReference Include="Vortice.DirectComposition" Version="3.8.3" />
+    <PackageReference Include="Vortice.DXGI" Version="3.8.3" />
+    <!-- 视频展台：DirectShow + VMR9 Renderless + D3DImage 零拷贝 GPU 渲染 -->
+    <PackageReference Include="WPFMediaKit" Version="3.0.1" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\InkCanvas.PluginSdk\InkCanvas.PluginSdk.csproj" />
+    <ProjectReference Include="..\InkCanvas.Controls\InkCanvas.Controls.csproj" />
+    <ProjectReference Include="..\InkCanvas.PPTAgent.Contracts\InkCanvas.PPTAgent.Contracts.csproj" />
+    <ProjectReference Include="..\InkCanvas.IACoreHelper\InkCanvas.IACoreHelper.csproj">
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <Private>false</Private>
+    </ProjectReference>
+    <UpToDateCheckInput Include="..\InkCanvas.Controls\**\*.xaml" />
+  </ItemGroup>
+  <Target Name="CopyVstoAgent" AfterTargets="Build;Publish">
+    <ItemGroup>
+      <_VstoSrc Include="..\InkCanvas.PowerPointAddIn\bin\$(Configuration)\InkCanvas.PowerPointAddIn.dll" />
+      <_VstoSrc Include="..\InkCanvas.PowerPointAddIn\bin\$(Configuration)\InkCanvas.PowerPointAddIn.vsto" />
+      <_VstoSrc Include="..\InkCanvas.PowerPointAddIn\bin\$(Configuration)\InkCanvas.PowerPointAddIn.dll.manifest" />
+      <_VstoSrc Include="..\InkCanvas.PowerPointAddIn\bin\$(Configuration)\Microsoft.Office.Tools.Common.v4.0.Utilities.dll" />
+      <_VstoSrc Include="..\InkCanvas.PowerPointAddIn\bin\$(Configuration)\Microsoft.Office.Tools.Common.dll" />
+      <_VstoSrc Include="..\InkCanvas.PowerPointAddIn\bin\$(Configuration)\Microsoft.Office.Tools.dll" />
+      <_VstoSrc Include="..\InkCanvas.PowerPointAddIn\bin\$(Configuration)\Microsoft.Office.Tools.v4.0.Framework.dll" />
+      <_VstoSrc Include="..\InkCanvas.PowerPointAddIn\bin\$(Configuration)\Microsoft.VisualStudio.Tools.Applications.Runtime.dll" />
+      <_VstoSrc Include="..\InkCanvas.PowerPointAddIn\bin\$(Configuration)\InkCanvas.PPTAgent.Contracts.dll" />
+    </ItemGroup>
+    <MakeDir Directories="$(OutputPath)ppt-agent" />
+    <Copy SourceFiles="@(_VstoSrc)" DestinationFolder="$(OutputPath)ppt-agent" SkipUnchangedFiles="true" Condition="Exists('%(_VstoSrc.Identity)')" />
+    <MakeDir Directories="$(PublishDir)ppt-agent" Condition="'$(PublishDir)' != ''" />
+    <Copy SourceFiles="@(_VstoSrc)" DestinationFolder="$(PublishDir)ppt-agent" SkipUnchangedFiles="true" Condition="Exists('%(_VstoSrc.Identity)') And '$(PublishDir)' != ''" />
+    <Copy SourceFiles="$(NuGetPackageRoot)newtonsoft.json\13.0.4\lib\net45\Newtonsoft.Json.dll" DestinationFolder="$(OutputPath)ppt-agent" SkipUnchangedFiles="true" Condition="Exists('$(NuGetPackageRoot)newtonsoft.json\13.0.4\lib\net45\Newtonsoft.Json.dll')" />
+    <Copy SourceFiles="$(NuGetPackageRoot)newtonsoft.json\13.0.4\lib\net45\Newtonsoft.Json.dll" DestinationFolder="$(PublishDir)ppt-agent" SkipUnchangedFiles="true" Condition="Exists('$(NuGetPackageRoot)newtonsoft.json\13.0.4\lib\net45\Newtonsoft.Json.dll') And '$(PublishDir)' != ''" />
+  </Target>
+  <ItemGroup Condition="'$(MSBuildRuntimeType)' == 'Full'">
+    <COMReference Include="IWshRuntimeLibrary">
+      <Guid>{F935DC20-1CF0-11D0-ADB9-00C04FD58A0B}</Guid>
+      <VersionMajor>1</VersionMajor>
+      <VersionMinor>0</VersionMinor>
+      <Lcid>0</Lcid>
+      <WrapperTool>tlbimp</WrapperTool>
+      <Isolated>False</Isolated>
+      <EmbedInteropTypes>True</EmbedInteropTypes>
+    </COMReference>
+    <COMReference Include="stdole">
+      <Guid>{00020430-0000-0000-C000-000000000046}</Guid>
+      <VersionMajor>2</VersionMajor>
+      <VersionMinor>0</VersionMinor>
+      <Lcid>0</Lcid>
+      <WrapperTool>primary</WrapperTool>
+      <Isolated>False</Isolated>
+      <EmbedInteropTypes>True</EmbedInteropTypes>
+    </COMReference>
+  </ItemGroup>
+  <ItemGroup Condition="'$(MSBuildRuntimeType)' != 'Full'">
+    <Reference Include="Interop.IWshRuntimeLibrary">
+      <HintPath>libs\Interop.IWshRuntimeLibrary.dll</HintPath>
+      <Private>False</Private>
+      <EmbedInteropTypes>True</EmbedInteropTypes>
+    </Reference>
+    <Reference Include="Interop.stdole">
+      <HintPath>libs\Interop.stdole.dll</HintPath>
+      <Private>False</Private>
+      <EmbedInteropTypes>True</EmbedInteropTypes>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Resources\TimerDownNotice.wav" />
+    <None Include="Resources\ProgressiveAudio.wav" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\IACore\IACore.dll" />
+    <EmbeddedResource Include="Resources\IACore\IALoader.dll" />
+    <EmbeddedResource Include="Resources\IACore\IAWinFX.dll" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Resources\Cursors\Cursor.cur" />
+    <Resource Include="Resources\Cursors\Pen.cur" />
+    <Resource Include="Resources\DeveloperAvatars\aaaaaaccd.jpg" />
+    <Resource Include="Resources\DeveloperAvatars\Alan-CRL.png" />
+    <Resource Include="Resources\DeveloperAvatars\NetheriteBowl.png" />
+    <Resource Include="Resources\DeveloperAvatars\NotYoojun.png" />
+    <Resource Include="Resources\DeveloperAvatars\RaspberryKan.jpg" />
+    <Resource Include="Resources\DeveloperAvatars\wwei.png" />
+    <Resource Include="Resources\DeveloperAvatars\yuwenhui2020.png" />
+    <Resource Include="Resources\DeveloperAvatars\CJKmkp.jpg" />
+    <Resource Include="Resources\icc.ico" />
+    <Resource Include="Resources\mylogo.ico" />
+    <Resource Include="Resources\Icons-png\AdmoxBooth.png" />
+    <Resource Include="Resources\Icons-png\AdmoxWhiteboard.png" />
+    <Resource Include="Resources\Icons-png\Donview.png" />
+    <Resource Include="Resources\Icons-png\EasiNote3.png" />
+    <Resource Include="Resources\Icons-png\HiteLightBoard.png" />
+    <Resource Include="Resources\Icons-png\ica.png" />
+    <Resource Include="Resources\Icons-png\icc-transparent-dark-small.png" />
+    <Resource Include="Resources\Icons-png\icc-transparent-dark.png" />
+    <Resource Include="Resources\Icons-png\icc-transparent.png" />
+    <Resource Include="Resources\Icons-png\icc.png" />
+    <Resource Include="Resources\Icons-png\icc-dark.png" />
+    <Resource Include="Resources\Icons-png\icc-noshadow.png" />
+    <Resource Include="Resources\Icons-png\icc-sharpdark.png" />
+    <Resource Include="Resources\Icons-png\icc-transparent-light-small.png" />
+    <Resource Include="Resources\Icons-png\dycz.png" />
+    <Resource Include="Resources\Icons-png\InkCanvas.png" />
+    <Resource Include="Resources\Icons-png\kuanciya.png" />
+    <Resource Include="Resources\Icons-png\kuandogeyuanliangwo.png" />
+    <Resource Include="Resources\Icons-png\kuandoujiyanhuaji.png" />
+    <Resource Include="Resources\Icons-png\kuanneikuhuaji.png" />
+    <Resource Include="Resources\Icons-png\kuanshounvhuaji.png" />
+    <Resource Include="Resources\Icons-png\MaxHubWhiteboard.png" />
+    <Resource Include="Resources\Icons-png\Seewo2Annotation.png" />
+    <Resource Include="Resources\Icons-png\tiebahuaji.png" />
+    <Resource Include="Resources\Icons-png\transparent-grid.png" />
+    <Resource Include="Resources\new-icons\multi-touch_white.png" />
+    <Resource Include="Resources\new-icons\hand-move_white.png" />
+    <Resource Include="Resources\new-icons\zoom_white.png" />
+    <Resource Include="Resources\new-icons\rotate_white.png" />
+  </ItemGroup>
+<ItemGroup>
+    <Resource Include="Resources\DeveloperAvatars\ChangSakura.png" />
+    <Resource Include="Resources\DeveloperAvatars\clover-yan.png" />
+    <Resource Include="Resources\DeveloperAvatars\jiajiaxd.jpg" />
+    <Resource Include="Resources\DeveloperAvatars\kengwang.png" />
+    <Resource Include="Resources\DeveloperAvatars\STBBRD.png" />
+    <Resource Include="Resources\DeveloperAvatars\WXRIW.png" />
+    <Resource Include="Resources\DeveloperAvatars\PrefacedCorg.jpg" />
+    <Resource Include="Resources\DeveloperAvatars\PANDA-JSR.jpg" />
+    <Resource Include="Resources\DeveloperAvatars\Super-Yyt.png" />
+    <Resource Include="Resources\DeveloperAvatars\AstrZero.png" />
+  </ItemGroup>
+<ItemGroup>
+    <Resource Include="Resources\Icons-png\EasiCamera.png" />
+  </ItemGroup>
+<ItemGroup>
+    <Resource Include="Resources\Icons-Fluent\ic_fluent_settings_24_regular.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Resources\Icons-Fluent\ic_fluent_timer_24_regular.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Resources\Icons-Fluent\ic_fluent_delete_24_regular.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="privacy.txt" />
+    <EmbeddedResource Include="telemetry_token.txt" Condition="Exists('telemetry_token.txt') AND '$(DLASS_TELEMETRY_TOKEN)' == ''">
+      <Link>telemetry_token.txt</Link>
+    </EmbeddedResource>
+    <EmbeddedResource Include="$(MSBuildProjectDirectory)\telemetry_token.generated.txt" Condition="'$(DLASS_TELEMETRY_TOKEN)' != ''">
+      <Link>telemetry_token.txt</Link>
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+    </EmbeddedResource>
+  </ItemGroup>
+<ItemGroup>
+    <Resource Include="Resources\Icons-Fluent\ic_fluent_weather_moon_24_regular.png" />
+    <Resource Include="Resources\Icons-Fluent\ic_fluent_weather_sunny_24_regular.png" />
+  </ItemGroup>
+<ItemGroup>
+    <Resource Include="Resources\Icons-Fluent\ic_fluent_copy_24_regular.png" />
+    <Resource Include="Resources\Icons-Fluent\ic_fluent_copy_add_24_regular.png" />
+  </ItemGroup>
+<ItemGroup>
+    <Resource Include="Resources\Icons-Fluent\ic_fluent_flip_horizontal_24_regular.png" />
+    <Resource Include="Resources\Icons-Fluent\ic_fluent_flip_vertical_24_regular.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Resources\Icons-Fluent\ic_fluent_edit_24_regular.png" />
+  </ItemGroup>
+<ItemGroup>
+    <Resource Include="Resources\Icons-Fluent\ic_fluent_people_money_24_regular.png" />
+    <Resource Include="Resources\Icons-Fluent\ic_fluent_person_money_24_regular.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Resources\Icons-Fluent\ic_fluent_scale_fit_24_regular.png" />
+    <Resource Include="Resources\Icons-Fluent\ic_fluent_scale_fit_24_regular_white.png" />
+  </ItemGroup>
+<ItemGroup>
+    <Resource Include="Resources\Icons-Fluent\ic_fluent_keyboard_24_regular.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Resources\Icons-Fluent\ic_fluent_control_button_24_regular.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Resources\Icons-png\VComYouJiao.png" />
+    <Resource Include="Resources\Icons-png\WenXiang.png" />
+    <Resource Include="Resources\Icons-png\YiYunVisualPresenter.png" />
+    <Resource Include="Resources\Icons-png\YiYunWhiteboard.png" />
+    <Resource Include="Resources\new-icons\chevron-left.png" />
+    <Resource Include="Resources\new-icons\end-slides-show.png">
+      <CopyToOutputDirectory></CopyToOutputDirectory>
+    </Resource>
+    <Resource Include="Resources\new-icons\eye.png" />
+    <Resource Include="Resources\new-icons\hand-move.png" />
+    <Resource Include="Resources\new-icons\highlighter-white.png" />
+    <Resource Include="Resources\new-icons\multi-touch.png" />
+    <Resource Include="Resources\new-icons\osu-lazer-triangles.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Resources\new-icons\pen-lined.png" />
+  </ItemGroup>
+<ItemGroup>
+    <Resource Include="Resources\new-icons\pen-white.png" />
+    <Resource Include="Resources\new-icons\rotate.png" />
+  </ItemGroup>
+<ItemGroup>
+    <Resource Include="Resources\new-icons\grid.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Resources\new-icons\blackboard.png" />
+  </ItemGroup>
+<ItemGroup>
+    <Resource Include="Resources\DeveloperAvatars\dubi906w.jpg" />
+    <Resource Include="Resources\DeveloperAvatars\CreeperAWA.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Resources\new-icons\gesture.png" />
+    <Resource Include="Resources\new-icons\gesture_white.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Resources\new-icons\gesture-enabled.png" />
+  </ItemGroup>
+<ItemGroup>
+    <Resource Include="Resources\new-icons\checked-white.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Resources\new-icons\checked-black.png" />
+  </ItemGroup>
+<ItemGroup>
+    <Resource Include="Resources\Icons-png\geo-icons\arrow.png" />
+    <Resource Include="Resources\Icons-png\geo-icons\dashed-line.png" />
+    <Resource Include="Resources\Icons-png\geo-icons\dotted-line.png" />
+    <Resource Include="Resources\Icons-png\geo-icons\line.png" />
+    <Resource Include="Resources\Icons-png\geo-icons\paralle-lines.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Resources\Icons-png\geo-icons\centered-square.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Resources\Icons-png\geo-icons\centered-circle.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Resources\Icons-png\geo-icons\centered-circle-dashed.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Resources\Icons-png\geo-icons\centered-oval.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Resources\Icons-png\geo-icons\square.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Resources\Icons-png\geo-icons\cylinder.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Resources\Icons-png\geo-icons\cone.png" />
+    <Resource Include="Resources\Icons-png\geo-icons\compass.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Resources\Icons-png\geo-icons\cube.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Resources\Icons-png\geo-icons\arrow_white.png" />
+    <Resource Include="Resources\Icons-png\geo-icons\dashed-line_white.png" />
+    <Resource Include="Resources\Icons-png\geo-icons\dotted-line_white.png" />
+    <Resource Include="Resources\Icons-png\geo-icons\line_white.png" />
+    <Resource Include="Resources\Icons-png\geo-icons\paralle-lines_white.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Resources\Icons-png\geo-icons\centered-square_white.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Resources\Icons-png\geo-icons\centered-circle_white.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Resources\Icons-png\geo-icons\centered-circle-dashed_white.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Resources\Icons-png\geo-icons\centered-oval_white.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Resources\Icons-png\geo-icons\square_white.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Resources\Icons-png\geo-icons\cylinder_white.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Resources\Icons-png\geo-icons\cone_white.png" />
+    <Resource Include="Resources\Icons-png\geo-icons\compass_white.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Resources\Icons-png\geo-icons\cube_white.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Resources\Icons-png\EasiNote.png" />
+    <Resource Include="Resources\Icons-png\EasiNote3C.png" />
+    <Resource Include="Resources\Icons-png\EasiNote5C.png" />
+    <Resource Include="Resources\Icons-png\SeewoPinco.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Resources\Icons-png\HiteBoard.png" />
+    <Resource Include="Resources\Icons-png\HiteCamera.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Resources\Icons-png\Whiteboard.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Resources\Icons-png\Powerpoint.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Resources\Icons-png\PPTTools.png" />
+  </ItemGroup>
+<ItemGroup>
+    <Resource Include="Resources\new-icons\unfold-chevron.png" />
+    <Resource Include="Resources\new-icons\zoom.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Resources\Icons-Fluent\ic_fluent_person_money_24_regular-light.png" />
+    <Resource Include="Resources\Icons-Fluent\ic_fluent_people_money_24_regular-light.png" />
+    <Resource Include="Resources\Icons-Fluent\ic_fluent_timer_24_regular-light.png" />
+    <Resource Include="Resources\new-icons\blackboard-light.png" />
+    <Resource Include="Resources\new-icons\end-slides-show-light.png" />
+    <Resource Include="Resources\new-icons\chevron-left-light.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Resources\Icons-Fluent\ic_fluent_keyboard_24_regular_white.png" />
+    <Resource Include="Resources\Icons-Fluent\ic_fluent_control_button_24_regular_white.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Remove="AssemblyInfo.cs" />
+    <!-- 新墨迹系统（原生 WM_POINTER + DirectComposition 湿墨管线）已于 1.7.19.9 回退，
+         代码文件保留原地供后续复用/测试（InkCanvas.NativeInk.Tests 通过 Link 单独编译），
+         此处仅从主项目排除编译。 -->
+    <Compile Remove="Ink\Native\**" />
+    <Compile Remove="MainWindow_cs\MW_NativeWetInk.cs" />
+    <!-- 实时墨迹 FPS/延迟 HUD 与新墨迹渲染配套，数据源（WetInkWindowHost）已排除，一并保留文件、排除编译。 -->
+    <Compile Remove="Helpers\InkPerformanceMonitor.cs" />
+    <Compile Remove="Helpers\RealtimeInkFpsOverlay.cs" />
+    <Compile Remove="MainWindow_cs\MW_RealtimeInkFpsOverlay.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Remove="MainWindow.xaml~RF6c3144.TMP" />
+    <None Remove="Resources\Cursors\Cursor.cur" />
+    <None Remove="Resources\Cursors\Pen.cur" />
+    <None Remove="Resources\DeveloperAvatars\aaaaaaccd.jpg" />
+    <None Remove="Resources\DeveloperAvatars\Alan-CRL.png" />
+    <None Remove="Resources\DeveloperAvatars\NetheriteBowl.png" />
+    <None Remove="Resources\DeveloperAvatars\NotYoojun.png" />
+    <None Remove="Resources\DeveloperAvatars\RaspberryKan.jpg" />
+    <None Remove="Resources\DeveloperAvatars\wwei.png" />
+    <None Remove="Resources\DeveloperAvatars\yuwenhui2020.png" />
+    <None Remove="Resources\icc.ico" />
+    <None Remove="Resources\mylogo.ico" />
+    <None Remove="Resources\Icons-png\AdmoxBooth.png" />
+    <None Remove="Resources\Icons-png\AdmoxWhiteboard.png" />
+    <None Remove="Resources\Icons-png\Donview.png" />
+    <None Remove="Resources\Icons-png\EasiNote3.png" />
+    <None Remove="Resources\Icons-png\HiteAnnotation.png" />
+    <None Remove="Resources\Icons-png\HiteLightBoard.png" />
+    <None Remove="Resources\Icons-png\ica.png" />
+    <None Remove="Resources\Icons-png\icc-transparent-dark-small.png" />
+    <None Remove="Resources\Icons-png\icc-transparent-dark.png" />
+    <None Remove="Resources\Icons-png\icc-transparent.png" />
+    <None Remove="Resources\Icons-png\icc.png" />
+    <None Remove="Resources\Icons-png\icc-dark.png" />
+    <None Remove="Resources\Icons-png\icc-noshadow.png" />
+    <None Remove="Resources\Icons-png\icc-sharpdark.png" />
+    <None Remove="Resources\Icons-png\icc-transparent-light-small.png" />
+    <None Remove="Resources\Icons-png\idt.png" />
+    <None Remove="Resources\Icons-png\InkCanvas.png" />
+    <None Remove="Resources\Icons-png\kuanciya.png" />
+    <None Remove="Resources\Icons-png\kuandogeyuanliangwo.png" />
+    <None Remove="Resources\Icons-png\kuandoujiyanhuaji.png" />
+    <None Remove="Resources\Icons-png\kuanneikuhuaji.png" />
+    <None Remove="Resources\Icons-png\kuanshounvhuaji.png" />
+    <None Remove="Resources\Icons-png\MaxHubWhiteboard.png" />
+    <None Remove="Resources\Icons-png\Seewo2Annotation.png" />
+    <None Remove="Resources\Icons-png\tiebahuaji.png" />
+    <None Remove="Resources\Icons-png\transparent-grid.png" />
+    <None Remove="Resources\Icons-png\VComYouJiao.png" />
+    <None Remove="Resources\Icons-png\WenXiang.png" />
+    <None Remove="Resources\Icons-png\YiYunVisualPresenter.png" />
+    <None Remove="Resources\Icons-png\YiYunWhiteboard.png" />
+    <None Remove="Resources\new-icons\chevron-left.png" />
+    <None Remove="Resources\new-icons\end-slides-show.png" />
+    <None Remove="Resources\new-icons\eye.png" />
+    <None Remove="Resources\new-icons\hand-move.png" />
+    <None Remove="Resources\new-icons\highlighter-white.png" />
+    <None Remove="Resources\new-icons\multi-touch.png" />
+    <None Remove="Resources\new-icons\osu-lazer-triangles.png" />
+    <None Remove="Resources\new-icons\pen-white.png" />
+    <None Remove="Resources\new-icons\rotate.png" />
+    <None Remove="Resources\new-icons\unfold-chevron.png" />
+    <None Remove="Resources\new-icons\zoom.png" />
+    <None Remove="Resources\PresentationExample\bottombar-dark.png" />
+    <None Remove="Resources\PresentationExample\bottombar-white.png" />
+    <None Remove="Resources\PresentationExample\page.jpg" />
+    <None Remove="Resources\PresentationExample\sidebar-dark.png" />
+    <None Remove="Resources\PresentationExample\sidebar-white.png" />
+    <None Remove="Resources\PresentationExample\toolbar.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Resources\Icons-png\idt.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Resources\Fonts\LXGWWenKaiTC-Regular.ttf" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Resources\Icons-png\HiteAnnotation.png" />
+    <Resource Include="Resources\Icons-png\AiClass.png" />
+    <Resource Include="Resources\Icons-png\天喻教育云.png" />
+    <Resource Include="Resources\Icons-png\畅言智慧课堂.png" />
+    <Resource Include="Resources\PresentationExample\bottombar-dark.png" />
+    <Resource Include="Resources\PresentationExample\bottombar-white.png" />
+    <Resource Include="Resources\PresentationExample\page.jpg" />
+    <Resource Include="Resources\PresentationExample\sidebar-dark.png" />
+    <Resource Include="Resources\PresentationExample\sidebar-white.png" />
+    <Resource Include="Resources\PresentationExample\toolbar.png" />
+    <Resource Include="Resources\Startup-animation\ICC Spring.png" />
+    <Resource Include="Resources\Startup-animation\ICC Summer.png" />
+    <Resource Include="Resources\Startup-animation\ICC Autumn.png" />
+    <Resource Include="Resources\Startup-animation\ICC Winter.png" />
+    <Resource Include="Resources\Startup-animation\School.png" />
+    <Resource Include="Resources\Startup-animation\ICC Horse.png" />
+    <Resource Include="Resources\Icons-Fluent\ic_fluent_copy_24_regular_white.png" />
+    <Resource Include="Resources\Icons-Fluent\ic_fluent_copy_add_24_regular_white.png" />
+    <Resource Include="Resources\Icons-Fluent\ic_fluent_flip_horizontal_24_regular_white.png" />
+    <Resource Include="Resources\Icons-Fluent\ic_fluent_flip_vertical_24_regular_white.png" />
+    <Resource Include="Resources\Icons-Fluent\ic_fluent_edit_24_regular_white.png" />
+    <Resource Include="Resources\Icons-Fluent\ic_fluent_delete_24_regular_white.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Update="Properties\Settings.Designer.cs">
+      <DesignTimeSharedInput>True</DesignTimeSharedInput>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>Settings.settings</DependentUpon>
+    </Compile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Update="Properties\Settings.settings">
+      <Generator>SettingsSingleFileGenerator</Generator>
+      <LastGenOutput>Settings.Designer.cs</LastGenOutput>
+    </None>
+  </ItemGroup>
+  <Target Name="GenerateTelemetryToken" BeforeTargets="PrepareResources" Condition="'$(DLASS_TELEMETRY_TOKEN)' != ''">
+    <WriteLinesToFile File="$(MSBuildProjectDirectory)\telemetry_token.generated.txt" Lines="$(DLASS_TELEMETRY_TOKEN)" Overwrite="true" />
+  </Target>
+
+  <Target Name="CleanTelemetryToken" AfterTargets="Build;Clean" Condition="Exists('$(MSBuildProjectDirectory)\telemetry_token.generated.txt')">
+    <Delete Files="$(MSBuildProjectDirectory)\telemetry_token.generated.txt" />
+  </Target>
+
+  <Target Name="CopyIACoreHelper" AfterTargets="Build;Publish">
+    <ItemGroup>
+      <IACoreHelperFiles Include="$(MSBuildProjectDirectory)\..\InkCanvas.IACoreHelper\bin\$(Configuration)\*.*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(IACoreHelperFiles)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" Condition="'@(IACoreHelperFiles)' != ''" />
+    <Copy SourceFiles="@(IACoreHelperFiles)" DestinationFolder="$(PublishDir)" SkipUnchangedFiles="true" Condition="'@(IACoreHelperFiles)' != '' And '$(PublishDir)' != ''" />
+  </Target>
+
+  <ItemGroup>
+    <EmbeddedResource Update="Properties\*.en-US.resx">
+      <WithCulture>false</WithCulture>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Properties\*.zh-ME.resx">
+      <WithCulture>false</WithCulture>
+    </EmbeddedResource>
+  </ItemGroup>
+  
+  <Target Name="SetAssemblyInformationalVersion" DependsOnTargets="GetBuildVersion" AfterTargets="GetBuildVersion">
+    <PropertyGroup>
+      <!-- 有 GitCommitIdShort 时取前 7 位 -->
+      <_ShortSha Condition="'$(GitCommitIdShort)' != ''">$(GitCommitIdShort)</_ShortSha>
+      <_ShortSha7 Condition="'$(GitCommitIdShort)' != ''">$(_ShortSha.Substring(0, 7))</_ShortSha7>
+      <!-- 无 git：信息版本即程序集版本，不再拼接任何后缀（避免出现 .UNKNOWN） -->
+      <AssemblyInformationalVersion>$(AssemblyVersion)</AssemblyInformationalVersion>
+      <!-- 有 git：信息版本 = 程序集版本 + 短 SHA -->
+      <AssemblyInformationalVersion Condition="'$(GitCommitIdShort)' != ''">$(AssemblyVersion).$(_ShortSha7)</AssemblyInformationalVersion>
+    </PropertyGroup>
+  </Target>
+</Project>

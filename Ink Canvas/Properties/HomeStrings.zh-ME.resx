@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="Home_ExitApp" xml:space="preserve">
+    <value>删库跑路</value>
+  </data>
+  <data name="Home_ResetSettings" xml:space="preserve">
+    <value>v50 回出厂</value>
+  </data>
+  <data name="Home_RestartApp" xml:space="preserve">
+    <value>原地复活</value>
+  </data>
+  <data name="Home_AboutApp" xml:space="preserve">
+    <value>关于 InkCanvasForClass</value>
+  </data>
+  <data name="Home_Basic" xml:space="preserve">
+    <value>新手村操作</value>
+  </data>
+  <data name="Home_CanvasSettings" xml:space="preserve">
+    <value>画板调教</value>
+  </data>
+  <data name="Home_CloudStorageSettings" xml:space="preserve">
+    <value>Dlass 与 WebDav 上云调教</value>
+  </data>
+  <data name="Home_InkRecognitionSettings" xml:space="preserve">
+    <value>墨迹纠正调教</value>
+  </data>
+  <data name="Home_MainUI" xml:space="preserve">
+    <value>主界面</value>
+  </data>
+  <data name="Home_PluginSettings" xml:space="preserve">
+    <value>外挂调教</value>
+  </data>
+  <data name="Home_PPTSettings" xml:space="preserve">
+    <value>PPT 联动调教</value>
+  </data>
+  <data name="Home_Privacy" xml:space="preserve">
+    <value>小秘密</value>
+  </data>
+  <data name="Home_PrivacySettings" xml:space="preserve">
+    <value>小秘密与遥测调教</value>
+  </data>
+  <data name="Home_RandomAndTimer" xml:space="preserve">
+    <value>天选之人与倒计时</value>
+  </data>
+  <data name="Home_Title" xml:space="preserve">
+    <value>大本营</value>
+  </data>
+  <data name="Home_Toolbar" xml:space="preserve">
+    <value>装备栏</value>
+  </data>
+  <data name="Home_ToolbarSettings" xml:space="preserve">
+    <value>装备栏按钮排序与显隐</value>
+  </data>
+  <data name="Home_UpdateSettings" xml:space="preserve">
+    <value>更新调教</value>
+  </data>
+  <data name="Home_Window" xml:space="preserve">
+    <value>小窗窗</value>
+  </data>
+  <data name="Home_WindowSettings" xml:space="preserve">
+    <value>小窗窗调教</value>
+  </data>
+  <data name="Home_ClockSettings" xml:space="preserve">
+    <value>小闹钟显示调教</value>
+  </data>
+  <data name="Home_PerformanceSettings" xml:space="preserve">
+    <value>性能监控与 pp 体检</value>
+  </data>
+  <data name="Home_BackupSettings" xml:space="preserve">
+    <value>设置与数据存档</value>
+  </data>
+  <data name="Home_BoardSettings" xml:space="preserve">
+    <value>白板装备栏与外观调教</value>
+  </data>
+  <data name="Home_FriendlyLinks" xml:space="preserve">
+    <value>氪金与友军</value>
+  </data>
+  <data name="Splash_Starting" xml:space="preserve">
+    <value>正在召唤 Ink Canvas，请稍等一下下...</value>
+  </data>
+</root>

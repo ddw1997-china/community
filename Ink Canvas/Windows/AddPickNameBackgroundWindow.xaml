@@ -1,0 +1,40 @@
+<UserControl x:Class="Ink_Canvas.AddPickNameBackgroundWindow"
+             xmlns:props="clr-namespace:Ink_Canvas.Properties"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:DesignWidth="600" d:DesignHeight="350">
+    <StackPanel Margin="0,5,0,0">
+        <Grid Margin="0,0,0,15">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="{x:Static props:RandomStrings.Random_AddBg_SelectImage}" Grid.Column="0" VerticalAlignment="Center" FontSize="14"/>
+            <TextBox Name="BackgroundPathTextBox" Grid.Column="1" IsReadOnly="True" Margin="10,0,10,0" Height="28" VerticalAlignment="Center"/>
+            <Button Content="{x:Static props:RandomStrings.Random_Browse}" Grid.Column="2" Click="BrowseButton_Click" Width="70" Height="30"/>
+        </Grid>
+
+        <Grid Margin="0,0,0,15">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="{x:Static props:RandomStrings.Random_AddBg_NameLabel}" Grid.Column="0" VerticalAlignment="Center" FontSize="14"/>
+            <TextBox Name="BackgroundNameTextBox" Grid.Column="1" Margin="10,0,0,0" Height="28" VerticalAlignment="Center"/>
+        </Grid>
+
+        <TextBlock Text="{x:Static props:RandomStrings.Random_AddBg_PreviewLabel}" Margin="0,0,0,8" FontSize="14"/>
+
+        <Border BorderBrush="{DynamicResource ComboBoxBorderBrush}" BorderThickness="1" Padding="8" MaxHeight="160">
+            <Grid>
+                <Image Name="BackgroundPreviewImage" Stretch="Uniform" MaxHeight="140"/>
+                <TextBlock Text="{x:Static props:RandomStrings.Random_AddBg_NoImage}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                           Foreground="Gray" FontSize="14" Name="NoImageText"/>
+            </Grid>
+        </Border>
+    </StackPanel>
+</UserControl>

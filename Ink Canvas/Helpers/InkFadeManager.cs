@@ -1,0 +1,1011 @@
+using System;
+using System.Collections.Generic;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Ink;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Animation;
+using System.Windows.Media.Effects;
+using System.Windows.Shapes;
+using System.Windows.Threading;
+
+namespace Ink_Canvas.Helpers
+{
+    /// <summary>
+    /// 墨迹渐隐管理器 - 管理墨迹的渐隐动画和状态
+    /// </summary>
+    public class InkFadeManager
+    {
+        /// <summary>
+        /// 激光笔迹标记 GUID（原由新墨迹系统 WpfStrokeCommitter 写入，撤回后本地持有以保证激光渐隐生效）。
+        /// </summary>
+        internal static readonly Guid LaserRenderModeGuid = new Guid("A69B0C9D-9A3A-4F91-8BE3-8E2DBB9AD4F7");
+
+        #region Properties
+        /// <summary>
+        /// 是否启用墨迹渐隐功能
+        /// </summary>
+        public bool IsEnabled { get; set; }
+
+        /// <summary>
+        /// 墨迹渐隐时间（毫秒）
+        /// </summary>
+        public int FadeTime { get; set; } = 3000;
+
+        public double FadeSpeedMultiplier { get; set; } = 1.0;
+
+        public int AnimationDuration { get; set; } = 2000;
+        #endregion
+
+        #region Private Fields
+        private readonly MainWindow _mainWindow;
+        private readonly Dispatcher _dispatcher;
+        private readonly Dictionary<Stroke, DispatcherTimer> _fadeTimers;
+        private readonly Dictionary<Stroke, UIElement> _strokeVisuals;
+        private readonly Dictionary<Stroke, Point> _strokeStartPoints;
+        private readonly Dictionary<Stroke, Point> _strokeEndPoints;
+        private readonly Dictionary<Stroke, int> _strokeAnimationDurations;
+        #endregion
+
+        #region Constructor
+        public InkFadeManager(MainWindow mainWindow)
+        {
+            _mainWindow = mainWindow ?? throw new ArgumentNullException(nameof(mainWindow));
+            _dispatcher = _mainWindow.Dispatcher;
+            _fadeTimers = new Dictionary<Stroke, DispatcherTimer>();
+            _strokeVisuals = new Dictionary<Stroke, UIElement>();
+            _strokeStartPoints = new Dictionary<Stroke, Point>();
+            _strokeEndPoints = new Dictionary<Stroke, Point>();
+            _strokeAnimationDurations = new Dictionary<Stroke, int>();
+        }
+        #endregion
+
+        #region Public Methods
+        /// <summary>
+        /// 添加需要渐隐的墨迹
+        /// </summary>
+        /// <param name="stroke">墨迹对象</param>
+        /// <param name="startPoint">落笔点</param>
+        /// <param name="endPoint">抬笔点</param>
+        public void AddFadingStroke(Stroke stroke, Point startPoint, Point endPoint, long strokeDurationMs = 0)
+        {
+            if (!IsEnabled || stroke == null)
+            {
+                return;
+            }
+
+            try
+            {
+                if (_mainWindow.inkCanvas.EditingMode != InkCanvasEditingMode.Ink)
+                {
+                    _mainWindow.inkCanvas.EditingMode = InkCanvasEditingMode.Ink;
+                }
+
+                _strokeStartPoints[stroke] = startPoint;
+                _strokeEndPoints[stroke] = endPoint;
+
+                int animationDuration;
+                if (strokeDurationMs > 0)
+                {
+                    if (FadeSpeedMultiplier <= 0) FadeSpeedMultiplier = 1.0;
+                    animationDuration = Math.Max(20, (int)(strokeDurationMs / FadeSpeedMultiplier));
+                }
+                else
+                {
+                    animationDuration = GetEffectiveAnimationDuration();
+                }
+
+                _strokeAnimationDurations[stroke] = animationDuration;
+
+                var strokeVisual = CreateStrokeVisual(stroke);
+                if (strokeVisual == null) return;
+
+                _strokeVisuals[stroke] = strokeVisual;
+
+                var timer = new DispatcherTimer
+                {
+                    Interval = TimeSpan.FromMilliseconds(FadeTime)
+                };
+
+                EventHandler tickHandler = null;
+                tickHandler = (sender, e) =>
+                {
+                    timer.Tick -= tickHandler;  // 解除订阅，打破 timer → lambda → timer 循环引用
+                    StartFadeAnimation(stroke);
+                    timer.Stop();
+                    _fadeTimers.Remove(stroke);
+                };
+                timer.Tick += tickHandler;
+
+                _fadeTimers[stroke] = timer;
+                timer.Start();
+
+                // 将视觉元素添加到画布上
+                _dispatcher.InvokeAsync(() =>
+                {
+                    try
+                    {
+                        if (_mainWindow.inkCanvas != null)
+                        {
+                            // 将墨迹添加到 inkCanvas 的父容器中，而不是 inkCanvas.Children
+                            // 这样可以避免坐标系统问题
+                            var parent = _mainWindow.inkCanvas.Parent as Panel;
+                            if (parent != null)
+                            {
+                                parent.Children.Add(strokeVisual);
+                            }
+                            else
+                            {
+                                // 如果无法获取父容器，则添加到 inkCanvas.Children
+                                _mainWindow.inkCanvas.Children.Add(strokeVisual);
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        LogHelper.WriteLogToFile($"添加墨迹视觉元素到画布失败: {ex}", LogHelper.LogType.Error);
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                LogHelper.WriteLogToFile($"添加渐隐墨迹失败: {ex}", LogHelper.LogType.Error);
+            }
+        }
+
+        /// <summary>
+        /// 移除墨迹
+        /// </summary>
+        /// <param name="stroke">要移除的墨迹</param>
+        public void RemoveStroke(Stroke stroke)
+        {
+            if (stroke == null) return;
+
+            try
+            {
+                if (_fadeTimers.TryGetValue(stroke, out var timer))
+                {
+                    timer.Stop();
+                    _fadeTimers.Remove(stroke);
+                }
+
+                if (_strokeVisuals.TryGetValue(stroke, out var visual))
+                {
+                    _dispatcher.InvokeAsync(() =>
+                    {
+                        try
+                        {
+                            // 从父容器中移除墨迹
+                            var parent = _mainWindow.inkCanvas?.Parent as Panel;
+                            if (parent != null && parent.Children.Contains(visual))
+                            {
+                                parent.Children.Remove(visual);
+                            }
+                            else if (_mainWindow.inkCanvas != null && _mainWindow.inkCanvas.Children.Contains(visual))
+                            {
+                                _mainWindow.inkCanvas.Children.Remove(visual);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            LogHelper.WriteLogToFile($"从画布移除墨迹视觉元素失败: {ex}", LogHelper.LogType.Error);
+                        }
+                    });
+
+                    _strokeVisuals.Remove(stroke);
+                }
+
+                _strokeStartPoints.Remove(stroke);
+                _strokeEndPoints.Remove(stroke);
+                _strokeAnimationDurations.Remove(stroke);
+            }
+            catch (Exception ex)
+            {
+                LogHelper.WriteLogToFile($"移除渐隐墨迹失败: {ex}", LogHelper.LogType.Error);
+            }
+        }
+
+        /// <summary>
+        /// 清除所有渐隐墨迹
+        /// </summary>
+        public void ClearAllFadingStrokes()
+        {
+            try
+            {
+                foreach (var timer in _fadeTimers.Values)
+                {
+                    timer.Stop();
+                }
+
+                _fadeTimers.Clear();
+
+                _dispatcher.InvokeAsync(() =>
+                {
+                    try
+                    {
+                        if (_mainWindow.inkCanvas != null)
+                        {
+                            var parent = _mainWindow.inkCanvas.Parent as Panel;
+                            foreach (var visual in _strokeVisuals.Values)
+                            {
+                                if (parent != null && parent.Children.Contains(visual))
+                                {
+                                    parent.Children.Remove(visual);
+                                }
+                                else if (_mainWindow.inkCanvas.Children.Contains(visual))
+                                {
+                                    _mainWindow.inkCanvas.Children.Remove(visual);
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        LogHelper.WriteLogToFile($"清除所有墨迹视觉元素失败: {ex}", LogHelper.LogType.Error);
+                    }
+                });
+
+                _strokeVisuals.Clear();
+                _strokeStartPoints.Clear();
+                _strokeEndPoints.Clear();
+                _strokeAnimationDurations.Clear();
+            }
+            catch (Exception ex)
+            {
+                LogHelper.WriteLogToFile($"清除所有渐隐墨迹失败: {ex}", LogHelper.LogType.Error);
+            }
+        }
+
+        /// <summary>
+        /// 更新渐隐时间设置
+        /// </summary>
+        /// <param name="fadeTime">新的渐隐时间（毫秒）</param>
+        public void UpdateFadeTime(int fadeTime)
+        {
+            FadeTime = fadeTime;
+
+            foreach (var kvp in _fadeTimers)
+            {
+                var stroke = kvp.Key;
+                var timer = kvp.Value;
+
+                timer.Stop();
+                timer.Interval = TimeSpan.FromMilliseconds(FadeTime);
+                timer.Start();
+            }
+        }
+
+        public void UpdateFadeSpeedMultiplier(double multiplier)
+        {
+            FadeSpeedMultiplier = multiplier;
+        }
+
+        private int GetEffectiveAnimationDuration()
+        {
+            if (FadeSpeedMultiplier <= 0) FadeSpeedMultiplier = 1.0;
+            return Math.Max(20, (int)(AnimationDuration / FadeSpeedMultiplier));
+        }
+
+        private int GetStrokeAnimationDuration(Stroke stroke)
+        {
+            if (_strokeAnimationDurations.TryGetValue(stroke, out var animDuration) && animDuration > 0)
+            {
+                return Math.Max(20, animDuration);
+            }
+            return GetEffectiveAnimationDuration();
+        }
+
+
+
+        /// <summary>
+        /// 启用墨迹渐隐功能
+        /// </summary>
+        public void Enable()
+        {
+            IsEnabled = true;
+        }
+
+        /// <summary>
+        /// 禁用墨迹渐隐功能
+        /// </summary>
+        public void Disable()
+        {
+            IsEnabled = false;
+        }
+        #endregion
+
+        #region Private Methods
+        /// <summary>
+        /// 创建墨迹的视觉元素
+        /// </summary>
+        /// <param name="stroke">墨迹对象</param>
+        /// <returns>视觉元素</returns>
+        private UIElement CreateStrokeVisual(Stroke stroke)
+        {
+            try
+            {
+                var geometry = stroke.GetGeometry();
+                if (geometry == null)
+                {
+                    return null;
+                }
+
+                var drawingAttribs = stroke.DrawingAttributes;
+                if (IsLaserStroke(stroke))
+                {
+                    return CreateLaserStrokeVisual(stroke);
+                }
+
+                var path = new Path
+                {
+                    Data = geometry,
+                    Stroke = new SolidColorBrush(drawingAttribs.Color),
+                    StrokeThickness = drawingAttribs.Width,
+                    StrokeStartLineCap = PenLineCap.Round,
+                    StrokeEndLineCap = PenLineCap.Round,
+                    StrokeLineJoin = PenLineJoin.Round,
+                    Fill = drawingAttribs.IsHighlighter ? new SolidColorBrush(drawingAttribs.Color) : null,
+                    Opacity = 0.95,
+                    UseLayoutRounding = false,
+                    SnapsToDevicePixels = false
+                };
+
+                if (drawingAttribs.IsHighlighter)
+                {
+                    path.Opacity = 0.4;
+                    path.StrokeStartLineCap = PenLineCap.Flat;
+                    path.StrokeEndLineCap = PenLineCap.Flat;
+                    path.StrokeLineJoin = PenLineJoin.Miter;
+
+                    if (drawingAttribs.Width < 20)
+                    {
+                        path.StrokeThickness = Math.Max(drawingAttribs.Width * 1.5, 20);
+                    }
+
+                    path.Effect = new BlurEffect
+                    {
+                        Radius = 0.5,
+                        KernelType = KernelType.Gaussian
+                    };
+                }
+
+                return path;
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
+        private bool IsLaserStroke(Stroke stroke)
+        {
+            return stroke != null
+                && stroke.ContainsPropertyData(LaserRenderModeGuid);
+        }
+
+        private UIElement CreateLaserStrokeVisual(Stroke stroke)
+        {
+            if (stroke?.StylusPoints == null || stroke.StylusPoints.Count == 0)
+                return null;
+
+            var centerlineGeometry = CreateLaserCenterlineGeometry(stroke.StylusPoints);
+            if (centerlineGeometry == null)
+                return null;
+
+            return CreateLaserStrokeVisual(centerlineGeometry, stroke.DrawingAttributes);
+        }
+
+        private UIElement CreateLaserStrokeVisual(Geometry centerlineGeometry, DrawingAttributes drawingAttribs)
+        {
+            var container = new System.Windows.Controls.Canvas
+            {
+                Opacity = 1.0,
+                IsHitTestVisible = false,
+                UseLayoutRounding = false,
+                SnapsToDevicePixels = false
+            };
+
+            var baseThickness = Math.Max(0.8, drawingAttribs.Width);
+            var glowThickness = Math.Max(baseThickness * 2.2, baseThickness + 4);
+            var bodyThickness = Math.Max(1.0, baseThickness * 1.02);
+            var coreThickness = Math.Max(0.85, baseThickness * 0.38);
+            var bodyColor = BlendTowardWhite(drawingAttribs.Color, 0.08);
+            var coreColor = BlendTowardWhite(drawingAttribs.Color, 0.94);
+
+            var glowPath = CreateLaserLayerPath(centerlineGeometry, glowThickness, drawingAttribs.Color, 0.22, blurRadius: Math.Max(6.0, glowThickness * 0.55));
+            var bodyPath = CreateLaserLayerPath(centerlineGeometry, bodyThickness, bodyColor, 0.92, blurRadius: 0.0);
+            var corePath = CreateLaserLayerPath(centerlineGeometry, coreThickness, coreColor, 0.98, blurRadius: Math.Max(0.3, coreThickness * 0.12));
+
+            container.Children.Add(glowPath);
+            container.Children.Add(bodyPath);
+            container.Children.Add(corePath);
+            return container;
+        }
+
+        private Geometry CreateLaserCenterlineGeometry(StylusPointCollection stylusPoints)
+        {
+            if (stylusPoints == null || stylusPoints.Count == 0)
+                return null;
+
+            if (stylusPoints.Count == 1)
+            {
+                var point = stylusPoints[0].ToPoint();
+                return new LineGeometry(point, point);
+            }
+
+            var figure = new PathFigure
+            {
+                StartPoint = stylusPoints[0].ToPoint(),
+                IsClosed = false,
+                IsFilled = false
+            };
+
+            var points = new PointCollection();
+            for (int i = 1; i < stylusPoints.Count; i++)
+            {
+                points.Add(stylusPoints[i].ToPoint());
+            }
+
+            figure.Segments.Add(new PolyLineSegment(points, true));
+            return new PathGeometry(new[] { figure });
+        }
+
+        private Path CreateLaserLayerPath(Geometry centerlineGeometry, double thickness, Color color, double opacity, double blurRadius)
+        {
+            var path = new Path
+            {
+                Data = centerlineGeometry.Clone(),
+                Stroke = new SolidColorBrush(Color.FromArgb(255, color.R, color.G, color.B)),
+                StrokeThickness = thickness,
+                StrokeStartLineCap = PenLineCap.Round,
+                StrokeEndLineCap = PenLineCap.Round,
+                StrokeLineJoin = PenLineJoin.Round,
+                Fill = null,
+                Opacity = opacity,
+                UseLayoutRounding = false,
+                SnapsToDevicePixels = false,
+                IsHitTestVisible = false
+            };
+
+            if (blurRadius > 0.01)
+            {
+                path.Effect = new BlurEffect
+                {
+                    Radius = blurRadius,
+                    KernelType = KernelType.Gaussian
+                };
+            }
+
+            return path;
+        }
+
+        private static Color BlendTowardWhite(Color color, double amount)
+        {
+            amount = Math.Max(0.0, Math.Min(1.0, amount));
+            return Color.FromArgb(
+                color.A,
+                (byte)Math.Round(color.R + ((255 - color.R) * amount)),
+                (byte)Math.Round(color.G + ((255 - color.G) * amount)),
+                (byte)Math.Round(color.B + ((255 - color.B) * amount)));
+        }
+
+        /// <summary>
+        /// 开始渐隐动画
+        /// </summary>
+        /// <param name="stroke">要渐隐的墨迹</param>
+        private void StartFadeAnimation(Stroke stroke)
+        {
+            if (!_strokeVisuals.TryGetValue(stroke, out var visual)) return;
+
+            try
+            {
+                _dispatcher.InvokeAsync(() =>
+                {
+                    var currentOpacity = visual.Opacity;
+                    var isHighlighter = stroke.DrawingAttributes.IsHighlighter;
+                    var isLaser = IsLaserStroke(stroke);
+
+                    int animDuration = GetStrokeAnimationDuration(stroke);
+
+                    if (isHighlighter || isLaser)
+                    {
+                        StartUnifiedFadeAnimation(visual, stroke, currentOpacity, animDuration);
+                    }
+                    else
+                    {
+                        StartProgressiveFadeAnimation(visual, stroke, currentOpacity, animDuration);
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                LogHelper.WriteLogToFile($"开始渐隐动画失败: {ex}", LogHelper.LogType.Error);
+            }
+        }
+
+        private void StartUnifiedFadeAnimation(UIElement visual, Stroke stroke, double currentOpacity, int duration)
+        {
+            try
+            {
+                // 创建透明度动画，模拟擦除时的效果
+                var fadeAnimation = new DoubleAnimation
+                {
+                    From = currentOpacity,
+                    To = 0.0,
+                    Duration = TimeSpan.FromMilliseconds(duration),
+                    EasingFunction = new CubicEase { EasingMode = EasingMode.EaseInOut }
+                };
+
+                // 如果是高亮笔或激光笔，添加轻微的缩放效果，使渐隐更加自然
+                if (stroke.DrawingAttributes.IsHighlighter || IsLaserStroke(stroke))
+                {
+                    // 创建轻微的缩放动画，模拟墨迹"蒸发"的效果
+                    var scaleAnimation = new DoubleAnimation
+                    {
+                        From = 1.0,
+                        To = IsLaserStroke(stroke) ? 0.985 : 0.95,
+                        Duration = TimeSpan.FromMilliseconds(duration),
+                        EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn }
+                    };
+
+                    // 创建缩放变换
+                    var scaleTransform = new ScaleTransform();
+                    visual.RenderTransform = scaleTransform;
+                    visual.RenderTransformOrigin = new Point(0.5, 0.5);
+
+                    // 应用缩放动画
+                    scaleTransform.BeginAnimation(ScaleTransform.ScaleXProperty, scaleAnimation);
+                    scaleTransform.BeginAnimation(ScaleTransform.ScaleYProperty, scaleAnimation);
+                }
+
+                // 添加动画完成事件（OnAnimationCompleted 内部会解除动画时钟）
+                EventHandler completedHandler = null;
+                completedHandler = (sender, e) =>
+                {
+                    fadeAnimation.Completed -= completedHandler;
+                    OnAnimationCompleted(visual, stroke);
+                };
+                fadeAnimation.Completed += completedHandler;
+
+                // 应用透明度动画
+                visual.BeginAnimation(UIElement.OpacityProperty, fadeAnimation);
+            }
+            catch (Exception ex)
+            {
+                LogHelper.WriteLogToFile($"统一渐隐动画失败: {ex}", LogHelper.LogType.Error);
+                OnAnimationCompleted(visual, stroke);
+            }
+        }
+
+        private void StartProgressiveFadeAnimation(UIElement visual, Stroke stroke, double currentOpacity, int duration)
+        {
+            try
+            {
+                // 确保所有墨迹都能显示动画，包括短墨迹
+                if (stroke.StylusPoints.Count < 2)
+                {
+                    // 只有1个点的墨迹也使用分段动画，确保视觉效果
+                    CreateSegmentedStroke(visual, stroke, currentOpacity, duration);
+                    return;
+                }
+
+                // 将墨迹分段并创建多个 Path
+                CreateSegmentedStroke(visual, stroke, currentOpacity, duration);
+            }
+            catch (Exception ex)
+            {
+                LogHelper.WriteLogToFile($"渐进式渐隐动画失败: {ex}", LogHelper.LogType.Error);
+                // 失败时回退到简单动画
+                StartSimpleFadeAnimation(visual, stroke, currentOpacity, duration);
+            }
+        }
+
+        /// <summary>
+        /// 创建分段墨迹并开始渐进消失
+        /// </summary>
+        private void CreateSegmentedStroke(UIElement originalVisual, Stroke stroke, double opacity, int duration)
+        {
+            try
+            {
+                var stylusPoints = stroke.StylusPoints;
+                var totalPoints = stylusPoints.Count;
+
+                var strokeLength = CalculateStrokeLength(stylusPoints);
+                var segmentCount = CalculateOptimalSegmentCount(totalPoints, strokeLength);
+
+                segmentCount = Math.Max(segmentCount, 4);
+
+                var pointsPerSegment = Math.Max(1, totalPoints / segmentCount);
+
+                originalVisual.Visibility = Visibility.Hidden;
+
+                var segmentContainer = new System.Windows.Controls.Canvas();
+                var originalAlpha = stroke.DrawingAttributes.Color.A;
+                segmentContainer.Opacity = originalAlpha / 255.0 * opacity;
+
+                var segments = new List<UIElement>();
+
+                for (int i = 0; i < segmentCount; i++)
+                {
+                    var startIndex = i * pointsPerSegment;
+                    var endIndex = (i == segmentCount - 1) ? totalPoints - 1 : (i + 1) * pointsPerSegment;
+
+                    if (endIndex <= startIndex && totalPoints > 1)
+                    {
+                        startIndex = i;
+                        endIndex = Math.Min(i + 1, totalPoints - 1);
+                    }
+
+                    var overlap = Math.Max(1, pointsPerSegment / 6);
+                    var actualStartIndex = Math.Max(0, startIndex - overlap);
+                    var actualEndIndex = Math.Min(totalPoints - 1, endIndex + overlap);
+
+                    var segment = CreateStrokeSegment(stroke, actualStartIndex, actualEndIndex,
+                        i == 0, i == segmentCount - 1);
+                    if (segment != null)
+                    {
+                        segments.Add(segment);
+                        segmentContainer.Children.Add(segment);
+                    }
+                }
+
+                var parent = _mainWindow.inkCanvas?.Parent as Panel;
+                if (parent != null)
+                {
+                    parent.Children.Add(segmentContainer);
+                }
+                else if (_mainWindow.inkCanvas != null)
+                {
+                    _mainWindow.inkCanvas.Children.Add(segmentContainer);
+                }
+
+                StartSegmentedFadeAnimation(segments, stroke, originalVisual, duration, segmentContainer);
+            }
+            catch (Exception)
+            {
+                StartSimpleFadeAnimation(originalVisual, stroke, opacity, duration);
+            }
+        }
+
+        /// <summary>
+        /// 创建墨迹分段
+        /// </summary>
+        private UIElement CreateStrokeSegment(Stroke originalStroke, int startIndex, int endIndex,
+            bool isFirstSegment, bool isLastSegment)
+        {
+            try
+            {
+                var segmentPoints = new StylusPointCollection();
+                for (int i = startIndex; i <= endIndex && i < originalStroke.StylusPoints.Count; i++)
+                {
+                    segmentPoints.Add(originalStroke.StylusPoints[i]);
+                }
+
+                if (segmentPoints.Count < 2) return null;
+
+                var segmentStroke = new Stroke(segmentPoints)
+                {
+                    DrawingAttributes = originalStroke.DrawingAttributes.Clone()
+                };
+
+                var geometry = segmentStroke.GetGeometry();
+                if (geometry == null) return null;
+
+                var drawingAttribs = segmentStroke.DrawingAttributes;
+                var isHighlighter = drawingAttribs.IsHighlighter;
+                var opaqueColor = Color.FromArgb(255, drawingAttribs.Color.R, drawingAttribs.Color.G, drawingAttribs.Color.B);
+
+                if (IsLaserStroke(originalStroke))
+                {
+                    return CreateLaserStrokeVisual(segmentStroke);
+                }
+
+                var path = new Path
+                {
+                    Data = geometry,
+                    Stroke = new SolidColorBrush(opaqueColor),
+                    StrokeThickness = drawingAttribs.Width,
+                    StrokeStartLineCap = isFirstSegment ? (isHighlighter ? PenLineCap.Flat : PenLineCap.Round) : PenLineCap.Flat,
+                    StrokeEndLineCap = isLastSegment ? (isHighlighter ? PenLineCap.Flat : PenLineCap.Round) : PenLineCap.Flat,
+                    StrokeLineJoin = isHighlighter ? PenLineJoin.Miter : PenLineJoin.Round,
+                    Fill = isHighlighter ? new SolidColorBrush(opaqueColor) : null,
+                    Opacity = 1.0,
+                    UseLayoutRounding = false,
+                    SnapsToDevicePixels = false
+                };
+
+                return path;
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// 开始分段渐隐动画
+        /// </summary>
+        private void StartSegmentedFadeAnimation(List<UIElement> segments, Stroke originalStroke, UIElement originalVisual, int totalDuration, FrameworkElement container)
+        {
+            try
+            {
+                var segmentDuration = CalculateOptimalSegmentDuration(totalDuration, segments.Count);
+                var animationCurve = CreateAppleStyleAnimationCurve(segments.Count, totalDuration);
+
+                var completedSegments = new HashSet<UIElement>();
+                var totalSegments = segments.Count;
+
+                for (int i = 0; i < segments.Count; i++)
+                {
+                    var segment = segments[i];
+
+                    var delay = animationCurve[i];
+
+                    var timer = new DispatcherTimer
+                    {
+                        Interval = TimeSpan.FromMilliseconds(delay)
+                    };
+
+                    int segmentIndex = i;
+                    EventHandler tickHandler = null;
+                    tickHandler = (sender, e) =>
+                    {
+                        timer.Tick -= tickHandler;  // 解除订阅，打破循环引用
+                        StartSingleSegmentFadeAnimation(segment, segmentDuration, () =>
+                        {
+                            lock (completedSegments)
+                            {
+                                completedSegments.Add(segment);
+
+                                if (completedSegments.Count >= totalSegments)
+                                {
+                                    CleanupSegmentedAnimation(segments, originalStroke, originalVisual, container);
+                                }
+                            }
+                        });
+                        timer.Stop();
+                    };
+                    timer.Tick += tickHandler;
+
+                    timer.Start();
+                }
+
+                var safetyTimeout = totalDuration + (segments.Count * segmentDuration) + 500;
+                var safetyTimer = new DispatcherTimer
+                {
+                    Interval = TimeSpan.FromMilliseconds(safetyTimeout)
+                };
+
+                EventHandler safetyTickHandler = null;
+                safetyTickHandler = (sender, e) =>
+                {
+                    safetyTimer.Tick -= safetyTickHandler;  // 解除订阅，打破循环引用
+                    CleanupSegmentedAnimation(segments, originalStroke, originalVisual, container);
+                    safetyTimer.Stop();
+                };
+                safetyTimer.Tick += safetyTickHandler;
+
+                safetyTimer.Start();
+            }
+            catch (Exception ex)
+            {
+                LogHelper.WriteLogToFile($"分段渐隐动画失败: {ex}", LogHelper.LogType.Error);
+                CleanupSegmentedAnimation(segments, originalStroke, originalVisual, container);
+            }
+        }
+
+        /// <summary>
+        /// 单个分段的渐隐动画
+        /// </summary>
+        private void StartSingleSegmentFadeAnimation(UIElement segment, int duration, Action onCompleted = null)
+        {
+            try
+            {
+                // 只使用透明度动画，保持墨迹原有粗细
+                var fadeAnimation = new DoubleAnimation
+                {
+                    From = segment.Opacity,
+                    To = 0.0,
+                    Duration = TimeSpan.FromMilliseconds(duration),
+                    EasingFunction = new CubicEase { EasingMode = EasingMode.EaseInOut } // 更平滑的缓动
+                };
+
+                // 添加动画完成事件
+                if (onCompleted != null)
+                {
+                    EventHandler completedHandler = null;
+                    completedHandler = (sender, e) =>
+                    {
+                        // 解除订阅，避免 lambda 闭包持有 fadeAnimation/segment
+                        fadeAnimation.Completed -= completedHandler;
+                        // 解除动画时钟，释放 AnimationClock
+                        segment.BeginAnimation(UIElement.OpacityProperty, null);
+                        onCompleted?.Invoke();
+                    };
+                    fadeAnimation.Completed += completedHandler;
+                }
+
+                // 只应用透明度动画，不改变墨迹大小
+                segment.BeginAnimation(UIElement.OpacityProperty, fadeAnimation);
+            }
+            catch (Exception ex)
+            {
+                LogHelper.WriteLogToFile($"单个分段渐隐动画失败: {ex}", LogHelper.LogType.Error);
+                // 即使失败也要调用完成回调
+                onCompleted?.Invoke();
+            }
+        }
+
+        /// <summary>
+        /// 清理分段动画
+        /// </summary>
+        private void CleanupSegmentedAnimation(List<UIElement> segments, Stroke originalStroke, UIElement originalVisual, FrameworkElement container)
+        {
+            try
+            {
+                var parent = _mainWindow.inkCanvas?.Parent as Panel;
+                if (parent != null && parent.Children.Contains(container))
+                {
+                    parent.Children.Remove(container);
+                }
+                else if (_mainWindow.inkCanvas != null && _mainWindow.inkCanvas.Children.Contains(container))
+                {
+                    _mainWindow.inkCanvas.Children.Remove(container);
+                }
+
+                OnAnimationCompleted(originalVisual, originalStroke);
+            }
+            catch (Exception ex)
+            {
+                LogHelper.WriteLogToFile($"清理分段动画失败: {ex}", LogHelper.LogType.Error);
+            }
+        }
+
+        /// <summary>
+        /// 简单渐隐动画（备用方案）
+        /// </summary>
+        private void StartSimpleFadeAnimation(UIElement visual, Stroke stroke, double currentOpacity, int duration)
+        {
+            try
+            {
+                var fadeAnimation = new DoubleAnimation
+                {
+                    From = currentOpacity,
+                    To = 0.0,
+                    Duration = TimeSpan.FromMilliseconds(duration),
+                    EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn }
+                };
+
+                // 添加动画完成事件（OnAnimationCompleted 内部会解除动画时钟）
+                EventHandler completedHandler = null;
+                completedHandler = (sender, e) =>
+                {
+                    fadeAnimation.Completed -= completedHandler;
+                    OnAnimationCompleted(visual, stroke);
+                };
+                fadeAnimation.Completed += completedHandler;
+                visual.BeginAnimation(UIElement.OpacityProperty, fadeAnimation);
+            }
+            catch (Exception ex)
+            {
+                LogHelper.WriteLogToFile($"简单渐隐动画失败: {ex}", LogHelper.LogType.Error);
+                OnAnimationCompleted(visual, stroke);
+            }
+        }
+
+        /// <summary>
+        /// 计算墨迹的实际长度
+        /// </summary>
+        private double CalculateStrokeLength(StylusPointCollection points)
+        {
+            if (points.Count < 2) return 0;
+
+            double totalLength = 0;
+            for (int i = 1; i < points.Count; i++)
+            {
+                var p1 = points[i - 1].ToPoint();
+                var p2 = points[i].ToPoint();
+                totalLength += Math.Sqrt(Math.Pow(p2.X - p1.X, 2) + Math.Pow(p2.Y - p1.Y, 2));
+            }
+            return totalLength;
+        }
+
+        /// <summary>
+        /// 根据墨迹特性计算最优分段数量 - 平衡速度与完整性
+        /// </summary>
+        private int CalculateOptimalSegmentCount(int pointCount, double strokeLength)
+        {
+            // 平衡速度与完整性，确保动画效果的同时提高速度
+            const double PIXELS_PER_SEGMENT = 12.0; // 每段适中长度，平衡效果与速度
+            const int MIN_SEGMENTS = 5; // 适当的最小分段数，确保动画效果
+            const int MAX_SEGMENTS = 100; // 适中的最大分段数，平衡性能与效果
+
+            // 根据长度计算基础分段数
+            var lengthBasedSegments = Math.Max(MIN_SEGMENTS, (int)(strokeLength / PIXELS_PER_SEGMENT));
+
+            // 根据点密度调整，平衡效果与速度
+            var density = pointCount > 0 ? strokeLength / pointCount : 1;
+            var densityFactor = Math.Max(0.4, Math.Min(2.5, density / 1.8));
+
+            var finalSegments = (int)(lengthBasedSegments * densityFactor);
+
+            // 对于短墨迹，确保至少有4个分段
+            if (pointCount <= 5)
+            {
+                finalSegments = Math.Max(finalSegments, 4);
+            }
+
+            // 限制在合理范围内
+            return Math.Min(MAX_SEGMENTS, Math.Max(MIN_SEGMENTS, finalSegments));
+        }
+
+        /// <summary>
+        /// 计算最优的单段动画持续时间 - 平衡速度与完整性
+        /// </summary>
+        private int CalculateOptimalSegmentDuration(int totalDuration, int segmentCount)
+        {
+            var baseDuration = totalDuration / Math.Max(segmentCount, 1);
+            var minDuration = Math.Max(20, (int)(totalDuration * 0.05));
+            var maxDuration = Math.Max(50, (int)(totalDuration * 0.2));
+
+            return Math.Max(minDuration, Math.Min(maxDuration, baseDuration));
+        }
+
+        private int[] CreateAppleStyleAnimationCurve(int segmentCount, int totalDuration)
+        {
+            var curve = new int[segmentCount];
+
+            var availableTime = (int)(totalDuration * 0.6);
+            var delayBetweenSegments = Math.Max(10, availableTime / Math.Max(segmentCount, 1));
+
+            for (int i = 0; i < segmentCount; i++)
+            {
+                curve[i] = i * delayBetweenSegments;
+            }
+
+            return curve;
+        }
+
+        /// <summary>
+        /// 动画完成后的统一处理
+        /// </summary>
+        private void OnAnimationCompleted(UIElement visual, Stroke stroke)
+        {
+            try
+            {
+                // 先解除动画时钟，释放 AnimationClock 持有的 fadeAnimation + Completed lambda 闭包（捕获 visual/stroke）
+                // 不解除会导致 DoubleAnimation/EventHandler 无法被 GC 回收
+                visual.BeginAnimation(UIElement.OpacityProperty, null);
+
+                // 同样解除可能的缩放动画
+                if (visual.RenderTransform is ScaleTransform scaleTransform)
+                {
+                    scaleTransform.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+                    scaleTransform.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+                }
+
+                // 从父容器中移除墨迹
+                var parent = _mainWindow.inkCanvas?.Parent as Panel;
+                if (parent != null && parent.Children.Contains(visual))
+                {
+                    parent.Children.Remove(visual);
+                }
+                else if (_mainWindow.inkCanvas != null && _mainWindow.inkCanvas.Children.Contains(visual))
+                {
+                    _mainWindow.inkCanvas.Children.Remove(visual);
+                }
+
+                // 清除 RenderTransform 引用
+                visual.RenderTransform = null;
+
+                RemoveStroke(stroke);
+            }
+            catch (Exception ex)
+            {
+                LogHelper.WriteLogToFile($"渐隐动画完成后清理墨迹失败: {ex}", LogHelper.LogType.Error);
+            }
+        }
+        #endregion
+    }
+}

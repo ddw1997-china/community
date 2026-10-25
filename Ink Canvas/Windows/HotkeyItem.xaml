@@ -1,0 +1,26 @@
+<UserControl xmlns:props="clr-namespace:Ink_Canvas.Properties" x:Class="Ink_Canvas.Windows.HotkeyItem"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:ui="http://schemas.inkore.net/lib/ui/wpf/modern"
+             xmlns:ikw="http://schemas.inkore.net/lib/ui/wpf"
+mc:Ignorable="d"
+             d:DesignHeight="68"
+             d:DesignWidth="600">
+
+    <ui:SettingsCard x:Name="RootCard"
+                     Header="{Binding Title, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                     Description="{Binding Description, RelativeSource={RelativeSource AncestorType=UserControl}}">
+        <ui:SettingsCard.HeaderIcon>
+            <ui:FontIcon x:Name="HeaderFontIcon" Icon="{x:Static ui:SegoeFluentIcons.KeyboardStandard}" />
+        </ui:SettingsCard.HeaderIcon>
+        <Button x:Name="BtnSetHotkey"
+                MinWidth="120"
+                FontFamily="Consolas"
+                FontWeight="SemiBold"
+                Click="BtnSetHotkey_Click">
+            <TextBlock x:Name="CurrentHotkeyTextBlock" Text="{x:Static props:CommonStrings.Hotkey_NotSet}" />
+        </Button>
+    </ui:SettingsCard>
+</UserControl>

@@ -1,0 +1,205 @@
+<ui:Page xmlns:props="clr-namespace:Ink_Canvas.Properties" x:Class="Ink_Canvas.Windows.SettingsViews.Pages.ToolbarMenuPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+      xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+      xmlns:local="clr-namespace:Ink_Canvas.Windows.SettingsViews.Pages"
+      xmlns:helpers="clr-namespace:Ink_Canvas.Windows.SettingsViews.Helpers"
+      xmlns:ui="http://schemas.inkore.net/lib/ui/wpf/modern"
+      xmlns:ikw="http://schemas.inkore.net/lib/ui/wpf"
+      xmlns:dd="urn:gong-wpf-dragdrop"
+      xmlns:toolbar="clr-namespace:Ink_Canvas.Controls.Toolbar"
+      xmlns:touch="clr-namespace:Ink_Canvas.Helpers"
+      mc:Ignorable="d"
+      Title="{x:Static props:NavStrings.Nav_ToolbarMenu}">
+
+    <Page.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="../Helpers/SharedSettingsResources.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+
+        <local:MenuItemIdToNameConverter x:Key="IdToNameConverter"/>
+        <helpers:StringToGeometryConverter x:Key="StringToGeometryConverter"/>
+        <local:MenuItemIdToPathDataConverter x:Key="IdToPathDataConverter"/>
+
+        <DataTemplate x:Key="AddedItemTemplate">
+            <Border Cursor="Hand">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <ui:FontIcon touch:TouchAwareDragDropHelper.IsGripHandle="True"
+                                 Icon="{x:Static ui:FluentSystemIcons.ReOrder_16_Regular}" FontSize="16"
+                                 Cursor="SizeAll" VerticalAlignment="Center" Margin="-6,0,0,0"
+                                 RenderTransformOrigin="0.5,0.5">
+                        <ui:FontIcon.RenderTransform>
+                            <RotateTransform Angle="90"/>
+                        </ui:FontIcon.RenderTransform>
+                    </ui:FontIcon>
+                    <Path Data="{Binding Converter={StaticResource IdToPathDataConverter}}"
+                          Width="16" Height="16" Stretch="Uniform"
+                          Fill="{DynamicResource {x:Static ui:ThemeKeys.TextFillColorPrimaryBrushKey}}"
+                          VerticalAlignment="Center" Margin="2,0,4,0"/>
+                    <TextBlock Text="{Binding Converter={StaticResource IdToNameConverter}}"
+                               VerticalAlignment="Center" FontSize="13"/>
+                    <Button Click="RemoveItem_Click"
+                            x:Name="BtnRemoveItem"
+                            Style="{StaticResource BorderlessIconButtonStyle}"
+                            VerticalAlignment="Center"
+                            Cursor="Hand"
+                            Visibility="Collapsed">
+                        <ui:FontIcon Icon="{x:Static ui:FluentSystemIcons.Delete_16_Regular}" FontSize="16" Foreground="IndianRed"/>
+                    </Button>
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+
+        <DataTemplate x:Key="LibraryItemTemplate">
+            <Border BorderThickness="0"
+                    CornerRadius="6" Padding="10,8"
+                    HorizontalAlignment="Stretch"
+                    Cursor="Hand">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <ui:FontIcon Grid.Column="0" touch:TouchAwareDragDropHelper.IsGripHandle="True"
+                                 Icon="{x:Static ui:FluentSystemIcons.ReOrderDotsVertical_24_Filled}" FontSize="16"
+                                 Cursor="SizeAll" Margin="-1,0,2,0" VerticalAlignment="Center"/>
+                    <Path Grid.Column="1" Data="{Binding IconGeometry, Converter={StaticResource StringToGeometryConverter}}" Width="20" Height="20" Stretch="Uniform"
+                          Fill="{DynamicResource {x:Static ui:ThemeKeys.TextFillColorPrimaryBrushKey}}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="{Binding DisplayName}" FontWeight="Medium" FontSize="13"/>
+                        <TextBlock Text="{Binding Description}" Opacity="0.65" FontSize="12"
+                                   TextWrapping="Wrap" Margin="0,2,0,0"/>
+                    </StackPanel>
+                    <Button Grid.Column="3" Click="AddLibraryItem_Click" x:Name="BtnAddItem" Content="&#xE710;" FontFamily="Segoe MDL2 Assets" FontSize="12"
+                            Background="Transparent" BorderThickness="0"
+                            Padding="6,4" VerticalAlignment="Center"
+                            Cursor="Hand" Visibility="Collapsed"/>
+                </Grid>
+            </Border>
+        </DataTemplate>
+        </ResourceDictionary>
+    </Page.Resources>
+
+    <Grid Margin="24,0,24,0">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto" MinHeight="58"/>
+            <RowDefinition Height="6"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- ===== Section 1: 标题 + 提示 ===== -->
+        <StackPanel Grid.Row="0" Margin="0,36,0,6">
+            <TextBlock Text="{x:Static props:NavStrings.Nav_ToolbarMenu}" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,6"/>
+            <TextBlock Text="{x:Static props:NavStrings.Menu_ToolbarDesc}"
+                       Opacity="0.65" FontSize="13" TextWrapping="Wrap"/>
+        </StackPanel>
+
+        <!-- ===== Section 2: 已添加的菜单项 ===== -->
+        <DockPanel Grid.Row="1" LastChildFill="True" ClipToBounds="True">
+            <TextBlock Text="{x:Static props:NavStrings.Menu_AddedItems}" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,6"
+                       DockPanel.Dock="Top"/>
+            <Border CornerRadius="8" Padding="6" MinHeight="58">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Background" Value="Transparent"/>
+                        <Setter Property="BorderBrush" Value="Transparent"/>
+                        <Setter Property="BorderThickness" Value="0"/>
+                        <Style.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#15000000"/>
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <ListView x:Name="AddedList"
+                         ItemTemplate="{StaticResource AddedItemTemplate}"
+                         Style="{StaticResource DragDropListViewStyle}"
+                         dd:DragDrop.DropHandler="{Binding}"
+                         touch:TouchAwareDragDropHelper.IsEnabled="True"
+                         SelectionChanged="AddedList_SelectionChanged"
+                         MinHeight="48">
+                    <ListView.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel Orientation="Horizontal"/>
+                        </ItemsPanelTemplate>
+                    </ListView.ItemsPanel>
+                </ListView>
+            </Border>
+        </DockPanel>
+
+        <!-- ===== GridSplitter ===== -->
+        <GridSplitter Grid.Row="2" Height="6" HorizontalAlignment="Stretch"
+                      Background="{DynamicResource ControlStrokeColorDefaultBrush}"
+                      ResizeDirection="Rows" ResizeBehavior="PreviousAndNext"
+                      Cursor="SizeNS" Margin="0,1,0,1"/>
+
+        <!-- ===== Section 3: 组件库 / 组件设置 ===== -->
+        <TabControl Grid.Row="3" x:Name="SettingsTabControl" Margin="0,4,0,0"
+                    Style="{StaticResource {x:Static ui:ThemeKeys.TabControlPivotStyleKey}}">
+            <TabControl.Resources>
+                <Style TargetType="TabItem" BasedOn="{StaticResource {x:Static ui:ThemeKeys.TabItemPivotStyleKey}}">
+                    <Setter Property="Height" Value="32"/>
+                </Style>
+            </TabControl.Resources>
+
+            <!-- ===== Tab 1: 组件库 ===== -->
+            <TabItem Header="{x:Static props:FloatingBarStrings.ToolbarPage_ComponentLibrary}">
+                <DockPanel LastChildFill="True">
+                    <DockPanel DockPanel.Dock="Top" LastChildFill="False" Margin="0,4,0,6">
+                        <TextBlock Text="{x:Static props:NavStrings.Menu_AvailableItems}" FontSize="14" FontWeight="SemiBold"
+                                   DockPanel.Dock="Left"/>
+                        <TextBlock x:Name="LibraryLimitHint"
+                                   Text="{x:Static props:NavStrings.Menu_LimitReached}"
+                                   FontSize="13" Opacity="0.65"
+                                   VerticalAlignment="Center" Margin="12,0,0,0"
+                                   Visibility="Collapsed"
+                                   DockPanel.Dock="Left"/>
+                    </DockPanel>
+                    <ui:ListView x:Name="LibraryList"
+                             ItemTemplate="{StaticResource LibraryItemTemplate}"
+                             dd:DragDrop.IsDragSource="True"
+                             touch:TouchAwareDragDropHelper.IsEnabled="True"
+                             Background="Transparent" BorderThickness="0"
+                             SelectionMode="Single"
+                             SelectionChanged="LibraryList_SelectionChanged">
+                        <ui:ListView.ItemContainerStyle>
+                            <Style TargetType="ui:ListViewItem">
+                                <Setter Property="Padding" Value="0"/>
+                                <Setter Property="MinHeight" Value="0"/>
+                                <Setter Property="Margin" Value="1.5"/>
+                                <EventSetter Event="Loaded" Handler="ListViewItem_Loaded"/>
+                            </Style>
+                        </ui:ListView.ItemContainerStyle>
+                        <ui:ListView.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel Orientation="Horizontal"
+                                           helpers:WrapPanelAutoResize.TargetWidth="225"/>
+                            </ItemsPanelTemplate>
+                        </ui:ListView.ItemsPanel>
+                    </ui:ListView>
+                </DockPanel>
+            </TabItem>
+
+            <!-- ===== Tab 2: 组件设置 ===== -->
+            <TabItem x:Name="ComponentSettingsTab" Header="{x:Static props:FloatingBarStrings.ToolbarPage_ComponentSettings}">
+                <ScrollViewer PanningMode="VerticalFirst" VerticalScrollBarVisibility="Auto">
+                    <ikw:SimpleStackPanel Spacing="4" Margin="0,8,0,0">
+                        <TextBlock Text="{x:Static props:FloatingBarStrings.ToolbarPage_ComponentProperties}" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                        <!-- 组件自定义设置面板（动态生成，如截图组件的全局设置） -->
+                        <StackPanel x:Name="PanelPluginCustomSettings" Visibility="Collapsed"/>
+                    </ikw:SimpleStackPanel>
+                </ScrollViewer>
+            </TabItem>
+        </TabControl>
+
+        <!-- ===== Section 4: 恢复默认布局 ===== -->
+        <Button Grid.Row="4" Content="{x:Static props:NavStrings.Menu_ResetLayout}" Click="ButtonReset_Click"
+                Padding="20,10" HorizontalAlignment="Left" Margin="0,12,0,16"/>
+    </Grid>
+</ui:Page>

@@ -1,0 +1,1219 @@
+using Ink_Canvas.Helpers;
+using Ink_Canvas.WorkflowAutomation;
+using System;
+using System.Collections.Generic;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Ink;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+
+namespace Ink_Canvas
+{
+    public partial class MainWindow : Ink_Canvas.Helpers.PerformanceTransparentWin
+    {
+        /// <summary>
+        /// 当前墨水颜色
+        /// </summary>
+        private int inkColor = 1;
+
+        /// <summary>
+        /// 颜色切换检查，处理颜色变更和相关UI状态
+        /// </summary>
+        /// <param name="hidePanels">是否隐藏面板</param>
+        /// <remarks>
+        /// - 隐藏相关面板
+        /// - 处理透明背景情况
+        /// - 处理选中笔画的颜色更新
+        /// - 提交笔画属性历史记录
+        /// - 设置工具模式为墨水模式
+        /// - 取消单指拖动模式
+        /// - 检查颜色主题
+        /// </remarks>
+        private void ColorSwitchCheck(bool hidePanels = true)
+        {
+            if (hidePanels)
+            {
+                HideSubPanels("color");
+            }
+            if (GridTransparencyFakeBackground.Background == Brushes.Transparent)
+            {
+                if (currentMode == 1)
+                {
+                    currentMode = 0;
+                    AutomationBootstrap.Monitor?.NotifyInternalStateChanged();
+                    GridBackgroundCover.Visibility = Visibility.Collapsed;
+                    AnimationsHelper.HideWithSlideAndFade(BlackboardLeftSide);
+                    AnimationsHelper.HideWithSlideAndFade(BlackboardCenterSide);
+                    AnimationsHelper.HideWithSlideAndFade(BlackboardRightSide);
+
+                    // 在PPT模式下隐藏手势面板和手势按钮
+                    AnimationsHelper.HideWithSlideAndFade(TwoFingerGestureBorder);
+                    AnimationsHelper.HideWithSlideAndFade(BoardTwoFingerGestureBorder);
+                    UpdateToolbarComponentVisibility();
+                    SyncPdfPageSidebarWithCanvas();
+                }
+
+                BtnHideInkCanvas_Click(null, null);
+            }
+
+            var strokes = inkCanvas.GetSelectedStrokes();
+            if (strokes.Count != 0)
+            {
+                foreach (var stroke in strokes)
+                    try
+                    {
+                        stroke.DrawingAttributes.Color = inkCanvas.DefaultDrawingAttributes.Color;
+                    }
+                    catch
+                    {
+                        // ignored
+                    }
+            }
+            if (DrawingAttributesHistory.Count > 0)
+            {
+                timeMachine.CommitStrokeDrawingAttributesHistory(DrawingAttributesHistory);
+                DrawingAttributesHistory = new Dictionary<Stroke, Tuple<DrawingAttributes, DrawingAttributes>>();
+                foreach (var item in DrawingAttributesHistoryFlag)
+                {
+                    item.Value.Clear();
+                }
+            }
+            else
+            {
+                inkCanvas.IsManipulationEnabled = true;
+                drawingShapeMode = 0;
+                // 使用集中化的工具模式切换方法
+                SetCurrentToolMode(InkCanvasEditingMode.Ink);
+                CancelSingleFingerDragMode();
+            }
+
+            // 无论是否有待提交的笔迹属性历史，都要刷新颜色按钮/调色盘的勾选状态，
+            // 否则刚写过字后切换颜色时，颜色面板的选中标记会停留在上一次的颜色上。
+            CheckColorTheme();
+
+            isLongPressSelected = false;
+        }
+
+        /// <summary>
+        /// 是否使用亮色主题颜色
+        /// </summary>
+        private bool isUselightThemeColor;
+
+        /// <summary>
+        /// 桌面模式是否使用亮色主题颜色
+        /// </summary>
+        private bool isDesktopUselightThemeColor;
+
+        /// <summary>
+        /// 笔类型（0是签字笔，1是荧光笔，2是激光笔）
+        /// </summary>
+        private int penType;
+
+        private long _stylusDownTimestamp;
+
+        /// <summary>
+        /// 桌面模式最后使用的墨水颜色
+        /// </summary>
+        private int lastDesktopInkColor = 1;
+
+        /// <summary>
+        /// 白板模式最后使用的墨水颜色
+        /// </summary>
+        private int lastBoardInkColor = 5;
+
+        /// <summary>
+        /// 荧光笔颜色
+        /// </summary>
+        private int highlighterColor = 102;
+
+        /// <summary>
+        /// 根据当前模式、画笔类型与主题设置，应用并同步画布颜色、笔触颜色与界面配色指示器。
+        /// </summary>
+        /// <param name="changeColorTheme">为 true 时（且非桌面模式）根据白板/黑板设置刷新背景色、水印色和亮/暗主题标志；为 false 则仅同步颜色相关状态。</param>
+        private void CheckColorTheme(bool changeColorTheme = false)
+        {
+            if (changeColorTheme)
+                if (currentMode != 0)
+                {
+                    if (Settings.Canvas.UsingWhiteboard)
+                    {
+                        // 检查是否有自定义背景色，如果有则使用自定义背景色
+                        if (CustomBackgroundColor.HasValue)
+                        {
+                            GridBackgroundCover.Background = new SolidColorBrush(CustomBackgroundColor.Value);
+                        }
+                        else
+                        {
+                            GridBackgroundCover.Background = new SolidColorBrush(Color.FromRgb(234, 235, 237));
+                        }
+                        WaterMarkTime.Foreground = new SolidColorBrush(Color.FromRgb(22, 41, 36));
+                        WaterMarkDate.Foreground = new SolidColorBrush(Color.FromRgb(22, 41, 36));
+                        BlackBoardWaterMark.Foreground = new SolidColorBrush(Color.FromRgb(22, 41, 36));
+                        isUselightThemeColor = false;
+                    }
+                    else
+                    {
+                        // 黑板模式下，检查是否有自定义背景色
+                        if (CustomBackgroundColor.HasValue)
+                        {
+                            GridBackgroundCover.Background = new SolidColorBrush(CustomBackgroundColor.Value);
+                        }
+                        else
+                        {
+                            GridBackgroundCover.Background = new SolidColorBrush(Color.FromRgb(22, 41, 36));
+                        }
+                        WaterMarkTime.Foreground = new SolidColorBrush(Color.FromRgb(234, 235, 237));
+                        WaterMarkDate.Foreground = new SolidColorBrush(Color.FromRgb(234, 235, 237));
+                        BlackBoardWaterMark.Foreground = new SolidColorBrush(Color.FromRgb(234, 235, 237));
+                        isUselightThemeColor = true;
+                    }
+                }
+
+            if (currentMode == 0)
+            {
+                isUselightThemeColor = isDesktopUselightThemeColor;
+                inkColor = lastDesktopInkColor;
+            }
+            else
+            {
+                inkColor = lastBoardInkColor;
+            }
+
+            double alpha = inkCanvas.DefaultDrawingAttributes.Color.A;
+            if (penType == 0 && Settings?.Canvas != null)
+            {
+                double settingAlpha = Settings.Canvas.InkAlpha;
+                if (settingAlpha >= 0 && settingAlpha <= 255)
+                    alpha = settingAlpha;
+            }
+            else if (penType == 1 && Settings?.Canvas != null)
+            {
+                double settingAlpha = Settings.Canvas.HighlighterAlpha;
+                if (settingAlpha >= 0 && settingAlpha <= 255)
+                    alpha = settingAlpha;
+            }
+            else if (penType == 2 && Settings?.Canvas != null)
+            {
+                double settingAlpha = Settings.Canvas.LaserPenAlpha;
+                if (settingAlpha >= 0 && settingAlpha <= 255)
+                    alpha = settingAlpha;
+            }
+
+            if (penType == 0)
+            {
+                if (inkColor == 0)
+                {
+                    // Black
+                    inkCanvas.DefaultDrawingAttributes.Color = Color.FromArgb((byte)alpha, 0, 0, 0);
+                }
+                else if (inkColor == 5)
+                {
+                    // White
+                    inkCanvas.DefaultDrawingAttributes.Color = Color.FromArgb((byte)alpha, 255, 255, 255);
+                }
+                else if (isUselightThemeColor)
+                {
+                    if (inkColor == 1)
+                        // Red
+                        inkCanvas.DefaultDrawingAttributes.Color = Color.FromArgb((byte)alpha, 239, 68, 68);
+                    else if (inkColor == 2)
+                        // Green
+                        inkCanvas.DefaultDrawingAttributes.Color = Color.FromArgb((byte)alpha, 34, 197, 94);
+                    else if (inkColor == 3)
+                        // Blue
+                        inkCanvas.DefaultDrawingAttributes.Color = Color.FromArgb((byte)alpha, 59, 130, 246);
+                    else if (inkColor == 4)
+                        // Yellow
+                        inkCanvas.DefaultDrawingAttributes.Color = Color.FromArgb((byte)alpha, 250, 204, 21);
+                    else if (inkColor == 6)
+                        // Pink
+                        inkCanvas.DefaultDrawingAttributes.Color = Color.FromArgb((byte)alpha, 236, 72, 153);
+                    else if (inkColor == 7)
+                        // Teal (亮色)
+                        inkCanvas.DefaultDrawingAttributes.Color = Color.FromArgb((byte)alpha, 20, 184, 166);
+                    else if (inkColor == 8)
+                        // Orange (亮色)
+                        inkCanvas.DefaultDrawingAttributes.Color = Color.FromArgb((byte)alpha, 249, 115, 22);
+                }
+                else
+                {
+                    if (inkColor == 1)
+                        // Red
+                        inkCanvas.DefaultDrawingAttributes.Color = Color.FromArgb((byte)alpha, 220, 38, 38);
+                    else if (inkColor == 2)
+                        // Green
+                        inkCanvas.DefaultDrawingAttributes.Color = Color.FromArgb((byte)alpha, 22, 163, 74);
+                    else if (inkColor == 3)
+                        // Blue
+                        inkCanvas.DefaultDrawingAttributes.Color = Color.FromArgb((byte)alpha, 37, 99, 235);
+                    else if (inkColor == 4)
+                        // Yellow
+                        inkCanvas.DefaultDrawingAttributes.Color = Color.FromArgb((byte)alpha, 234, 179, 8);
+                    else if (inkColor == 6)
+                        // Pink ( Purple )
+                        inkCanvas.DefaultDrawingAttributes.Color = Color.FromArgb((byte)alpha, 147, 51, 234);
+                    else if (inkColor == 7)
+                        // Teal (暗色)
+                        inkCanvas.DefaultDrawingAttributes.Color = Color.FromArgb((byte)alpha, 13, 148, 136);
+                    else if (inkColor == 8)
+                        // Orange (暗色)
+                        inkCanvas.DefaultDrawingAttributes.Color = Color.FromArgb((byte)alpha, 234, 88, 12);
+                }
+            }
+            else if (penType == 1)
+            {
+                if (highlighterColor == 100)
+                    inkCanvas.DefaultDrawingAttributes.Color = Color.FromArgb((byte)alpha, 0, 0, 0);
+                else if (highlighterColor == 101)
+                    inkCanvas.DefaultDrawingAttributes.Color = Color.FromArgb((byte)alpha, 250, 250, 250);
+                else if (highlighterColor == 102)
+                    inkCanvas.DefaultDrawingAttributes.Color = Color.FromArgb((byte)alpha, 239, 68, 68);
+                else if (highlighterColor == 103)
+                    inkCanvas.DefaultDrawingAttributes.Color = Color.FromArgb((byte)alpha, 253, 224, 71);
+                else if (highlighterColor == 104)
+                    inkCanvas.DefaultDrawingAttributes.Color = Color.FromArgb((byte)alpha, 74, 222, 128);
+                else if (highlighterColor == 105)
+                    inkCanvas.DefaultDrawingAttributes.Color = Color.FromArgb((byte)alpha, 113, 113, 122);
+                else if (highlighterColor == 106)
+                    inkCanvas.DefaultDrawingAttributes.Color = Color.FromArgb((byte)alpha, 59, 130, 246);
+                else if (highlighterColor == 107)
+                    inkCanvas.DefaultDrawingAttributes.Color = Color.FromArgb((byte)alpha, 168, 85, 247);
+                else if (highlighterColor == 108)
+                    inkCanvas.DefaultDrawingAttributes.Color = Color.FromArgb((byte)alpha, 45, 212, 191);
+                else if (highlighterColor == 109)
+                    inkCanvas.DefaultDrawingAttributes.Color = Color.FromArgb((byte)alpha, 249, 115, 22);
+            }
+            else if (penType == 2)
+            {
+                if (inkColor == 0)
+                    inkCanvas.DefaultDrawingAttributes.Color = Color.FromArgb((byte)alpha, 0, 0, 0);
+                else if (inkColor == 5)
+                    inkCanvas.DefaultDrawingAttributes.Color = Color.FromArgb((byte)alpha, 255, 255, 255);
+                else if (isUselightThemeColor)
+                {
+                    if (inkColor == 1)
+                        inkCanvas.DefaultDrawingAttributes.Color = Color.FromArgb((byte)alpha, 239, 68, 68);
+                    else if (inkColor == 2)
+                        inkCanvas.DefaultDrawingAttributes.Color = Color.FromArgb((byte)alpha, 34, 197, 94);
+                    else if (inkColor == 3)
+                        inkCanvas.DefaultDrawingAttributes.Color = Color.FromArgb((byte)alpha, 59, 130, 246);
+                    else if (inkColor == 4)
+                        inkCanvas.DefaultDrawingAttributes.Color = Color.FromArgb((byte)alpha, 250, 204, 21);
+                    else if (inkColor == 6)
+                        inkCanvas.DefaultDrawingAttributes.Color = Color.FromArgb((byte)alpha, 236, 72, 153);
+                    else if (inkColor == 7)
+                        inkCanvas.DefaultDrawingAttributes.Color = Color.FromArgb((byte)alpha, 20, 184, 166);
+                    else if (inkColor == 8)
+                        inkCanvas.DefaultDrawingAttributes.Color = Color.FromArgb((byte)alpha, 249, 115, 22);
+                }
+                else
+                {
+                    if (inkColor == 1)
+                        inkCanvas.DefaultDrawingAttributes.Color = Color.FromArgb((byte)alpha, 220, 38, 38);
+                    else if (inkColor == 2)
+                        inkCanvas.DefaultDrawingAttributes.Color = Color.FromArgb((byte)alpha, 22, 163, 74);
+                    else if (inkColor == 3)
+                        inkCanvas.DefaultDrawingAttributes.Color = Color.FromArgb((byte)alpha, 37, 99, 235);
+                    else if (inkColor == 4)
+                        inkCanvas.DefaultDrawingAttributes.Color = Color.FromArgb((byte)alpha, 234, 179, 8);
+                    else if (inkColor == 6)
+                        inkCanvas.DefaultDrawingAttributes.Color = Color.FromArgb((byte)alpha, 147, 51, 234);
+                    else if (inkColor == 7)
+                        inkCanvas.DefaultDrawingAttributes.Color = Color.FromArgb((byte)alpha, 13, 148, 136);
+                    else if (inkColor == 8)
+                        inkCanvas.DefaultDrawingAttributes.Color = Color.FromArgb((byte)alpha, 234, 88, 12);
+                }
+            }
+
+            if (isUselightThemeColor)
+            {
+                // 亮系
+                // 亮色的红色
+                BorderPenColorRed.Color = Color.FromRgb(239, 68, 68);
+                BoardBorderPenColorRed.Color = Color.FromRgb(239, 68, 68);
+                // 亮色的绿色
+                BorderPenColorGreen.Color = Color.FromRgb(34, 197, 94);
+                BoardBorderPenColorGreen.Color = Color.FromRgb(34, 197, 94);
+                // 亮色的蓝色
+                BorderPenColorBlue.Color = Color.FromRgb(59, 130, 246);
+                BoardBorderPenColorBlue.Color = Color.FromRgb(59, 130, 246);
+                // 亮色的黄色
+                BorderPenColorYellow.Color = Color.FromRgb(250, 204, 21);
+                BoardBorderPenColorYellow.Color = Color.FromRgb(250, 204, 21);
+                // 亮色的粉色
+                BorderPenColorPink.Color = Color.FromRgb(236, 72, 153);
+                BoardBorderPenColorPink.Color = Color.FromRgb(236, 72, 153);
+                // 亮色的Teal
+                BorderPenColorTeal.Color = Color.FromRgb(20, 184, 166);
+                BoardBorderPenColorTeal.Color = Color.FromRgb(20, 184, 166);
+                // 亮色的Orange
+                BorderPenColorOrange.Color = Color.FromRgb(249, 115, 22);
+                BoardBorderPenColorOrange.Color = Color.FromRgb(249, 115, 22);
+
+                // 更新激光笔颜色
+                LaserPenColorRed.Color = Color.FromRgb(239, 68, 68);
+                BoardLaserPenColorRed.Color = Color.FromRgb(239, 68, 68);
+                LaserPenColorGreen.Color = Color.FromRgb(34, 197, 94);
+                BoardLaserPenColorGreen.Color = Color.FromRgb(34, 197, 94);
+                LaserPenColorBlue.Color = Color.FromRgb(59, 130, 246);
+                BoardLaserPenColorBlue.Color = Color.FromRgb(59, 130, 246);
+                LaserPenColorYellow.Color = Color.FromRgb(250, 204, 21);
+                BoardLaserPenColorYellow.Color = Color.FromRgb(250, 204, 21);
+                LaserPenColorPink.Color = Color.FromRgb(236, 72, 153);
+                BoardLaserPenColorPink.Color = Color.FromRgb(236, 72, 153);
+                LaserPenColorTeal.Color = Color.FromRgb(20, 184, 166);
+                BoardLaserPenColorTeal.Color = Color.FromRgb(20, 184, 166);
+                LaserPenColorOrange.Color = Color.FromRgb(249, 115, 22);
+                BoardLaserPenColorOrange.Color = Color.FromRgb(249, 115, 22);
+
+                var newImageSource = new BitmapImage();
+                newImageSource.BeginInit();
+                newImageSource.UriSource = new Uri("/Resources/Icons-Fluent/ic_fluent_weather_moon_24_regular.png",
+                    UriKind.RelativeOrAbsolute);
+                newImageSource.EndInit();
+                ColorThemeSwitchIcon.Source = newImageSource;
+                BoardColorThemeSwitchIcon.Source = newImageSource;
+                LaserPenColorThemeSwitchIcon.Source = newImageSource;
+                BoardLaserPenColorThemeSwitchIcon.Source = newImageSource;
+
+                ColorThemeSwitchTextBlock.Text = Properties.MainWindowStrings.Main_Colors_DarkTheme;
+                BoardColorThemeSwitchTextBlock.Text = Properties.MainWindowStrings.Main_Colors_DarkTheme;
+                LaserPenColorThemeSwitchTextBlock.Text = Properties.MainWindowStrings.Main_Colors_DarkTheme;
+                BoardLaserPenColorThemeSwitchTextBlock.Text = Properties.MainWindowStrings.Main_Colors_DarkTheme;
+            }
+            else
+            {
+                // 暗系
+                // 暗色的红色
+                BorderPenColorRed.Color = Color.FromRgb(220, 38, 38);
+                BoardBorderPenColorRed.Color = Color.FromRgb(220, 38, 38);
+                // 暗色的绿色
+                BorderPenColorGreen.Color = Color.FromRgb(22, 163, 74);
+                BoardBorderPenColorGreen.Color = Color.FromRgb(22, 163, 74);
+                // 暗色的蓝色
+                BorderPenColorBlue.Color = Color.FromRgb(37, 99, 235);
+                BoardBorderPenColorBlue.Color = Color.FromRgb(37, 99, 235);
+                // 暗色的黄色
+                BorderPenColorYellow.Color = Color.FromRgb(234, 179, 8);
+                BoardBorderPenColorYellow.Color = Color.FromRgb(234, 179, 8);
+                // 暗色的紫色对应亮色的粉色
+                BorderPenColorPink.Color = Color.FromRgb(147, 51, 234);
+                BoardBorderPenColorPink.Color = Color.FromRgb(147, 51, 234);
+                // 暗色的Teal
+                BorderPenColorTeal.Color = Color.FromRgb(13, 148, 136);
+                BoardBorderPenColorTeal.Color = Color.FromRgb(13, 148, 136);
+                // 暗色的Orange
+                BorderPenColorOrange.Color = Color.FromRgb(234, 88, 12);
+                BoardBorderPenColorOrange.Color = Color.FromRgb(234, 88, 12);
+
+                // 更新激光笔颜色
+                LaserPenColorRed.Color = Color.FromRgb(220, 38, 38);
+                BoardLaserPenColorRed.Color = Color.FromRgb(220, 38, 38);
+                LaserPenColorGreen.Color = Color.FromRgb(22, 163, 74);
+                BoardLaserPenColorGreen.Color = Color.FromRgb(22, 163, 74);
+                LaserPenColorBlue.Color = Color.FromRgb(37, 99, 235);
+                BoardLaserPenColorBlue.Color = Color.FromRgb(37, 99, 235);
+                LaserPenColorYellow.Color = Color.FromRgb(234, 179, 8);
+                BoardLaserPenColorYellow.Color = Color.FromRgb(234, 179, 8);
+                LaserPenColorPink.Color = Color.FromRgb(147, 51, 234);
+                BoardLaserPenColorPink.Color = Color.FromRgb(147, 51, 234);
+                LaserPenColorTeal.Color = Color.FromRgb(13, 148, 136);
+                BoardLaserPenColorTeal.Color = Color.FromRgb(13, 148, 136);
+                LaserPenColorOrange.Color = Color.FromRgb(234, 88, 12);
+                BoardLaserPenColorOrange.Color = Color.FromRgb(234, 88, 12);
+
+                var newImageSource = new BitmapImage();
+                newImageSource.BeginInit();
+                newImageSource.UriSource = new Uri("/Resources/Icons-Fluent/ic_fluent_weather_sunny_24_regular.png",
+                    UriKind.RelativeOrAbsolute);
+                newImageSource.EndInit();
+                ColorThemeSwitchIcon.Source = newImageSource;
+                BoardColorThemeSwitchIcon.Source = newImageSource;
+                LaserPenColorThemeSwitchIcon.Source = newImageSource;
+                BoardLaserPenColorThemeSwitchIcon.Source = newImageSource;
+
+                ColorThemeSwitchTextBlock.Text = Properties.MainWindowStrings.Main_Colors_LightTheme;
+                BoardColorThemeSwitchTextBlock.Text = Properties.MainWindowStrings.Main_Colors_LightTheme;
+                LaserPenColorThemeSwitchTextBlock.Text = Properties.MainWindowStrings.Main_Colors_LightTheme;
+                BoardLaserPenColorThemeSwitchTextBlock.Text = Properties.MainWindowStrings.Main_Colors_LightTheme;
+            }
+
+            // 改变选中提示
+            BorderPenColorBlack.IsChecked = false;
+            BorderPenColorBlue.IsChecked = false;
+            BorderPenColorGreen.IsChecked = false;
+            BorderPenColorRed.IsChecked = false;
+            BorderPenColorYellow.IsChecked = false;
+            BorderPenColorWhite.IsChecked = false;
+            BorderPenColorPink.IsChecked = false;
+            BorderPenColorTeal.IsChecked = false;
+            BorderPenColorOrange.IsChecked = false;
+
+            BoardBorderPenColorBlack.IsChecked = false;
+            BoardBorderPenColorBlue.IsChecked = false;
+            BoardBorderPenColorGreen.IsChecked = false;
+            BoardBorderPenColorRed.IsChecked = false;
+            BoardBorderPenColorYellow.IsChecked = false;
+            BoardBorderPenColorWhite.IsChecked = false;
+            BoardBorderPenColorPink.IsChecked = false;
+            BoardBorderPenColorTeal.IsChecked = false;
+            BoardBorderPenColorOrange.IsChecked = false;
+
+            HighlighterPenColorBlack.IsChecked = false;
+            HighlighterPenColorBlue.IsChecked = false;
+            HighlighterPenColorGreen.IsChecked = false;
+            HighlighterPenColorOrange.IsChecked = false;
+            HighlighterPenPenColorPurple.IsChecked = false;
+            HighlighterPenColorRed.IsChecked = false;
+            HighlighterPenColorTeal.IsChecked = false;
+            HighlighterPenColorWhite.IsChecked = false;
+            HighlighterPenColorYellow.IsChecked = false;
+            HighlighterPenColorZinc.IsChecked = false;
+
+            BoardHighlighterPenColorBlack.IsChecked = false;
+            BoardHighlighterPenColorBlue.IsChecked = false;
+            BoardHighlighterPenColorGreen.IsChecked = false;
+            BoardHighlighterPenColorOrange.IsChecked = false;
+            BoardHighlighterPenPenColorPurple.IsChecked = false;
+            BoardHighlighterPenColorRed.IsChecked = false;
+            BoardHighlighterPenColorTeal.IsChecked = false;
+            BoardHighlighterPenColorWhite.IsChecked = false;
+            BoardHighlighterPenColorYellow.IsChecked = false;
+            BoardHighlighterPenColorZinc.IsChecked = false;
+
+            // 重置激光笔颜色按钮
+            LaserPenColorBlack.IsChecked = false;
+            LaserPenColorWhite.IsChecked = false;
+            LaserPenColorRed.IsChecked = false;
+            LaserPenColorYellow.IsChecked = false;
+            LaserPenColorGreen.IsChecked = false;
+            LaserPenColorBlue.IsChecked = false;
+            LaserPenColorPink.IsChecked = false;
+            LaserPenColorTeal.IsChecked = false;
+            LaserPenColorOrange.IsChecked = false;
+
+            BoardLaserPenColorBlack.IsChecked = false;
+            BoardLaserPenColorWhite.IsChecked = false;
+            BoardLaserPenColorRed.IsChecked = false;
+            BoardLaserPenColorYellow.IsChecked = false;
+            BoardLaserPenColorGreen.IsChecked = false;
+            BoardLaserPenColorBlue.IsChecked = false;
+            BoardLaserPenColorPink.IsChecked = false;
+            BoardLaserPenColorTeal.IsChecked = false;
+            BoardLaserPenColorOrange.IsChecked = false;
+
+            switch (inkColor)
+            {
+                case 0:
+                    BorderPenColorBlack.IsChecked = true;
+                    BoardBorderPenColorBlack.IsChecked = true;
+                    break;
+                case 1:
+                    BorderPenColorRed.IsChecked = true;
+                    BoardBorderPenColorRed.IsChecked = true;
+                    break;
+                case 2:
+                    BorderPenColorGreen.IsChecked = true;
+                    BoardBorderPenColorGreen.IsChecked = true;
+                    break;
+                case 3:
+                    BorderPenColorBlue.IsChecked = true;
+                    BoardBorderPenColorBlue.IsChecked = true;
+                    break;
+                case 4:
+                    BorderPenColorYellow.IsChecked = true;
+                    BoardBorderPenColorYellow.IsChecked = true;
+                    break;
+                case 5:
+                    BorderPenColorWhite.IsChecked = true;
+                    BoardBorderPenColorWhite.IsChecked = true;
+                    break;
+                case 6:
+                    BorderPenColorPink.IsChecked = true;
+                    BoardBorderPenColorPink.IsChecked = true;
+                    break;
+                case 7:
+                    BorderPenColorTeal.IsChecked = true;
+                    BoardBorderPenColorTeal.IsChecked = true;
+                    break;
+                case 8:
+                    BorderPenColorOrange.IsChecked = true;
+                    BoardBorderPenColorOrange.IsChecked = true;
+                    break;
+            }
+
+            switch (highlighterColor)
+            {
+                case 100:
+                    HighlighterPenColorBlack.IsChecked = true;
+                    BoardHighlighterPenColorBlack.IsChecked = true;
+                    break;
+                case 101:
+                    HighlighterPenColorWhite.IsChecked = true;
+                    BoardHighlighterPenColorWhite.IsChecked = true;
+                    break;
+                case 102:
+                    HighlighterPenColorRed.IsChecked = true;
+                    BoardHighlighterPenColorRed.IsChecked = true;
+                    break;
+                case 103:
+                    HighlighterPenColorYellow.IsChecked = true;
+                    BoardHighlighterPenColorYellow.IsChecked = true;
+                    break;
+                case 104:
+                    HighlighterPenColorGreen.IsChecked = true;
+                    BoardHighlighterPenColorGreen.IsChecked = true;
+                    break;
+                case 105:
+                    HighlighterPenColorZinc.IsChecked = true;
+                    BoardHighlighterPenColorZinc.IsChecked = true;
+                    break;
+                case 106:
+                    HighlighterPenColorBlue.IsChecked = true;
+                    BoardHighlighterPenColorBlue.IsChecked = true;
+                    break;
+                case 107:
+                    HighlighterPenPenColorPurple.IsChecked = true;
+                    BoardHighlighterPenPenColorPurple.IsChecked = true;
+                    break;
+                case 108:
+                    HighlighterPenColorTeal.IsChecked = true;
+                    BoardHighlighterPenColorTeal.IsChecked = true;
+                    break;
+                case 109:
+                    HighlighterPenColorOrange.IsChecked = true;
+                    BoardHighlighterPenColorOrange.IsChecked = true;
+                    break;
+            }
+
+            // 更新激光笔颜色按钮选中状态
+            if (penType == 2)
+            {
+                switch (inkColor)
+                {
+                    case 0:
+                        LaserPenColorBlack.IsChecked = true;
+                        BoardLaserPenColorBlack.IsChecked = true;
+                        break;
+                    case 1:
+                        LaserPenColorRed.IsChecked = true;
+                        BoardLaserPenColorRed.IsChecked = true;
+                        break;
+                    case 2:
+                        LaserPenColorGreen.IsChecked = true;
+                        BoardLaserPenColorGreen.IsChecked = true;
+                        break;
+                    case 3:
+                        LaserPenColorBlue.IsChecked = true;
+                        BoardLaserPenColorBlue.IsChecked = true;
+                        break;
+                    case 4:
+                        LaserPenColorYellow.IsChecked = true;
+                        BoardLaserPenColorYellow.IsChecked = true;
+                        break;
+                    case 5:
+                        LaserPenColorWhite.IsChecked = true;
+                        BoardLaserPenColorWhite.IsChecked = true;
+                        break;
+                    case 6:
+                        LaserPenColorPink.IsChecked = true;
+                        BoardLaserPenColorPink.IsChecked = true;
+                        break;
+                    case 7:
+                        LaserPenColorTeal.IsChecked = true;
+                        BoardLaserPenColorTeal.IsChecked = true;
+                        break;
+                    case 8:
+                        LaserPenColorOrange.IsChecked = true;
+                        BoardLaserPenColorOrange.IsChecked = true;
+                        break;
+                }
+            }
+
+            // 更新快捷调色盘选择指示器
+            // 按颜色索引而不是 RGB 取色：白板/黑板模式会把预设色替换成主题色，
+            // RGB 与预设值不完全一致时「按颜色匹配」会全部落空，导致八个色块都没有勾。
+            if (penType == 0)
+            {
+                UpdateQuickColorPaletteIndicatorByIndex(inkColor);
+            }
+
+            // 更新浮动栏批注图标颜色
+            UpdatePenIconColor();
+            // 更新白板工具栏画笔图标颜色
+            UpdateBoardPenIconColor();
+        }
+
+        /// <summary>
+        /// 检查并更新最后使用的颜色
+        /// </summary>
+        /// <param name="inkColor">墨水颜色</param>
+        /// <param name="isHighlighter">是否为荧光笔</param>
+        /// <remarks>
+        /// - 如果是荧光笔，更新荧光笔颜色
+        /// - 否则，根据当前模式更新相应的最后使用颜色
+        /// </remarks>
+        private void CheckLastColor(int inkColor, bool isHighlighter = false)
+        {
+            if (isHighlighter)
+            {
+                highlighterColor = inkColor;
+            }
+            else
+            {
+                if (currentMode == 0) lastDesktopInkColor = inkColor;
+                else lastBoardInkColor = inkColor;
+            }
+        }
+
+        /// <summary>
+        /// 检查并更新笔类型UI状态
+        /// </summary>
+        /// <returns>异步任务</returns>
+        /// <remarks>
+        /// - 根据笔类型显示或隐藏相应的面板
+        /// - 更新标签按钮的样式和状态
+        /// - 执行面板动画
+        /// - 处理签字笔和荧光笔的不同UI状态
+        /// </remarks>
+        private async void CheckPenTypeUIState()
+        {
+            if (penType == 0)
+            {
+                CommonPropsPanel.Visibility = Visibility.Visible;
+                LaserPenFadePanel.Visibility = Visibility.Collapsed;
+                LaserPenFadeSpeedPanel.Visibility = Visibility.Collapsed;
+                InkToShapePanel.Visibility = Visibility.Visible;
+                HighlighterOverlapPanel.Visibility = Visibility.Collapsed;
+                DefaultPenColorsPanel.Visibility = Visibility.Visible;
+                HighlighterPenColorsPanel.Visibility = Visibility.Collapsed;
+                LaserPenColorsPanel.Visibility = Visibility.Collapsed;
+                PenSelectedTabIndex = 0;
+
+                BoardCommonPropsPanel.Visibility = Visibility.Visible;
+                BoardLaserPenFadePanel.Visibility = Visibility.Collapsed;
+                BoardLaserPenFadeSpeedPanel.Visibility = Visibility.Collapsed;
+                BoardInkToShapePanel.Visibility = Visibility.Visible;
+                BoardHighlighterOverlapPanel.Visibility = Visibility.Collapsed;
+                BoardDefaultPenColorsPanel.Visibility = Visibility.Visible;
+                BoardHighlighterPenColorsPanel.Visibility = Visibility.Collapsed;
+                BoardLaserPenColorsPanel.Visibility = Visibility.Collapsed;
+                BoardPenSelectedTabIndex = 0;
+
+                _isUpdatingSliders = true;
+                if (PenWidthSlider != null) PenWidthSlider.Value = Settings.Canvas.InkWidth * 2;
+                if (PenAlphaSlider != null) PenAlphaSlider.Value = Settings.Canvas.InkAlpha;
+                if (BoardPenWidthSlider != null) BoardPenWidthSlider.Value = Settings.Canvas.InkWidth * 2;
+                if (BoardPenAlphaSlider != null) BoardPenAlphaSlider.Value = Settings.Canvas.InkAlpha;
+                _isUpdatingSliders = false;
+                if (HighlighterOverlapToggle != null) HighlighterOverlapToggle.IsOn = Settings.Canvas.HighlighterOverlapEnabled;
+                if (BoardHighlighterOverlapToggle != null) BoardHighlighterOverlapToggle.IsOn = Settings.Canvas.HighlighterOverlapEnabled;
+
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    PenPalette.VerticalOffset = 0;
+                    UpdatePenPalettePosition();
+                });
+            }
+            else if (penType == 1)
+            {
+                CommonPropsPanel.Visibility = Visibility.Visible;
+                LaserPenFadePanel.Visibility = Visibility.Collapsed;
+                LaserPenFadeSpeedPanel.Visibility = Visibility.Collapsed;
+                InkToShapePanel.Visibility = Visibility.Visible;
+                HighlighterOverlapPanel.Visibility = Visibility.Visible;
+                DefaultPenColorsPanel.Visibility = Visibility.Collapsed;
+                HighlighterPenColorsPanel.Visibility = Visibility.Visible;
+                LaserPenColorsPanel.Visibility = Visibility.Collapsed;
+                PenSelectedTabIndex = 1;
+
+                BoardCommonPropsPanel.Visibility = Visibility.Visible;
+                BoardLaserPenFadePanel.Visibility = Visibility.Collapsed;
+                BoardLaserPenFadeSpeedPanel.Visibility = Visibility.Collapsed;
+                BoardInkToShapePanel.Visibility = Visibility.Visible;
+                BoardHighlighterOverlapPanel.Visibility = Visibility.Visible;
+                BoardDefaultPenColorsPanel.Visibility = Visibility.Collapsed;
+                BoardHighlighterPenColorsPanel.Visibility = Visibility.Visible;
+                BoardLaserPenColorsPanel.Visibility = Visibility.Collapsed;
+                BoardPenSelectedTabIndex = 1;
+
+                _isUpdatingSliders = true;
+                if (PenWidthSlider != null) PenWidthSlider.Value = Settings.Canvas.HighlighterWidth;
+                if (PenAlphaSlider != null) PenAlphaSlider.Value = Settings.Canvas.HighlighterAlpha;
+                if (BoardPenWidthSlider != null) BoardPenWidthSlider.Value = Settings.Canvas.HighlighterWidth;
+                if (BoardPenAlphaSlider != null) BoardPenAlphaSlider.Value = Settings.Canvas.HighlighterAlpha;
+                _isUpdatingSliders = false;
+                if (HighlighterOverlapToggle != null) HighlighterOverlapToggle.IsOn = Settings.Canvas.HighlighterOverlapEnabled;
+                if (BoardHighlighterOverlapToggle != null) BoardHighlighterOverlapToggle.IsOn = Settings.Canvas.HighlighterOverlapEnabled;
+
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    PenPalette.VerticalOffset = 0;
+                    UpdatePenPalettePosition();
+                });
+            }
+            else if (penType == 2)
+            {
+                CommonPropsPanel.Visibility = Visibility.Visible;
+                LaserPenFadePanel.Visibility = Visibility.Visible;
+                LaserPenFadeSpeedPanel.Visibility = Visibility.Visible;
+                InkToShapePanel.Visibility = Visibility.Collapsed;
+                HighlighterOverlapPanel.Visibility = Visibility.Collapsed;
+                DefaultPenColorsPanel.Visibility = Visibility.Collapsed;
+                HighlighterPenColorsPanel.Visibility = Visibility.Collapsed;
+                LaserPenColorsPanel.Visibility = Visibility.Visible;
+                PenSelectedTabIndex = 2;
+
+                BoardCommonPropsPanel.Visibility = Visibility.Visible;
+                BoardLaserPenFadePanel.Visibility = Visibility.Visible;
+                BoardLaserPenFadeSpeedPanel.Visibility = Visibility.Visible;
+                BoardInkToShapePanel.Visibility = Visibility.Collapsed;
+                BoardHighlighterOverlapPanel.Visibility = Visibility.Collapsed;
+                BoardDefaultPenColorsPanel.Visibility = Visibility.Collapsed;
+                BoardHighlighterPenColorsPanel.Visibility = Visibility.Collapsed;
+                BoardLaserPenColorsPanel.Visibility = Visibility.Visible;
+                BoardPenSelectedTabIndex = 2;
+
+                _isUpdatingSliders = true;
+                if (PenWidthSlider != null) PenWidthSlider.Value = Settings.Canvas.LaserPenWidth;
+                if (PenAlphaSlider != null) PenAlphaSlider.Value = Settings.Canvas.LaserPenAlpha;
+                if (BoardPenWidthSlider != null) BoardPenWidthSlider.Value = Settings.Canvas.LaserPenWidth;
+                if (BoardPenAlphaSlider != null) BoardPenAlphaSlider.Value = Settings.Canvas.LaserPenAlpha;
+                _isUpdatingSliders = false;
+
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    PenPalette.VerticalOffset = 0;
+                    UpdatePenPalettePosition();
+                });
+            }
+        }
+
+        /// <summary>
+        /// 切换到默认签字笔
+        /// </summary>
+        /// <param name="sender">事件发送者</param>
+        /// <param name="e">事件参数</param>
+        /// <remarks>
+        /// - 设置笔类型为0（签字笔）
+        /// - 更新笔类型UI状态
+        /// - 检查颜色主题
+        /// - 设置画笔属性（宽度、高度、笔尖形状、是否为荧光笔）
+        /// </remarks>
+        private void SwitchToDefaultPen(object sender, MouseButtonEventArgs e)
+        {
+            penType = 0;
+            CheckPenTypeUIState();
+            CheckColorTheme();
+            drawingAttributes.Width = Settings.Canvas.InkWidth;
+            drawingAttributes.Height = Settings.Canvas.InkWidth;
+            drawingAttributes.StylusTip = StylusTip.Ellipse;
+            drawingAttributes.IsHighlighter = false;
+
+            Settings.Canvas.EnableInkFade = false;
+            if (_inkFadeManager != null)
+                _inkFadeManager.IsEnabled = false;
+        }
+
+        /// <summary>
+        /// 切换到荧光笔
+        /// </summary>
+        /// <param name="sender">事件发送者</param>
+        /// <param name="e">事件参数</param>
+        /// <remarks>
+        /// - 设置笔类型为1（荧光笔）
+        /// - 更新笔类型UI状态
+        /// - 检查颜色主题
+        /// - 设置画笔属性（宽度、高度、笔尖形状、是否为荧光笔）
+        /// - 确保荧光笔模式切换后正确更新颜色和快捷调色板指示器
+        /// </remarks>
+        private void SwitchToHighlighterPen(object sender, MouseButtonEventArgs e)
+        {
+            penType = 1;
+            CheckPenTypeUIState();
+            CheckColorTheme();
+            drawingAttributes.Width = Settings.Canvas.HighlighterWidth / 2;
+            drawingAttributes.Height = Settings.Canvas.HighlighterWidth;
+            drawingAttributes.StylusTip = StylusTip.Rectangle;
+            drawingAttributes.IsHighlighter = !Settings.Canvas.HighlighterOverlapEnabled;
+
+            Settings.Canvas.EnableInkFade = false;
+            if (_inkFadeManager != null)
+                _inkFadeManager.IsEnabled = false;
+
+            ColorSwitchCheck(false);
+        }
+
+        private void ApplyLaserPenModeCore(bool refreshUi, bool updateIndicators)
+        {
+            penType = 2;
+            if (refreshUi)
+            {
+                CheckPenTypeUIState();
+                CheckColorTheme();
+            }
+
+            drawingAttributes.Width = Settings.Canvas.LaserPenWidth;
+            drawingAttributes.Height = Settings.Canvas.LaserPenWidth;
+            drawingAttributes.StylusTip = StylusTip.Ellipse;
+            drawingAttributes.IsHighlighter = false;
+
+            Settings.Canvas.EnableInkFade = true;
+            if (_inkFadeManager != null)
+            {
+                _inkFadeManager.IsEnabled = true;
+                _inkFadeManager.UpdateFadeTime(Settings.Canvas.InkFadeTime);
+                _inkFadeManager.UpdateFadeSpeedMultiplier(Settings.Canvas.InkFadeSpeedMultiplier);
+            }
+
+            if (updateIndicators)
+                ColorSwitchCheck(false);
+        }
+
+        private void SwitchToLaserPen(object sender, MouseButtonEventArgs e)
+        {
+            ApplyLaserPenModeCore(refreshUi: true, updateIndicators: true);
+        }
+
+        /// <summary>
+        /// 处理黑色按钮点击事件
+        /// </summary>
+        /// <param name="sender">事件发送者</param>
+        /// <param name="e">事件参数</param>
+        private void BtnColorBlack_Click(object sender, RoutedEventArgs e)
+        {
+            CheckLastColor(0);
+            ColorSwitchCheck();
+        }
+
+        /// <summary>
+        /// 处理红色按钮点击事件
+        /// </summary>
+        /// <param name="sender">事件发送者</param>
+        /// <param name="e">事件参数</param>
+        private void BtnColorRed_Click(object sender, RoutedEventArgs e)
+        {
+            CheckLastColor(1);
+            ColorSwitchCheck();
+        }
+
+        /// <summary>
+        /// 处理绿色按钮点击事件
+        /// </summary>
+        /// <param name="sender">事件发送者</param>
+        /// <param name="e">事件参数</param>
+        private void BtnColorGreen_Click(object sender, RoutedEventArgs e)
+        {
+            CheckLastColor(2);
+            ColorSwitchCheck();
+        }
+
+        /// <summary>
+        /// 处理蓝色按钮点击事件
+        /// </summary>
+        /// <param name="sender">事件发送者</param>
+        /// <param name="e">事件参数</param>
+        private void BtnColorBlue_Click(object sender, RoutedEventArgs e)
+        {
+            CheckLastColor(3);
+            ColorSwitchCheck();
+        }
+
+        /// <summary>
+        /// 处理黄色按钮点击事件
+        /// </summary>
+        /// <param name="sender">事件发送者</param>
+        /// <param name="e">事件参数</param>
+        private void BtnColorYellow_Click(object sender, RoutedEventArgs e)
+        {
+            CheckLastColor(4);
+            ColorSwitchCheck();
+        }
+
+        /// <summary>
+        /// 处理白色按钮点击事件
+        /// </summary>
+        /// <param name="sender">事件发送者</param>
+        /// <param name="e">事件参数</param>
+        private void BtnColorWhite_Click(object sender, RoutedEventArgs e)
+        {
+            CheckLastColor(5);
+            ColorSwitchCheck();
+        }
+
+        /// <summary>
+        /// 处理粉色按钮点击事件
+        /// </summary>
+        /// <param name="sender">事件发送者</param>
+        /// <param name="e">事件参数</param>
+        private void BtnColorPink_Click(object sender, RoutedEventArgs e)
+        {
+            CheckLastColor(6);
+            ColorSwitchCheck();
+        }
+
+        /// <summary>
+        /// 处理橙色按钮点击事件
+        /// </summary>
+        /// <param name="sender">事件发送者</param>
+        /// <param name="e">事件参数</param>
+        private void BtnColorOrange_Click(object sender, RoutedEventArgs e)
+        {
+            CheckLastColor(8);
+            ColorSwitchCheck();
+        }
+
+        /// <summary>
+        /// 处理青色按钮点击事件
+        /// </summary>
+        /// <param name="sender">事件发送者</param>
+        /// <param name="e">事件参数</param>
+        private void BtnColorTeal_Click(object sender, RoutedEventArgs e)
+        {
+            CheckLastColor(7);
+            ColorSwitchCheck();
+        }
+
+        /// <summary>
+        /// 处理荧光笔黑色按钮点击事件
+        /// </summary>
+        /// <param name="sender">事件发送者</param>
+        /// <param name="e">事件参数</param>
+        private void BtnHighlighterColorBlack_Click(object sender, RoutedEventArgs e)
+        {
+            CheckLastColor(100, true);
+            penType = 1;
+            CheckPenTypeUIState();
+            ColorSwitchCheck();
+        }
+
+        /// <summary>
+        /// 处理荧光笔白色按钮点击事件
+        /// </summary>
+        /// <param name="sender">事件发送者</param>
+        /// <param name="e">事件参数</param>
+        private void BtnHighlighterColorWhite_Click(object sender, RoutedEventArgs e)
+        {
+            CheckLastColor(101, true);
+            penType = 1;
+            CheckPenTypeUIState();
+            ColorSwitchCheck();
+        }
+
+        /// <summary>
+        /// 处理荧光笔红色按钮点击事件
+        /// </summary>
+        /// <param name="sender">事件发送者</param>
+        /// <param name="e">事件参数</param>
+        private void BtnHighlighterColorRed_Click(object sender, RoutedEventArgs e)
+        {
+            CheckLastColor(102, true);
+            penType = 1;
+            CheckPenTypeUIState();
+            ColorSwitchCheck();
+        }
+
+        /// <summary>
+        /// 处理荧光笔黄色按钮点击事件
+        /// </summary>
+        /// <param name="sender">事件发送者</param>
+        /// <param name="e">事件参数</param>
+        private void BtnHighlighterColorYellow_Click(object sender, RoutedEventArgs e)
+        {
+            CheckLastColor(103, true);
+            penType = 1;
+            CheckPenTypeUIState();
+            ColorSwitchCheck();
+        }
+
+        /// <summary>
+        /// 处理荧光笔绿色按钮点击事件
+        /// </summary>
+        /// <param name="sender">事件发送者</param>
+        /// <param name="e">事件参数</param>
+        private void BtnHighlighterColorGreen_Click(object sender, RoutedEventArgs e)
+        {
+            CheckLastColor(104, true);
+            penType = 1;
+            CheckPenTypeUIState();
+            ColorSwitchCheck();
+        }
+
+        /// <summary>
+        /// 处理荧光笔锌色按钮点击事件
+        /// </summary>
+        /// <param name="sender">事件发送者</param>
+        /// <param name="e">事件参数</param>
+        private void BtnHighlighterColorZinc_Click(object sender, RoutedEventArgs e)
+        {
+            CheckLastColor(105, true);
+            penType = 1;
+            CheckPenTypeUIState();
+            ColorSwitchCheck();
+        }
+
+        /// <summary>
+        /// 处理荧光笔蓝色按钮点击事件
+        /// </summary>
+        /// <param name="sender">事件发送者</param>
+        /// <param name="e">事件参数</param>
+        private void BtnHighlighterColorBlue_Click(object sender, RoutedEventArgs e)
+        {
+            CheckLastColor(106, true);
+            penType = 1;
+            CheckPenTypeUIState();
+            ColorSwitchCheck();
+        }
+
+        /// <summary>
+        /// 处理荧光笔紫色按钮点击事件
+        /// </summary>
+        /// <param name="sender">事件发送者</param>
+        /// <param name="e">事件参数</param>
+        private void BtnHighlighterColorPurple_Click(object sender, RoutedEventArgs e)
+        {
+            CheckLastColor(107, true);
+            penType = 1;
+            CheckPenTypeUIState();
+            ColorSwitchCheck();
+        }
+
+        /// <summary>
+        /// 处理荧光笔青色按钮点击事件
+        /// </summary>
+        /// <param name="sender">事件发送者</param>
+        /// <param name="e">事件参数</param>
+        private void BtnHighlighterColorTeal_Click(object sender, RoutedEventArgs e)
+        {
+            CheckLastColor(108, true);
+            penType = 1;
+            CheckPenTypeUIState();
+            ColorSwitchCheck();
+        }
+
+        /// <summary>
+        /// 处理荧光笔橙色按钮点击事件
+        /// </summary>
+        /// <param name="sender">事件发送者</param>
+        /// <param name="e">事件参数</param>
+        private void BtnHighlighterColorOrange_Click(object sender, RoutedEventArgs e)
+        {
+            CheckLastColor(109, true);
+            penType = 1;
+            CheckPenTypeUIState();
+            ColorSwitchCheck();
+        }
+
+        private void BtnLaserPenColorBlack_Click(object sender, RoutedEventArgs e)
+        {
+            CheckLastColor(0);
+            penType = 2;
+            CheckPenTypeUIState();
+            ColorSwitchCheck();
+        }
+
+        private void BtnLaserPenColorWhite_Click(object sender, RoutedEventArgs e)
+        {
+            CheckLastColor(5);
+            penType = 2;
+            CheckPenTypeUIState();
+            ColorSwitchCheck();
+        }
+
+        private void BtnLaserPenColorRed_Click(object sender, RoutedEventArgs e)
+        {
+            CheckLastColor(1);
+            penType = 2;
+            CheckPenTypeUIState();
+            ColorSwitchCheck();
+        }
+
+        private void BtnLaserPenColorYellow_Click(object sender, RoutedEventArgs e)
+        {
+            CheckLastColor(4);
+            penType = 2;
+            CheckPenTypeUIState();
+            ColorSwitchCheck();
+        }
+
+        private void BtnLaserPenColorGreen_Click(object sender, RoutedEventArgs e)
+        {
+            CheckLastColor(2);
+            penType = 2;
+            CheckPenTypeUIState();
+            ColorSwitchCheck();
+        }
+
+        private void BtnLaserPenColorBlue_Click(object sender, RoutedEventArgs e)
+        {
+            CheckLastColor(3);
+            penType = 2;
+            CheckPenTypeUIState();
+            ColorSwitchCheck();
+        }
+
+        private void BtnLaserPenColorPink_Click(object sender, RoutedEventArgs e)
+        {
+            CheckLastColor(6);
+            penType = 2;
+            CheckPenTypeUIState();
+            ColorSwitchCheck();
+        }
+
+        private void BtnLaserPenColorTeal_Click(object sender, RoutedEventArgs e)
+        {
+            CheckLastColor(7);
+            penType = 2;
+            CheckPenTypeUIState();
+            ColorSwitchCheck();
+        }
+
+        private void BtnLaserPenColorOrange_Click(object sender, RoutedEventArgs e)
+        {
+            CheckLastColor(8);
+            penType = 2;
+            CheckPenTypeUIState();
+            ColorSwitchCheck();
+        }
+
+        /// <summary>
+        /// 将字符串转换为颜色对象
+        /// </summary>
+        /// <param name="colorStr">颜色字符串（格式：#FFFFFFFF）</param>
+        /// <returns>颜色对象</returns>
+        /// <remarks>
+        /// - 解析颜色字符串为ARGB值
+        /// - 转换为Color对象返回
+        /// </remarks>
+        private Color StringToColor(string colorStr)
+        {
+            var argb = new byte[4];
+            for (var i = 0; i < 4; i++)
+            {
+                var charArray = colorStr.Substring(i * 2 + 1, 2).ToCharArray();
+                var b1 = toByte(charArray[0]);
+                var b2 = toByte(charArray[1]);
+                argb[i] = (byte)(b2 | (b1 << 4));
+            }
+
+            return Color.FromArgb(argb[0], argb[1], argb[2], argb[3]); //#FFFFFFFF
+        }
+
+        /// <summary>
+        /// 将字符转换为字节
+        /// </summary>
+        /// <param name="c">字符</param>
+        /// <returns>字节值</returns>
+        /// <remarks>
+        /// - 将十六进制字符转换为对应的字节值
+        /// - 支持0-9和A-F字符
+        /// </remarks>
+        private static byte toByte(char c)
+        {
+            var b = (byte)"0123456789ABCDEF".IndexOf(c);
+            return b;
+        }
+    }
+}

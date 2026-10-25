@@ -1,0 +1,35 @@
+<UserControl x:Class="Ink_Canvas.ManagePickNameBackgroundsWindow"
+             xmlns:props="clr-namespace:Ink_Canvas.Properties"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:DesignWidth="680" d:DesignHeight="380">
+    <ListView Name="BackgroundsListView" Margin="0,10,0,0">
+        <ListView.View>
+            <GridView>
+                <GridViewColumn Header="{x:Static props:RandomStrings.Random_Preview}" Width="130">
+                    <GridViewColumn.CellTemplate>
+                        <DataTemplate>
+                            <Border BorderThickness="1" BorderBrush="{DynamicResource ComboBoxBorderBrush}">
+                                <Image Source="{Binding FilePath}" Width="120" Height="68" Stretch="Uniform"/>
+                            </Border>
+                        </DataTemplate>
+                    </GridViewColumn.CellTemplate>
+                </GridViewColumn>
+                <GridViewColumn Header="{x:Static props:RandomStrings.Random_Name}" Width="280" DisplayMemberBinding="{Binding Name}"/>
+                <GridViewColumn Header="{x:Static props:NotificationStrings.ActionsTitle}" Width="200">
+                    <GridViewColumn.CellTemplate>
+                        <DataTemplate>
+                            <StackPanel Orientation="Horizontal">
+                                <Button Content="{x:Static props:RandomStrings.Random_ManageBg_SetAsCurrent}" Width="90" Margin="0,0,5,0" Click="SetAsCurrentButton_Click" Tag="{Binding}"/>
+                                <Button Content="{x:Static props:RandomStrings.Random_Delete}" Width="70" Click="DeleteBackgroundButton_Click" Tag="{Binding}"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </GridViewColumn.CellTemplate>
+                </GridViewColumn>
+            </GridView>
+        </ListView.View>
+    </ListView>
+</UserControl>

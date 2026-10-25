@@ -1,0 +1,228 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="AvoidFullScreenHelper" xml:space="preserve">
+    <value>Enable AvoidFullScreenHelper</value>
+  </data>
+  <data name="AvoidFullScreenHelperHint" xml:space="preserve">
+    <value>Avoid canvas fullscreen; may fix taskbar not on top and Win11 taskbar unclickable. Can cause floating bar offset with AppBar on left/top. Restart ICC to apply.</value>
+  </data>
+  <data name="ConfirmExit" xml:space="preserve">
+    <value>Confirm before exiting</value>
+  </data>
+  <data name="DPIChangeDetection" xml:space="preserve">
+    <value>Enable DPIChangeDetection</value>
+  </data>
+  <data name="DPIChangeDetectionHint" xml:space="preserve">
+    <value>When a system DPI change is detected, it tries to keep FloatingBar visible. If it goes off-screen, it will attempt to move it into the visible area. (Increasing DPI may trigger this; decreasing DPI won&apos;t auto-move—adjust manually.)</value>
+  </data>
+  <data name="EdgeGestureUtil" xml:space="preserve">
+    <value>Enable EdgeGestureUtil</value>
+  </data>
+  <data name="EdgeGestureUtilHint_Part1" xml:space="preserve">
+    <value>EdgeGestureUtil is newly introduced in ICC to temporarily block edge gestures when using touch (e.g., on Windows 10: swipe from the left edge to Task View, from the right edge to Action Center; on Windows 11: swipe up from the bottom to open Start). It works by using System.EdgeGesture.DisableTouchWhenFullscreen (When the app window is active and in full-screen mode (or an owned window is active), prevents edge gesture behavior.) If anything is abnormal, turn this option off; it should take effect immediately. (Not available on Windows 7/8.)</value>
+  </data>
+  <data name="EraserBindTouchHint" xml:space="preserve">
+    <value>BoundsWidth is used as contact area threshold</value>
+  </data>
+  <data name="EraserBindTouchMultiplier" xml:space="preserve">
+    <value>Bind eraser to touch size multiplier</value>
+  </data>
+  <data name="Experimental" xml:space="preserve">
+    <value>Experimental</value>
+  </data>
+  <data name="FingerModeBoundsWidthHeader" xml:space="preserve">
+    <value>Finger mode BoundsWidth</value>
+  </data>
+  <data name="ForceFullScreen" xml:space="preserve">
+    <value>Enable ForceFullScreen</value>
+  </data>
+  <data name="ForceFullScreenHint" xml:space="preserve">
+    <value>When a window size change is detected, automatically uses Win32 API to set this window size to the primary monitor size (in device pixels). Turn it off if you don&apos;t need it; takes effect immediately.</value>
+  </data>
+  <data name="FullScreenHelper" xml:space="preserve">
+    <value>Enable FullScreenHelper</value>
+  </data>
+  <data name="FullScreenHelperHint" xml:space="preserve">
+    <value>Thanks to lindexi for FullScreenHelper; reduces taskbar pop-up and supports multi-monitor fullscreen. Disable if you see odd issues; restart ICC to apply.</value>
+  </data>
+  <data name="LogByDate" xml:space="preserve">
+    <value>Save logs by date</value>
+  </data>
+  <data name="Logging" xml:space="preserve">
+    <value>Enable logging</value>
+  </data>
+  <data name="LogLevel" xml:space="preserve">
+    <value>Log output level</value>
+  </data>
+  <data name="LogLevelHint" xml:space="preserve">
+    <value>Logs below the selected level are filtered out. Info outputs everything (no filtering); the default Trace additionally filters out the lowest-level Info/Event entries. Console colors: Info default, Trace green, Warning yellow, Error red.</value>
+  </data>
+  <data name="LogRotateHint" xml:space="preserve">
+    <value>When enabled, logs are saved to the Logs folder and the folder is automatically cleared when it exceeds 5 MB. Otherwise, log files exceeding 512 KB are automatically deleted.</value>
+  </data>
+  <data name="NibModeBoundsWidthHeader" xml:space="preserve">
+    <value>Pen-only Mode BoundsWidth</value>
+  </data>
+  <data name="QuadIRMode" xml:space="preserve">
+    <value>Quad IR mode</value>
+  </data>
+  <data name="ResolutionChangeDetection" xml:space="preserve">
+    <value>Enable ResolutionChangeDetection</value>
+  </data>
+  <data name="ResolutionChangeDetectionHint" xml:space="preserve">
+    <value>When a screen resolution change is detected, the app checks whether the FloatingBar is still within the visible screen area. If it has moved off-screen, it will try to move it back into view. This is most commonly triggered after lowering the resolution; if the FloatingBar is already visible, its position will not be adjusted automatically.</value>
+  </data>
+  <data name="SpecialScreenMode" xml:space="preserve">
+    <value>Special screen mode</value>
+  </data>
+  <data name="Title" xml:space="preserve">
+    <value>Advanced</value>
+  </data>
+  <data name="TouchMultiplier" xml:space="preserve">
+    <value>Touch multiplier</value>
+  </data>
+  <data name="TouchMultiplierCalibrateHint" xml:space="preserve">
+    <value>Tap with pen in the area below to estimate touch size multiplier</value>
+  </data>
+  <data name="TouchMultiplierHint" xml:space="preserve">
+    <value>Adjust when finger-touch shows circle eraser or palm eraser is much larger than palm</value>
+  </data>
+  <data name="TouchMultiplierValueHint" xml:space="preserve">
+    <value>Value is for reference only</value>
+  </data>
+  <data name="Debug_ShowConsole_Desc" xml:space="preserve">
+    <value>Show a separate console window for live log output (takes effect immediately; if &quot;Enable logging&quot; is off in settings, no content will be emitted).</value>
+  </data>
+  <data name="Debug_ShowConsole_Header" xml:space="preserve">
+    <value>Show debug console</value>
+  </data>
+  <data name="Debug_PPTComProbe_Desc" xml:space="preserve">
+    <value>When enabled, outputs extensive COM object, window, process, and state probe information during PPT connection, slide show changes, and timer polling. Only enable temporarily while diagnosing PPT/WPS integration issues.</value>
+  </data>
+  <data name="Debug_PPTComProbe_Header" xml:space="preserve">
+    <value>Enable PPT COM debug probes</value>
+  </data>
+  <data name="Debug_PPTPreviewVisible_Desc" xml:space="preserve">
+    <value>When enabled, shows the inline preview area on the left side of the PPT page-flip button settings page (hidden by default).</value>
+  </data>
+  <data name="Debug_PPTPreviewVisible_Header" xml:space="preserve">
+    <value>Show PPT page-flip button preview</value>
+  </data>
+  <data name="Debug_RealtimeInkLog_Header" xml:space="preserve">
+    <value>Enable detailed realtime ink debug log</value>
+  </data>
+  <data name="Debug_RealtimeInkLog_Desc" xml:space="preserve">
+    <value>When enabled, records realtime-ink input/redraw/FrameWait/slow events. Updates Configs/RealtimeInkDebugLive.json after each stroke and writes realtimeInk* fields into Configs/PerformanceHistory.json; finalizes on toggle-off or exit. Off by default; enable only while diagnosing realtime ink (TouchVelocity / realtime brush tip). Independent of the Performance page toggle. Built-in InkCanvas ink is not counted.</value>
+  </data>
+  <data name="Debug_IconSettings" xml:space="preserve">
+    <value>Icon Settings</value>
+  </data>
+  <data name="Debug_SettingsExpanderExample" xml:space="preserve">
+    <value>SettingsExpander Example</value>
+  </data>
+  <data name="Debug_CrashTest_Section" xml:space="preserve">
+    <value>Crash Restart Test</value>
+  </data>
+  <data name="Debug_SimulateCrash_Header" xml:space="preserve">
+    <value>Simulate Crash</value>
+  </data>
+  <data name="Debug_SimulateCrash_Desc" xml:space="preserve">
+    <value>Click to trigger an unhandled exception immediately. Use this to verify the crash restart breaker mechanism works correctly.</value>
+  </data>
+  <data name="Debug_SimulateCrash_Button" xml:space="preserve">
+    <value>Trigger Crash</value>
+  </data>
+  <data name="Debug_SimulateHeartbeatTimeout_Header" xml:space="preserve">
+    <value>Simulate Heartbeat Timeout</value>
+  </data>
+  <data name="Debug_SimulateHeartbeatTimeout_Desc" xml:space="preserve">
+    <value>Click to stop the heartbeat timer. The next guard check will detect the timeout and trigger a restart.</value>
+  </data>
+  <data name="Debug_SimulateHeartbeatTimeout_Button" xml:space="preserve">
+    <value>Stop Heartbeat</value>
+  </data>
+  <data name="Debug_ResetStartupCount_Header" xml:space="preserve">
+    <value>Reset Breaker Counter</value>
+  </data>
+  <data name="Debug_ResetStartupCount_Desc" xml:space="preserve">
+    <value>Clear the startup-count file to unlock the breaker lock caused by consecutive crashes.</value>
+  </data>
+  <data name="Debug_ResetStartupCount_Button" xml:space="preserve">
+    <value>Reset Counter</value>
+  </data>
+  <data name="Debug_PageTitle" xml:space="preserve">
+    <value>Debug</value>
+  </data>
+  <data name="Debug_PageHeader" xml:space="preserve">
+    <value>Debug</value>
+  </data>
+  <data name="Debug_SettingsExpanderExample_Header" xml:space="preserve">
+    <value>Customization</value>
+  </data>
+  <data name="Debug_SettingsExpanderExample_Desc" xml:space="preserve">
+    <value>You can override the Left indention of a SettingsCard by overriding the SettingsCardLeftIndention</value>
+  </data>
+  <data name="Debug_MemoryBreakdownSection" xml:space="preserve">
+    <value>Memory Breakdown (Diagnostic)</value>
+  </data>
+  <data name="Debug_MemoryBreakdownDump_Header" xml:space="preserve">
+    <value>Dump detailed memory snapshot of current process to log</value>
+  </data>
+  <data name="Debug_MemoryBreakdownDump_Desc" xml:space="preserve">
+    <value>Writes process memory / GC heap / WPF visuals / caches / assemblies to the Logs directory for investigation.</value>
+  </data>
+  <data name="Debug_MemoryBreakdownDump_Button" xml:space="preserve">
+    <value>Dump Memory Snapshot</value>
+  </data>
+  <data name="Debug_MemoryBreakdownForceGC_Header" xml:space="preserve">
+    <value>Force GC</value>
+  </data>
+  <data name="Debug_MemoryBreakdownForceGC_Desc" xml:space="preserve">
+    <value>Calls GC.Collect + WaitForPendingFinalizers + GC.Collect to reclaim eligible objects. Use only for diagnostics.</value>
+  </data>
+  <data name="Debug_MemoryBreakdownForceGC_Button" xml:space="preserve">
+    <value>Force GC</value>
+  </data>
+</root>

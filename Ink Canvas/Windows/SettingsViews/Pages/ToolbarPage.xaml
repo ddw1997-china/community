@@ -1,0 +1,462 @@
+<ui:Page xmlns:props="clr-namespace:Ink_Canvas.Properties" x:Class="Ink_Canvas.Windows.SettingsViews.Pages.ToolbarPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+      xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+      xmlns:local="clr-namespace:Ink_Canvas.Windows.SettingsViews.Pages"
+      xmlns:helpers="clr-namespace:Ink_Canvas.Windows.SettingsViews.Helpers"
+      xmlns:ui="http://schemas.inkore.net/lib/ui/wpf/modern"
+      xmlns:ikw="http://schemas.inkore.net/lib/ui/wpf"
+      xmlns:dd="urn:gong-wpf-dragdrop"
+      xmlns:toolbar="clr-namespace:Ink_Canvas.Controls.Toolbar.FloatingToolbar"
+      xmlns:controls="clr-namespace:Ink_Canvas.Controls;assembly=InkCanvas.Controls"
+      xmlns:touch="clr-namespace:Ink_Canvas.Helpers"
+      xmlns:sys="clr-namespace:System;assembly=mscorlib"
+      mc:Ignorable="d"
+      Title="工具栏">
+
+    <Page.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="../Helpers/SharedSettingsResources.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        <local:IdToDisplayNameConverter x:Key="IdToNameConverter"/>
+        <local:IdToIconGeometryConverter x:Key="IdToIconGeometryConverter"/>
+        <local:IdToIconKeyConverter x:Key="IdToIconKeyConverter"/>
+        <local:IdToIconVisibilityConverter x:Key="IdToIconVisibilityConverter"/>
+        <local:ConditionIdToNameConverter x:Key="ConditionIdToNameConverter"/>
+        <local:StateToBrushConverter x:Key="StateToBrushConverter"/>
+        <local:LogicalModeToIntConverter x:Key="LogicalModeToIntConverter"/>
+        <helpers:NullToVisibilityConverter x:Key="NullToVisibilityConverter"/>
+        <helpers:StringToGeometryConverter x:Key="StringToGeometryConverter"/>
+        <local:IdToPathDataConverter x:Key="IdToPathDataConverter"/>
+
+        <Style x:Key="CompactTabItemPivotStyle" TargetType="TabItem" BasedOn="{StaticResource {x:Static ui:ThemeKeys.TabItemPivotStyleKey}}">
+            <Setter Property="Height" Value="32"/>
+        </Style>
+
+        <DataTemplate x:Key="ToolbarItemTemplate" DataType="{x:Type toolbar:ToolbarComponentEntry}">
+            <Border Cursor="Hand">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <ui:FontIcon touch:TouchAwareDragDropHelper.IsGripHandle="True"
+                                 Icon="{x:Static ui:FluentSystemIcons.ReOrder_16_Regular}" FontSize="16"
+                                 Cursor="SizeAll" VerticalAlignment="Center" Margin="-6,0,0,0"
+                                 RenderTransformOrigin="0.5,0.5">
+                        <ui:FontIcon.RenderTransform>
+                            <RotateTransform Angle="90"/>
+                        </ui:FontIcon.RenderTransform>
+                    </ui:FontIcon>
+                    <Grid Width="16" Height="16" Margin="2,0,4,0" VerticalAlignment="Center">
+                        <Path Data="{Binding Id, Converter={StaticResource IdToPathDataConverter}}"
+                              Width="16" Height="16" Stretch="Uniform"
+                              Fill="{DynamicResource {x:Static ui:ThemeKeys.TextFillColorPrimaryBrushKey}}"
+                              Visibility="{Binding Id, Converter={StaticResource IdToIconVisibilityConverter}}"/>
+                        <ui:FontIcon Icon="{Binding Id, Converter={StaticResource IdToIconKeyConverter}}" FontSize="16"
+                                     Visibility="{Binding Id, Converter={StaticResource IdToIconVisibilityConverter}, ConverterParameter=fontIcon}"/>
+                    </Grid>
+                    <TextBlock Text="{Binding Id, Converter={StaticResource IdToNameConverter}}"
+                               VerticalAlignment="Center" FontSize="13"/>
+                    <Button Tag="RemoveItem"
+                            x:Name="BtnRemoveItem"
+                            VerticalAlignment="Center"
+                            Cursor="Hand">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource BorderlessIconButtonStyle}">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListViewItem}}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                        <ui:FontIcon Icon="{x:Static ui:FluentSystemIcons.Delete_16_Regular}" FontSize="16" Foreground="IndianRed"/>
+                    </Button>
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+
+        <DataTemplate x:Key="LibraryItemTemplate">
+            <Grid Margin="0,8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <ui:FontIcon Grid.Column="0" touch:TouchAwareDragDropHelper.IsGripHandle="True"
+                             Icon="{x:Static ui:FluentSystemIcons.ReOrderDotsVertical_20_Filled}" FontSize="24"
+                             Cursor="SizeAll" Margin="-1,0,2,0" VerticalAlignment="Center"/>
+                <Grid Grid.Column="1" Width="32" Height="32" Margin="0,-4,4,0" VerticalAlignment="Center">
+                    <Path Data="{Binding IconGeometry, Converter={StaticResource StringToGeometryConverter}}"
+                          Width="32" Height="32" Stretch="Uniform"
+                          Fill="{DynamicResource {x:Static ui:ThemeKeys.TextFillColorPrimaryBrushKey}}"
+                          Visibility="{Binding IconGeometry, Converter={StaticResource NullToVisibilityConverter}}"/>
+                    <ui:FontIcon Icon="{Binding IconKey}" FontSize="28"
+                                 Visibility="{Binding IconKey, Converter={StaticResource NullToVisibilityConverter}}"/>
+                </Grid>
+
+                <!-- 两个文本作为整体置顶 -->
+                <StackPanel Grid.Column="2" VerticalAlignment="Top">
+                    <TextBlock Text="{Binding DisplayName}" FontWeight="Medium" FontSize="13" Margin="0,0,0,1"
+                               HorizontalAlignment="Left" TextTrimming="CharacterEllipsis"/>
+                    <TextBlock Text="{Binding Description}" Opacity="0.75" FontSize="12" TextWrapping="Wrap"
+                               TextTrimming="CharacterEllipsis"/>
+                </StackPanel>
+
+                <Button Grid.Column="3" Content="&#xE710;" FontFamily="Segoe MDL2 Assets" FontSize="12"
+                        Click="AddLibraryItem_Click" x:Name="BtnAddItem"
+                        Background="Transparent" BorderThickness="0"
+                        Padding="6,4" VerticalAlignment="Center"
+                        ToolTip="{x:Static props:FloatingBarStrings.ToolbarPage_AddToAdded}"
+                        Cursor="Hand" Visibility="Collapsed"/>
+            </Grid>
+        </DataTemplate>
+    </ResourceDictionary>
+    </Page.Resources>
+
+    <Grid Margin="24,0,24,0">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto" MinHeight="58"/>
+            <RowDefinition Height="6"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- ===== Section 1: 配置文件 ===== -->
+        <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0"
+                       Text="{x:Static props:FloatingBarStrings.ToolbarPage_AddedComponentsHint}"
+                       Opacity="0.65" FontSize="13" TextWrapping="Wrap"
+                       VerticalAlignment="Center" Margin="0,0,12,0"/>
+            <StackPanel Grid.Column="1" Orientation="Vertical" Margin="0,0,8,0">
+                <TextBlock Text="{x:Static props:FloatingBarStrings.ToolbarPage_ConfigProfiles}"
+                           FontSize="14" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                <ComboBox x:Name="ComboBoxConfigFile" SelectionChanged="ComboBoxConfigFile_SelectionChanged"/>
+            </StackPanel>
+            <StackPanel Grid.Column="2" Orientation="Horizontal">
+                <Button Click="ButtonRefreshConfig_Click" Style="{StaticResource BorderlessIconButtonStyle}" Padding="8,6" Margin="0,0,4,0"
+                        ToolTip="{x:Static props:FloatingBarStrings.ToolbarPage_RefreshProfile}">
+                    <ui:FontIcon Icon="{x:Static ui:FluentSystemIcons.ArrowSync_16_Regular}"/>
+                </Button>
+                <Button Click="ButtonNewConfig_Click" Style="{StaticResource BorderlessIconButtonStyle}" Padding="8,6" Margin="0,0,4,0"
+                        ToolTip="{x:Static props:FloatingBarStrings.ToolbarPage_NewProfile}">
+                    <ui:FontIcon Icon="{x:Static ui:FluentSystemIcons.Add_16_Regular}"/>
+                </Button>
+                <Button Click="ButtonDuplicateConfig_Click" Style="{StaticResource BorderlessIconButtonStyle}" Padding="8,6" Margin="0,0,4,0"
+                        ToolTip="{x:Static props:FloatingBarStrings.ToolbarPage_DuplicateProfile}">
+                    <ui:FontIcon Icon="{x:Static ui:FluentSystemIcons.Copy_16_Regular}"/>
+                </Button>
+                <Button Click="ButtonDeleteConfig_Click" Style="{StaticResource BorderlessIconButtonStyle}" Padding="8,6" Margin="0,0,4,0"
+                        ToolTip="{x:Static props:FloatingBarStrings.ToolbarPage_DeleteProfile}">
+                    <ui:FontIcon Icon="{x:Static ui:FluentSystemIcons.Delete_16_Regular}"/>
+                </Button>
+                <Button Click="ButtonOpenConfigFolder_Click" Style="{StaticResource BorderlessIconButtonStyle}" Padding="8,6"
+                        ToolTip="{x:Static props:FloatingBarStrings.ToolbarPage_OpenConfigFolder}">
+                    <ui:FontIcon Icon="{x:Static ui:FluentSystemIcons.FolderOpen_16_Regular}"/>
+                </Button>
+            </StackPanel>
+        </Grid>
+
+        <!-- ===== Section 2: 已添加组件 ===== -->
+        <DockPanel Grid.Row="1" LastChildFill="True" ClipToBounds="True">
+            <TextBlock Text="{x:Static props:FloatingBarStrings.ToolbarPage_AddedComponents}"
+                       FontSize="14" FontWeight="SemiBold" Margin="0,0,0,6"
+                       DockPanel.Dock="Top"/>
+            <!-- 分组内组件 -->
+            <StackPanel x:Name="GroupChildrenPanel" Margin="0,8,0,0" DockPanel.Dock="Bottom">
+                <StackPanel.Style>
+                    <Style TargetType="StackPanel">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsGroupChildrenVisible}" Value="True">
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </StackPanel.Style>
+                <DockPanel LastChildFill="True">
+                    <Button Click="ButtonCloseGroupChildren_Click" Style="{StaticResource BorderlessIconButtonStyle}" Padding="6,4" Margin="0,0,4,0"
+                            ToolTip="{x:Static props:FloatingBarStrings.ToolbarPage_CloseGroupChildren}"
+                            DockPanel.Dock="Right" VerticalAlignment="Center">
+                        <ui:FontIcon Icon="{x:Static ui:FluentSystemIcons.Dismiss_16_Regular}"/>
+                    </Button>
+                    <TextBlock Text="{x:Static props:FloatingBarStrings.ToolbarPage_GroupChildren}" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,4" VerticalAlignment="Center"/>
+                </DockPanel>
+                <TextBlock Text="{x:Static props:FloatingBarStrings.ToolbarPage_GroupChildrenHint}"
+                           Opacity="0.65" FontSize="12" Margin="0,0,0,6"/>
+                <Border BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                        BorderThickness="1" CornerRadius="6" Padding="4"
+                        Background="{DynamicResource CardBackgroundFillColorSecondaryBrush}"
+                        MinHeight="40">
+                    <ListView x:Name="GroupChildrenListBox"
+                             ItemsSource="{Binding GroupChildren}"
+                             ItemTemplate="{StaticResource ToolbarItemTemplate}"
+                             SelectedItem="{Binding SelectedGroupChild, Mode=TwoWay}"
+                             Style="{StaticResource DragDropListViewStyle}"
+                             dd:DragDrop.DropHandler="{Binding GroupDropHandler}"
+                             touch:TouchAwareDragDropHelper.IsEnabled="True"
+                             Button.Click="GroupChildrenList_ButtonClick"
+                             SelectionChanged="GroupChildrenListBox_SelectionChanged"
+                             MinHeight="32">
+                        <ListView.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel Orientation="Horizontal"/>
+                            </ItemsPanelTemplate>
+                        </ListView.ItemsPanel>
+                    </ListView>
+                </Border>
+            </StackPanel>
+            <Border CornerRadius="8" MinHeight="48">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Background" Value="Transparent"/>
+                        <Setter Property="BorderBrush" Value="Transparent"/>
+                        <Setter Property="BorderThickness" Value="0"/>
+                        <Style.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#15000000"/>
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <ListView x:Name="AddedList"
+                         ItemsSource="{Binding AddedComponents}"
+                         ItemTemplate="{StaticResource ToolbarItemTemplate}"
+                         SelectedItem="{Binding SelectedEntry, Mode=TwoWay}"
+                         Style="{StaticResource DragDropListViewStyle}"
+                         dd:DragDrop.DropHandler="{Binding}"
+                         touch:TouchAwareDragDropHelper.IsEnabled="True"
+                         Button.Click="ItemsList_ButtonClick"
+                         SelectionChanged="AddedList_SelectionChanged"
+                         MinHeight="48" d:ItemsSource="{d:SampleData ItemCount=5}">
+                    <ListView.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel Orientation="Horizontal"/>
+                        </ItemsPanelTemplate>
+                    </ListView.ItemsPanel>
+                </ListView>
+            </Border>
+        </DockPanel>
+
+        <!-- ===== GridSplitter ===== -->
+        <GridSplitter Grid.Row="2" Height="6" HorizontalAlignment="Stretch"
+                      Background="{DynamicResource ControlStrokeColorDefaultBrush}"
+                      ResizeDirection="Rows" ResizeBehavior="PreviousAndNext"
+                      Cursor="SizeNS" Margin="0,1,0,1"/>
+
+        <!-- ===== Section 3: 组件库 / 组件设置 / 高级设置 ===== -->
+        <TabControl Grid.Row="3" x:Name="SettingsTabControl" Margin="0,4,0,0"
+                    Style="{StaticResource {x:Static ui:ThemeKeys.TabControlPivotStyleKey}}"
+                    ItemContainerStyle="{StaticResource CompactTabItemPivotStyle}"
+                    SelectedIndex="{Binding SettingsTabIndex}">
+            <TabControl.Resources>
+                <sys:Double x:Key="PivotHeaderItemFontSize">16</sys:Double>
+            </TabControl.Resources>
+
+            <!-- ===== Tab 1: 组件库 ===== -->
+            <TabItem Header="{x:Static props:FloatingBarStrings.ToolbarPage_ComponentLibrary}">
+                <ScrollViewer PanningMode="VerticalFirst" VerticalScrollBarVisibility="Auto">
+                    <ikw:SimpleStackPanel Spacing="4" Margin="0,8,0,0">
+                        <TextBlock Text="{x:Static props:FloatingBarStrings.ToolbarPage_ComponentLibraryHint}"
+                                   Opacity="0.65" FontSize="12" Margin="0,0,0,8"/>
+                        <ui:ListView ItemsSource="{Binding AvailableItems}"
+                                 ItemTemplate="{StaticResource LibraryItemTemplate}"
+                                 dd:DragDrop.IsDragSource="True"
+                                 touch:TouchAwareDragDropHelper.IsEnabled="True"
+                                 Background="Transparent" BorderThickness="0"
+                                 SelectionMode="Single"
+                                 SelectionChanged="LibraryList_SelectionChanged">
+                            <ui:ListView.ItemContainerStyle>
+                                <Style TargetType="ui:ListViewItem">
+                                    <Setter Property="Padding" Value="8,0"/>
+                                    <Setter Property="MinHeight" Value="0"/>
+                                    <Setter Property="Margin" Value="1.5"/>
+                                    <Setter Property="VerticalContentAlignment" Value="Stretch"/>
+                                    <EventSetter Event="Loaded" Handler="ListViewItem_Loaded"/>
+                                </Style>
+                            </ui:ListView.ItemContainerStyle>
+                            <ui:ListView.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel Orientation="Horizontal"
+                                               helpers:WrapPanelAutoResize.TargetWidth="225"/>
+                                </ItemsPanelTemplate>
+                            </ui:ListView.ItemsPanel>
+                        </ui:ListView>
+                    </ikw:SimpleStackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ===== Tab 2: 组件设置 ===== -->
+            <TabItem x:Name="ComponentSettingsTab" Header="{x:Static props:FloatingBarStrings.ToolbarPage_ComponentSettings}">
+                <TabItem.Visibility>
+                    <Binding Path="SelectedEntry" Converter="{StaticResource NullToVisibilityConverter}"/>
+                </TabItem.Visibility>
+                <ScrollViewer PanningMode="VerticalFirst" VerticalScrollBarVisibility="Auto">
+                    <ikw:SimpleStackPanel Spacing="4" Margin="0,8,0,0">
+
+                        <TextBlock Text="{x:Static props:FloatingBarStrings.ToolbarPage_ComponentProperties}" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,8"/>
+
+                        <!-- 组件自定义设置面板（动态生成，内置组件和插件组件共用） -->
+                        <StackPanel x:Name="PanelPluginCustomSettings" Visibility="Collapsed">
+                        </StackPanel>
+
+                    </ikw:SimpleStackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ===== Tab 3: 高级设置 ===== -->
+            <TabItem Header="{x:Static props:NavStrings.Nav_Advanced_Settings}">
+                <TabItem.Visibility>
+                    <Binding Path="SelectedEntry" Converter="{StaticResource NullToVisibilityConverter}"/>
+                </TabItem.Visibility>
+                <ScrollViewer PanningMode="VerticalFirst" VerticalScrollBarVisibility="Auto">
+                    <ikw:SimpleStackPanel Spacing="4" Margin="0,8,0,0">
+
+                        <TextBlock Text="{x:Static props:FloatingBarStrings.ToolbarPage_ComponentProperties}" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,8"/>
+
+                        <ui:SettingsCard Header="{x:Static props:FloatingBarStrings.ToolbarPage_SeparateBorder}" Description="{x:Static props:FloatingBarStrings.ToolbarPage_SeparateBorderDesc}">
+                            <CheckBox x:Name="CheckBoxShowSeparateBorder"
+                                      Checked="CheckBoxShowSeparateBorder_Changed"
+                                      Unchecked="CheckBoxShowSeparateBorder_Changed"/>
+                        </ui:SettingsCard>
+
+                        <ui:SettingsCard Header="{x:Static props:FloatingBarStrings.ToolbarPage_RedStyle}" Description="{x:Static props:FloatingBarStrings.ToolbarPage_RedStyleDesc}">
+                            <CheckBox x:Name="CheckBoxUseRedStyle"
+                                      Checked="CheckBoxUseRedStyle_Changed"
+                                      Unchecked="CheckBoxUseRedStyle_Changed"/>
+                        </ui:SettingsCard>
+
+                    </ikw:SimpleStackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ===== Tab 4: 按规则隐藏 ===== -->
+            <TabItem Header="{x:Static props:FloatingBarStrings.ToolbarPage_HideByRules}">
+                <TabItem.Visibility>
+                    <Binding Path="SelectedEntry" Converter="{StaticResource NullToVisibilityConverter}"/>
+                </TabItem.Visibility>
+                <ScrollViewer PanningMode="VerticalFirst" VerticalScrollBarVisibility="Auto">
+                    <ikw:SimpleStackPanel Spacing="4" Margin="0,8,0,0">
+
+                        <TextBlock Text="{x:Static props:FloatingBarStrings.ToolbarPage_HideByRules}" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                        <TextBlock Text="{x:Static props:FloatingBarStrings.ToolbarPage_HideByRulesDesc}"
+                                   Opacity="0.65" FontSize="12" Margin="0,0,0,8"/>
+
+                        <Border BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                                BorderThickness="1" CornerRadius="8" Padding="12"
+                                Background="{DynamicResource CardBackgroundFillColorSecondaryBrush}">
+                            <StackPanel>
+                                <WrapPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                    <ComboBox x:Name="ComboBoxRulesetMode"
+                                              SelectionChanged="ComboBoxRulesetMode_SelectionChanged">
+                                        <ComboBoxItem Content="{x:Static props:FloatingBarStrings.ToolbarPage_AnyConditionGroupMet}"/>
+                                        <ComboBoxItem Content="{x:Static props:FloatingBarStrings.ToolbarPage_AllConditionGroupsMet}"/>
+                                    </ComboBox>
+                                    <CheckBox Content="{x:Static props:FloatingBarStrings.ToolbarPage_Reverse}" x:Name="CheckBoxRulesetReversed"
+                                              Checked="CheckBoxRulesetReversed_Changed"
+                                              Unchecked="CheckBoxRulesetReversed_Changed"
+                                              Margin="8,0,0,0" VerticalAlignment="Center"/>
+                                    <Button Content="{x:Static props:FloatingBarStrings.ToolbarPage_AddGroup}" Click="ButtonAddGroup_Click"
+                                            Padding="8,4" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                                    <Ellipse x:Name="EllipseRulesetState" Width="10" Height="10"
+                                             Margin="8,0,0,0" VerticalAlignment="Center"
+                                             Fill="{Binding State, Converter={StaticResource StateToBrushConverter}}"/>
+                                </WrapPanel>
+
+                                <ItemsControl x:Name="ItemsControlGroups">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                                                    BorderThickness="1" CornerRadius="6" Padding="8"
+                                                    Margin="0,4" Background="{DynamicResource CardBackgroundFillColorDefaultBrush}">
+                                                <StackPanel>
+                                                    <WrapPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                                        <ComboBox SelectedIndex="{Binding Mode, Converter={StaticResource LogicalModeToIntConverter}, Mode=OneWay}"
+                                                                  SelectionChanged="ComboBoxGroupMode_SelectionChanged"
+                                                                  Tag="{Binding}">
+                                                            <ComboBoxItem Content="{x:Static props:FloatingBarStrings.ToolbarPage_AnyConditionMet}"/>
+                                                            <ComboBoxItem Content="{x:Static props:FloatingBarStrings.ToolbarPage_AllConditionsMet}"/>
+                                                        </ComboBox>
+                                                        <CheckBox Content="{x:Static props:FloatingBarStrings.ToolbarPage_Reverse}" IsChecked="{Binding IsReversed}"
+                                                                  Checked="CheckBoxGroupReversed_Changed"
+                                                                  Unchecked="CheckBoxGroupReversed_Changed"
+                                                                  Margin="6,0,0,0" VerticalAlignment="Center"/>
+                                                        <Button Content="{x:Static props:FloatingBarStrings.ToolbarPage_Rule}" Click="ButtonAddRule_Click"
+                                                                Padding="6,2" Margin="6,0,0,0" VerticalAlignment="Center"
+                                                                Tag="{Binding}"/>
+                                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
+                                                                    VerticalAlignment="Center" Margin="8,0,0,0">
+                                                            <Ellipse Width="8" Height="8" Margin="0,0,4,0"
+                                                                     Fill="{Binding State, Converter={StaticResource StateToBrushConverter}}"/>
+                                                            <ui:ToggleSwitch IsOn="{Binding IsEnabled}"
+                                                                              Toggled="CheckBoxGroupEnabled_Changed"
+                                                                              ToolTip="{x:Static props:FloatingBarStrings.ToolbarPage_EnableConditionGroup}" Margin="0,0,4,0"/>
+                                                            <Button Content="{x:Static props:FloatingBarStrings.ToolbarPage_Duplicate}" Click="ButtonDuplicateGroup_Click"
+                                                                    Padding="4,2" Margin="0,0,4,0" Tag="{Binding}"/>
+                                                            <Button Content="{x:Static props:FloatingBarStrings.ToolbarPage_DeleteProfile}" Click="ButtonDeleteGroup_Click"
+                                                                    Padding="4,2" Tag="{Binding}"/>
+                                                        </StackPanel>
+                                                    </WrapPanel>
+
+                                                    <ItemsControl ItemsSource="{Binding Rules}" Margin="4,0,0,0">
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate>
+                                                                <Grid Margin="0,2">
+                                                                    <Grid.ColumnDefinitions>
+                                                                        <ColumnDefinition Width="Auto"/>
+                                                                        <ColumnDefinition Width="Auto"/>
+                                                                        <ColumnDefinition Width="Auto"/>
+                                                                        <ColumnDefinition Width="*"/>
+                                                                    </Grid.ColumnDefinitions>
+                                                                    <Button Grid.Column="0" Content="✕" FontSize="10"
+                                                                            Click="ButtonDeleteRule_Click"
+                                                                            Padding="4,1" Margin="0,0,4,0"
+                                                                            Tag="{Binding}"/>
+                                                                    <Ellipse Grid.Column="1" Width="8" Height="8"
+                                                                             Margin="0,0,4,0" VerticalAlignment="Center"
+                                                                             Fill="{Binding State, Converter={StaticResource StateToBrushConverter}}"/>
+                                                                    <CheckBox Grid.Column="2" Content="{x:Static props:FloatingBarStrings.ToolbarPage_Reverse}"
+                                                                              IsChecked="{Binding IsReversed}"
+                                                                              Checked="CheckBoxRuleReversed_Changed"
+                                                                              Unchecked="CheckBoxRuleReversed_Changed"
+                                                                              Margin="0,0,4,0"/>
+                                                                    <ComboBox Grid.Column="3"
+                                                                              SelectedValue="{Binding ConditionId}"
+                                                                              SelectedValuePath="Key"
+                                                                              DisplayMemberPath="Value"
+                                                                              SelectionChanged="ComboBoxRuleCondition_SelectionChanged"
+                                                                              ItemsSource="{x:Static toolbar:ToolbarRegistry.AvailableConditions}"/>
+                                                                </Grid>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+
+                    </ikw:SimpleStackPanel>
+                </ScrollViewer>
+            </TabItem>
+        </TabControl>
+
+        <!-- ===== Section 4: 恢复默认布局 ===== -->
+        <Button Grid.Row="4" Content="{x:Static props:FloatingBarStrings.ToolbarPage_ResetLayout}" Click="ButtonReset_Click"
+                Padding="20,10" HorizontalAlignment="Left" Margin="0,12,0,16"/>
+    </Grid>
+</ui:Page>

@@ -1,0 +1,338 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="Plugin_Title" xml:space="preserve">
+    <value>插件管理</value>
+  </data>
+  <data name="Plugin_Loading" xml:space="preserve">
+    <value>正在加载插件...</value>
+  </data>
+  <data name="Plugin_LoadedCount" xml:space="preserve">
+    <value>已加载 {0} 个插件</value>
+  </data>
+  <data name="Plugin_NoPlugins" xml:space="preserve">
+    <value>没有找到插件，请将插件文件放置在 Plugins 目录中</value>
+  </data>
+  <data name="Plugin_LoadError" xml:space="preserve">
+    <value>加载插件时出错：{0}</value>
+  </data>
+  <data name="Plugin_Author" xml:space="preserve">
+    <value>作者：{0}</value>
+  </data>
+  <data name="Plugin_Settings" xml:space="preserve">
+    <value>插件设置</value>
+  </data>
+  <data name="Market_Title" xml:space="preserve">
+    <value>插件市场</value>
+  </data>
+  <data name="Market_SearchPlaceholder" xml:space="preserve">
+    <value>搜索插件...</value>
+  </data>
+  <data name="Market_TabMarket" xml:space="preserve">
+    <value>市场</value>
+  </data>
+  <data name="Market_TabInstalled" xml:space="preserve">
+    <value>已安装</value>
+  </data>
+  <data name="Market_Refresh" xml:space="preserve">
+    <value>刷新插件源</value>
+  </data>
+  <data name="Market_OpenPluginsFolder" xml:space="preserve">
+    <value>打开插件目录</value>
+  </data>
+  <data name="Market_InstallFromLocal" xml:space="preserve">
+    <value>从本地安装</value>
+  </data>
+  <data name="Market_Install" xml:space="preserve">
+    <value>安装</value>
+  </data>
+  <data name="Market_Update" xml:space="preserve">
+    <value>更新</value>
+  </data>
+  <data name="Market_UpdateAvailable" xml:space="preserve">
+    <value>可更新</value>
+  </data>
+  <data name="Market_RestartRequired" xml:space="preserve">
+    <value>待应用</value>
+  </data>
+  <data name="Market_RestartToApply" xml:space="preserve">
+    <value>立即应用</value>
+  </data>
+  <data name="Market_ApplyPendingUpdate" xml:space="preserve">
+    <value>立即应用</value>
+  </data>
+  <data name="Market_SelectPluginHint" xml:space="preserve">
+    <value>在左侧选择一个插件以查看详情</value>
+  </data>
+  <data name="Market_ProjectHomepage" xml:space="preserve">
+    <value>项目主页</value>
+  </data>
+  <data name="Market_TabOverview" xml:space="preserve">
+    <value>概览</value>
+  </data>
+  <data name="Market_TabDependencies" xml:space="preserve">
+    <value>依赖项</value>
+  </data>
+  <data name="Market_ReadmeLoading" xml:space="preserve">
+    <value>正在加载说明文档...</value>
+  </data>
+  <data name="Market_ReadmeLoadFailed" xml:space="preserve">
+    <value>无法加载说明文档。</value>
+  </data>
+  <data name="Market_NoReadme" xml:space="preserve">
+    <value>该插件暂无说明文档。</value>
+  </data>
+  <data name="Market_DependencyWarning" xml:space="preserve">
+    <value>此插件依赖以下插件，将一并安装：{0}
+
+是否继续？</value>
+  </data>
+  <data name="Market_DependencyTitle" xml:space="preserve">
+    <value>安装依赖</value>
+  </data>
+  <data name="Market_InstallLocalSuccess" xml:space="preserve">
+    <value>插件已安装并热加载完成。</value>
+  </data>
+  <data name="Market_InstallLocalFailed" xml:space="preserve">
+    <value>安装失败：{0}</value>
+  </data>
+  <data name="Market_HotUpdateMessage" xml:space="preserve">
+    <value>将下载并立即热更新该插件，无需重启。是否继续？</value>
+  </data>
+  <data name="Market_HotInstallPending" xml:space="preserve">
+    <value>插件包已下载，但未能立即热加载。可点击“立即应用”重试，或重启应用后自动生效。</value>
+  </data>
+  <data name="Market_HotInstallFailedRestart" xml:space="preserve">
+    <value>热加载未能完成（可能因文件仍被占用）。是否立即重启应用以完成安装？</value>
+  </data>
+  <data name="Market_RestartMessage" xml:space="preserve">
+    <value>需要重启应用以完成插件操作。是否立即重启？</value>
+  </data>
+  <data name="Market_RestartTitle" xml:space="preserve">
+    <value>重启确认</value>
+  </data>
+  <data name="Market_RestartFailed" xml:space="preserve">
+    <value>重启失败：{0}</value>
+  </data>
+  <data name="Plugin_Update" xml:space="preserve">
+    <value>更新</value>
+  </data>
+  <data name="Plugin_Reload" xml:space="preserve">
+    <value>热重载插件</value>
+  </data>
+  <data name="Plugin_Unload" xml:space="preserve">
+    <value>卸载插件</value>
+  </data>
+  <data name="Plugin_Load" xml:space="preserve">
+    <value>加载插件</value>
+  </data>
+  <data name="Plugin_UnloadSuccess" xml:space="preserve">
+    <value>插件已卸载。</value>
+  </data>
+  <data name="Plugin_LoadSuccess" xml:space="preserve">
+    <value>插件已加载。</value>
+  </data>
+  <data name="Plugin_LoadFailed" xml:space="preserve">
+    <value>插件加载失败：{0}</value>
+  </data>
+  <data name="Plugin_ReloadPartial" xml:space="preserve">
+    <value>插件已重新加载，但旧程序集仍在内存中。建议重启应用以彻底释放旧版本。</value>
+  </data>
+  <data name="Plugin_ReloadFailed" xml:space="preserve">
+    <value>插件热重载失败：{0}</value>
+  </data>
+  <data name="Plugin_Delete" xml:space="preserve">
+    <value>删除</value>
+  </data>
+  <data name="Plugin_DeleteConfirm" xml:space="preserve">
+    <value>确定要删除插件「{0}」吗？删除后将立即卸载，无需重启。</value>
+  </data>
+  <data name="Plugin_DeleteTitle" xml:space="preserve">
+    <value>删除插件</value>
+  </data>
+  <data name="Plugin_UpdateAvailable" xml:space="preserve">
+    <value>有新版本: v{0}</value>
+  </data>
+  <data name="Plugin_ErrorTitle" xml:space="preserve">
+    <value>插件错误</value>
+  </data>
+  <data name="Plugin_ErrorAutoDisabled" xml:space="preserve">
+    <value>插件已自动禁用：在 {0} 分钟内连续 {1} 次加载失败。请手动重置后再启用。</value>
+  </data>
+  <data name="Plugin_ErrorReset" xml:space="preserve">
+    <value>重置错误并重新加载</value>
+  </data>
+  <data name="Plugin_ErrorResetConfirm" xml:space="preserve">
+    <value>将清除错误记录并立即尝试重新加载该插件。是否继续？</value>
+  </data>
+  <data name="Plugin_ExportConfig" xml:space="preserve">
+    <value>导出配置</value>
+  </data>
+  <data name="Plugin_ImportConfig" xml:space="preserve">
+    <value>导入配置</value>
+  </data>
+  <data name="Plugin_ExportTitle" xml:space="preserve">
+    <value>导出插件配置</value>
+  </data>
+  <data name="Plugin_ExportSuccess" xml:space="preserve">
+    <value>插件配置已导出到：{0}</value>
+  </data>
+  <data name="Plugin_ExportFailed" xml:space="preserve">
+    <value>导出失败：{0}</value>
+  </data>
+  <data name="Plugin_ImportTitle" xml:space="preserve">
+    <value>导入插件配置</value>
+  </data>
+  <data name="Plugin_ImportSuccess" xml:space="preserve">
+    <value>导入成功，覆盖了 {0} 个文件。</value>
+  </data>
+  <data name="Plugin_ImportFailed" xml:space="preserve">
+    <value>导入失败：{0}</value>
+  </data>
+  <data name="Plugin_ExternalDllAuthorizationTitle" xml:space="preserve">
+    <value>外部 DLL 授权</value>
+  </data>
+  <data name="Plugin_ExternalDllAuthorizationMessage" xml:space="preserve">
+    <value>插件“{0}”（作者：{1}）请求加载外部 DLL：
+{2}
+
+允许后，该插件的其它外部 DLL 将不再重复询问。DLL 可执行任意代码，仅在你信任该插件时允许加载。
+是否授权？</value>
+  </data>
+  <data name="Market_SecurityWarning" xml:space="preserve">
+    <value>此插件来源未经验证，继续安装存在风险。请确认你信任该来源。</value>
+  </data>
+  <data name="Market_SecurityTitle" xml:space="preserve">
+    <value>安全提示</value>
+  </data>
+  <data name="Market_UntrustedInstallConfirmation" xml:space="preserve">
+    <value>此插件未通过信任验证。
+插件 ID：{0}
+SHA256：{1}
+声明权限：{2}
+判定原因：
+{3}
+
+插件 DLL 可执行任意代码。仅在你确认来源可信时继续安装。
+是否继续？</value>
+  </data>
+  <data name="Market_SecurityUnknownReason" xml:space="preserve">
+    <value>未提供具体原因。</value>
+  </data>
+  <data name="Market_SecurityNone" xml:space="preserve">
+    <value>无</value>
+  </data>
+  <data name="Market_OpenLogsFolder" xml:space="preserve">
+    <value>打开日志目录</value>
+  </data>
+  <data name="Market_LoadErrorOnInstall" xml:space="preserve">
+    <value>此插件检测到以下问题，建议继续安装前确认：</value>
+  </data>
+  <data name="Market_ManageSources" xml:space="preserve">
+    <value>插件源</value>
+  </data>
+  <data name="Market_ActiveSource" xml:space="preserve">
+    <value>当前源</value>
+  </data>
+  <data name="Market_AddSource" xml:space="preserve">
+    <value>添加源</value>
+  </data>
+  <data name="Market_EditSource" xml:space="preserve">
+    <value>编辑源</value>
+  </data>
+  <data name="Market_RemoveSource" xml:space="preserve">
+    <value>删除源</value>
+  </data>
+  <data name="Market_SourceIdLabel" xml:space="preserve">
+    <value>源名称</value>
+  </data>
+  <data name="Market_SourceUrlLabel" xml:space="preserve">
+    <value>索引 URL</value>
+  </data>
+  <data name="Market_SourceOfficial" xml:space="preserve">
+    <value>官方源（不可编辑）</value>
+  </data>
+  <data name="Market_MirrorGroup" xml:space="preserve">
+    <value>下载镜像</value>
+  </data>
+  <data name="Market_NoMirrors" xml:space="preserve">
+    <value>该索引未提供下载镜像</value>
+  </data>
+  <data name="Market_MirrorAuto" xml:space="preserve">
+    <value>自动（默认）</value>
+  </data>
+  <data name="Market_SaveSource" xml:space="preserve">
+    <value>保存</value>
+  </data>
+  <data name="Market_CancelSource" xml:space="preserve">
+    <value>取消</value>
+  </data>
+  <data name="Market_SourceInvalidUrl" xml:space="preserve">
+    <value>URL 必须以 http:// 或 https:// 开头</value>
+  </data>
+  <data name="Market_SourceDuplicate" xml:space="preserve">
+    <value>已存在同名源</value>
+  </data>
+  <data name="Market_SourceRemoved" xml:space="preserve">
+    <value>源已删除</value>
+  </data>
+  <data name="Market_SourceSaved" xml:space="preserve">
+    <value>源已保存</value>
+  </data>
+  <data name="Market_SourceNameRequired" xml:space="preserve">
+    <value>请输入源名称</value>
+  </data>
+  <data name="Market_RemoveSourceConfirmation" xml:space="preserve">
+    <value>确定要删除源“{0}”吗？</value>
+  </data>
+  <data name="Compat_HostVersionTooLow" xml:space="preserve">
+    <value>插件要求宿主版本 ≥ {0}，当前宿主为 {1}</value>
+  </data>
+  <data name="Compat_ApiVersionMismatch" xml:space="preserve">
+    <value>插件要求 API 版本 {0}，当前宿主 API 为 {1}</value>
+  </data>
+  <data name="Compat_HostVersionOutOfRange" xml:space="preserve">
+    <value>当前宿主版本 {0} 不在插件支持的版本范围 {1} 内</value>
+  </data>
+</root>

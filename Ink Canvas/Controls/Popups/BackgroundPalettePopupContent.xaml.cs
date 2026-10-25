@@ -1,0 +1,33 @@
+using System.Windows.Controls;
+
+namespace Ink_Canvas.Controls
+{
+    public partial class BackgroundPalettePopupContent : UserControl
+    {
+        public Slider RSlider => BackgroundRSlider;
+        public Slider GSlider => BackgroundGSlider;
+        public Slider BSlider => BackgroundBSlider;
+        public TextBlock RValue => BackgroundRValue;
+        public TextBlock GValue => BackgroundGValue;
+        public TextBlock BValue => BackgroundBValue;
+        public Border ColorPreview => BackgroundColorPreview;
+        public Button ApplyBtn => ApplyBackgroundColorBtn;
+        public Border WhiteboardBtn => WhiteboardModeBtn;
+        public Border BlackboardBtn => BlackboardModeBtn;
+        public Border DarkModeBtnControl => DarkModeBtn;
+        public Button CloseButtonControl => Shell?.CloseButtonControl;
+        public CheckBox GridLinesCheckBoxControl => GridLinesCheckBox;
+        public Slider GridDensitySliderControl => GridDensitySlider;
+        public Slider GridBrightnessSliderControl => GridBrightnessSlider;
+        public TextBlock GridDensityValueControl => GridDensityValue;
+        public TextBlock GridBrightnessValueControl => GridBrightnessValue;
+        public CheckBox GridHorizontalLinesCheckBoxControl => GridHorizontalLinesCheckBox;
+        public CheckBox GridVerticalLinesCheckBoxControl => GridVerticalLinesCheckBox;
+
+        public BackgroundPalettePopupContent()
+        {
+            InitializeComponent();
+            Shell.InnerContent = InnerContentHost.Content;
+        }
+    }
+}
