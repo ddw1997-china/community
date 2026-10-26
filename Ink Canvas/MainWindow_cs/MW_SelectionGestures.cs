@@ -522,23 +522,61 @@ namespace Ink_Canvas
         /// </remarks>
         private void ImageRotate45_MouseUp(object sender, MouseButtonEventArgs e)
         {
+            TryRotateSelectedStrokes(sender, e, 45);
+        }
+
+        /// <summary>
+        /// 处理顺时针旋转30度鼠标释放事件
+        /// </summary>
+        private void ImageRotate30_MouseUp(object sender, MouseButtonEventArgs e)
+        {
+            TryRotateSelectedStrokes(sender, e, 30);
+        }
+
+        /// <summary>
+        /// 处理顺时针旋转60度鼠标释放事件
+        /// </summary>
+        private void ImageRotate60_MouseUp(object sender, MouseButtonEventArgs e)
+        {
+            TryRotateSelectedStrokes(sender, e, 60);
+        }
+
+        /// <summary>
+        /// 旋转按钮统一入口：只有按下与抬起为同一按钮时才旋转。
+        /// </summary>
+        private void TryRotateSelectedStrokes(object sender, MouseButtonEventArgs e, double angleDegrees)
+        {
             if (TryBlockFrozenPageMutation("旋转墨迹")) return;
             if (lastBorderMouseDownObject != sender) return;
 
-            var m = new Matrix();
+            RotateSelectedStrokesBy(angleDegrees);
+        }
 
-            // Find center of element and then transform to get current location of center
-            var fe = e.Source as FrameworkElement;
-            var center = new Point(fe.ActualWidth / 2, fe.ActualHeight / 2);
-            center = new Point(inkCanvas.GetSelectionBounds().Left + inkCanvas.GetSelectionBounds().Width / 2,
-                inkCanvas.GetSelectionBounds().Top + inkCanvas.GetSelectionBounds().Height / 2);
-            center = m.Transform(center); // 转换为矩阵缩放和旋转的中心点
-
-            // Update matrix to reflect translation/rotation
-            m.RotateAt(45, center.X, center.Y); // 顺时针旋转45度
-
+        /// <summary>
+        /// 顺时针旋转选中的墨迹。旋转中心优先使用用户拖动设置的旋转中心
+        /// （ImageSelectionOverlay 的枢轴点），未设置时使用选区中心。
+        /// </summary>
+        private void RotateSelectedStrokesBy(double angleDegrees)
+        {
             var targetStrokes = inkCanvas.GetSelectedStrokes();
+            if (targetStrokes == null || targetStrokes.Count == 0) return;
+
+            var selectionBounds = inkCanvas.GetSelectionBounds();
+            bool useCustomPivot = ImageSelectionOverlay != null && ImageSelectionOverlay.HasCustomPivot;
+            var center = useCustomPivot
+                ? ImageSelectionOverlay.PivotCanvasPoint
+                : new Point(selectionBounds.Left + selectionBounds.Width / 2,
+                            selectionBounds.Top + selectionBounds.Height / 2);
+
+            var m = new Matrix();
+            m.RotateAt(angleDegrees, center.X, center.Y);
+
             foreach (var stroke in targetStrokes) stroke.Transform(m, false);
+
+            // 墨迹已转动：选区框/句柄按新的选区边界重建（自定义旋转中心保持不变）
+            _isStrokeRotationOverlayActive = false;
+            _strokeRotationAngle = 0;
+            UpdateSelectionDisplay();
 
             if (DrawingAttributesHistory.Count > 0)
             {
@@ -563,39 +601,7 @@ namespace Ink_Canvas
         /// </remarks>
         private void ImageRotate90_MouseUp(object sender, MouseButtonEventArgs e)
         {
-            if (TryBlockFrozenPageMutation("旋转墨迹")) return;
-            if (lastBorderMouseDownObject != sender) return;
-
-            var m = new Matrix();
-
-            // Find center of element and then transform to get current location of center
-            var fe = e.Source as FrameworkElement;
-            var center = new Point(fe.ActualWidth / 2, fe.ActualHeight / 2);
-            center = new Point(inkCanvas.GetSelectionBounds().Left + inkCanvas.GetSelectionBounds().Width / 2,
-                inkCanvas.GetSelectionBounds().Top + inkCanvas.GetSelectionBounds().Height / 2);
-            center = m.Transform(center); // 转换为矩阵缩放和旋转的中心点
-
-            // Update matrix to reflect translation/rotation
-            m.RotateAt(90, center.X, center.Y); // 旋转
-
-            var targetStrokes = inkCanvas.GetSelectedStrokes();
-            foreach (var stroke in targetStrokes) stroke.Transform(m, false);
-
-            if (DrawingAttributesHistory.Count > 0)
-            {
-                var collecion = new StrokeCollection();
-                foreach (var item in DrawingAttributesHistory)
-                {
-                    collecion.Add(item.Key);
-                }
-
-                timeMachine.CommitStrokeDrawingAttributesHistory(DrawingAttributesHistory);
-                DrawingAttributesHistory = new Dictionary<Stroke, Tuple<DrawingAttributes, DrawingAttributes>>();
-                foreach (var item in DrawingAttributesHistoryFlag)
-                {
-                    item.Value.Clear();
-                }
-            }
+            TryRotateSelectedStrokes(sender, e, 90);
         }
 
         #endregion
@@ -1428,6 +1434,9 @@ namespace Ink_Canvas
             SelectionHandlesCanvas.Visibility = Visibility.Visible;
 
             ShowStrokeRotationHandle(selectionBounds);
+
+            // 选中的是坐标系时，额外显示轴长调节手柄
+            UpdateCoordinateAxisHandles();
         }
 
         /// <summary>
@@ -1441,6 +1450,7 @@ namespace Ink_Canvas
             CloseStrokeSelectionColorPopup();
             SelectionRectangle.Visibility = Visibility.Collapsed;
             SelectionHandlesCanvas.Visibility = Visibility.Collapsed;
+            HideCoordinateAxisHandles();
             if (currentSelectedElement == null)
             {
                 if (_isStrokeRotationOverlayActive)

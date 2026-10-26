@@ -64,19 +64,19 @@
     <value>Cone</value>
   </data>
   <data name="DrawCoordinate1" xml:space="preserve">
-    <value>Coordinate 1</value>
+    <value>Coordinate</value>
   </data>
   <data name="DrawCoordinate2" xml:space="preserve">
-    <value>Coordinate 2</value>
+    <value>Polygon</value>
   </data>
   <data name="DrawCoordinate3" xml:space="preserve">
-    <value>Coordinate 3</value>
+    <value>Equilateral Triangle</value>
   </data>
   <data name="DrawCoordinate4" xml:space="preserve">
-    <value>Coordinate 4</value>
+    <value>Right Triangle</value>
   </data>
   <data name="DrawCoordinate5" xml:space="preserve">
-    <value>Coordinate 5</value>
+    <value>3D Coordinate</value>
   </data>
   <data name="DrawCuboid" xml:space="preserve">
     <value>Cuboid</value>

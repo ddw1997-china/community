@@ -64,19 +64,19 @@
     <value>甜筒一根</value>
   </data>
   <data name="DrawCoordinate1" xml:space="preserve">
-    <value>数学狂喜坐标 1</value>
+    <value>数学狂喜坐标</value>
   </data>
   <data name="DrawCoordinate2" xml:space="preserve">
-    <value>数学狂喜坐标 2</value>
+    <value>多边形</value>
   </data>
   <data name="DrawCoordinate3" xml:space="preserve">
-    <value>数学狂喜坐标 3</value>
+    <value>等边三角形</value>
   </data>
   <data name="DrawCoordinate4" xml:space="preserve">
-    <value>数学狂喜坐标 4</value>
+    <value>直角三角形</value>
   </data>
   <data name="DrawCoordinate5" xml:space="preserve">
-    <value>数学狂喜坐标 5</value>
+    <value>数学狂喜三维坐标</value>
   </data>
   <data name="DrawCuboid" xml:space="preserve">
     <value>快递盒本盒</value>

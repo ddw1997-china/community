@@ -131,9 +131,9 @@ namespace Ink_Canvas
         /// 9: 长方体
         /// 10: 虚线圆形
         /// 11: 坐标系1
-        /// 12: 坐标系2
-        /// 13: 坐标系3
-        /// 14: 坐标系4
+        /// 12: 多边形（单击添加顶点，点击起点闭合完成）
+        /// 13: 等边三角形
+        /// 14: 直角三角形
         /// 15: 平行线
         /// 16: 中心椭圆
         /// 17: 坐标系5
@@ -158,7 +158,11 @@ namespace Ink_Canvas
             set
             {
                 if (_drawingShapeMode == value) return;
+                var previousMode = _drawingShapeMode;
                 _drawingShapeMode = value;
+                // 离开多边形模式时清理未完成的顶点与预览
+                if (previousMode == 12)
+                    CancelPolygonDrawing();
                 // 图形对话框的选中状态变化后，同步白板工具栏「几何图形」按钮的高亮
                 UpdateBoardShapeButtonHighlight();
             }
@@ -1038,17 +1042,17 @@ namespace Ink_Canvas
         }
 
         /// <summary>
-        /// 处理绘制坐标系2按钮点击事件
+        /// 处理绘制多边形按钮点击事件（模式 12）
         /// </summary>
         /// <param name="sender">事件发送者</param>
         /// <param name="e">鼠标按钮事件参数</param>
         /// <remarks>
-        /// 当绘制坐标系2按钮被点击时：
+        /// 当绘制多边形按钮被点击时：
         /// 1. 检查是否在多点触控模式下
         /// 2. 禁用点橡皮擦模式
         /// 3. 禁用橡皮擦覆盖
         /// 4. 设置强制橡皮擦模式
-        /// 5. 设置绘制模式为坐标系2
+        /// 5. 设置绘制模式为多边形
         /// 6. 设置墨水画布编辑模式为无
         /// 7. 启用墨水画布的操作功能
         /// 8. 取消单指拖拽模式
@@ -1069,17 +1073,17 @@ namespace Ink_Canvas
         }
 
         /// <summary>
-        /// 处理绘制坐标系3按钮点击事件
+        /// 处理绘制等边三角形按钮点击事件（模式 13）
         /// </summary>
         /// <param name="sender">事件发送者</param>
         /// <param name="e">鼠标按钮事件参数</param>
         /// <remarks>
-        /// 当绘制坐标系3按钮被点击时：
+        /// 当绘制等边三角形按钮被点击时：
         /// 1. 检查是否在多点触控模式下
         /// 2. 禁用点橡皮擦模式
         /// 3. 禁用橡皮擦覆盖
         /// 4. 设置强制橡皮擦模式
-        /// 5. 设置绘制模式为坐标系3
+        /// 5. 设置绘制模式为等边三角形
         /// 6. 设置墨水画布编辑模式为无
         /// 7. 启用墨水画布的操作功能
         /// 8. 取消单指拖拽模式
@@ -1100,17 +1104,17 @@ namespace Ink_Canvas
         }
 
         /// <summary>
-        /// 处理绘制坐标系4按钮点击事件
+        /// 处理绘制直角三角形按钮点击事件（模式 14）
         /// </summary>
         /// <param name="sender">事件发送者</param>
         /// <param name="e">鼠标按钮事件参数</param>
         /// <remarks>
-        /// 当绘制坐标系4按钮被点击时：
+        /// 当绘制直角三角形按钮被点击时：
         /// 1. 检查是否在多点触控模式下
         /// 2. 禁用点橡皮擦模式
         /// 3. 禁用橡皮擦覆盖
         /// 4. 设置强制橡皮擦模式
-        /// 5. 设置绘制模式为坐标系4
+        /// 5. 设置绘制模式为直角三角形
         /// 6. 设置墨水画布编辑模式为无
         /// 7. 启用墨水画布的操作功能
         /// 8. 取消单指拖拽模式
@@ -1625,6 +1629,8 @@ namespace Ink_Canvas
             if (_isVideoPresenterSpecialMode && drawingShapeMode == 0) return;
 
             if (isSingleFingerDragMode) return;
+            // 多边形：顶点由抬起时的点击事件维护，这里不参与拖动绘制（不拦截以便触摸提升为鼠标事件）
+            if (drawingShapeMode == 12) return;
             if (drawingShapeMode != 0)
             {
                 //EraserContainer.Background = null;
@@ -1721,6 +1727,20 @@ namespace Ink_Canvas
         private StrokeCollection _bezierLastPreview;
         private Point _bezierEndPoint = default;
 
+        // 多边形（模式 12）专用：单击添加顶点，点击起点闭合完成
+        private readonly List<Point> _polygonVertices = new List<Point>();
+        private Stroke _polygonPreviewStroke;
+
+        /// <summary>
+        /// 判定“点击起点闭合”的命中半径（画布像素）
+        /// </summary>
+        private const double PolygonCloseHitRadius = 16;
+
+        /// <summary>
+        /// 多边形点位是否处于绘制过程中
+        /// </summary>
+        private bool IsPolygonDrawing => drawingShapeMode == 12 && _polygonVertices.Count > 0;
+
         #region 形状绘制主函数
 
         /// <summary>
@@ -1737,7 +1757,9 @@ namespace Ink_Canvas
         ///    - 点线
         ///    - 箭头
         ///    - 平行线
-        ///    - 各种坐标系
+        ///    - 坐标系（模式 11 / 17）
+        ///    - 多边形（模式 12，单击加点、闭合完成，不走拖动绘制）
+        ///    - 等边/直角三角形（模式 13 / 14）
         ///    - 矩形
         ///    - 中心矩形
         ///    - 椭圆
@@ -1914,13 +1936,24 @@ namespace Ink_Canvas
                     break;
                 case 11:
                     _currentCommitType = CommitReason.ShapeDrawing;
-                    var xAxisStart = new Point(2 * iniP.X - (endP.X - 20), iniP.Y);
-                    var xAxisEnd = new Point(endP.X, iniP.Y);
-                    var yAxisStart = new Point(iniP.X, 2 * iniP.Y - (endP.Y + 20));
-                    var yAxisEnd = new Point(iniP.X, endP.Y);
-                    strokes.Add(GenerateArrowLineStroke(xAxisStart, xAxisEnd));
-                    strokes.Add(GenerateArrowLineStroke(yAxisStart, yAxisEnd));
-                    AddCoordinateUnitMarks(strokes, iniP, xAxisStart, xAxisEnd, yAxisStart, yAxisEnd);
+                    // 本次绘制的坐标系分组标记：绘制完成后据此把整组笔画注册为「轴长可调」
+                    if (_pendingCoordinateTag == Guid.Empty) _pendingCoordinateTag = Guid.NewGuid();
+                    {
+                        // 拖拽方向决定两条轴的正方向，拖拽距离决定正方向臂长；
+                        // 负方向臂长沿用原绘制规则：X 负臂比正臂短 20，Y 负臂比正臂长 20
+                        var axisX = new Vector(endP.X < iniP.X ? -1 : 1, 0);
+                        var axisY = new Vector(0, endP.Y < iniP.Y ? -1 : 1);
+                        var armX = Math.Max(Math.Abs(endP.X - iniP.X), 24);
+                        var armY = Math.Max(Math.Abs(endP.Y - iniP.Y), 24);
+                        var arms = new CoordinateArms
+                        {
+                            XPlus = armX,
+                            XMinus = Math.Max(armX - 20, 24),
+                            YPlus = armY,
+                            YMinus = armY + 20
+                        };
+                        strokes = BuildCoordinateSystemStrokes(iniP, axisX, axisY, arms, _pendingCoordinateTag);
+                    }
                     try
                     {
                         inkCanvas.Strokes.Remove(lastTempStrokeCollection);
@@ -1934,77 +1967,75 @@ namespace Ink_Canvas
                     inkCanvas.Strokes.Add(strokes);
                     break;
                 case 12:
+                    // 多边形：单击添加顶点、点击起点闭合完成，不使用拖动绘制，
+                    // 顶点与预览由 HandlePolygonClick / UpdatePolygonPreview 维护。
+                    return;
+                case 13: // 等边三角形：起点为第一个顶点（拖动过程中固定不动），鼠标位置为第二个顶点，第三个顶点由旋转 60° 得到
                     _currentCommitType = CommitReason.ShapeDrawing;
-                    if (Math.Abs(iniP.X - endP.X) < 0.01) return;
-                    xAxisStart = new Point(iniP.X + (iniP.X - endP.X) / Math.Abs(iniP.X - endP.X) * 25, iniP.Y);
-                    xAxisEnd = new Point(endP.X, iniP.Y);
-                    yAxisStart = new Point(iniP.X, 2 * iniP.Y - (endP.Y + 20));
-                    yAxisEnd = new Point(iniP.X, endP.Y);
-                    strokes.Add(GenerateArrowLineStroke(xAxisStart, xAxisEnd));
-                    strokes.Add(GenerateArrowLineStroke(yAxisStart, yAxisEnd));
-                    AddCoordinateUnitMarks(strokes, iniP, xAxisStart, xAxisEnd, yAxisStart, yAxisEnd);
+                    {
+                        var ax = iniP.X;
+                        var ay = iniP.Y;
+                        var dx = endP.X - ax;
+                        var dy = endP.Y - ay;
+                        var side = Math.Sqrt(dx * dx + dy * dy);
+                        if (side < 0.01) return;
+                        // 以 AB 为一边，向 AB 的“上方”（屏幕坐标）构造第三个顶点：把向量 AB 旋转 -60°
+                        var cos60 = 0.5;
+                        var sin60 = Math.Sqrt(3) / 2;
+                        var cx = ax + dx * cos60 + dy * sin60;
+                        var cy = ay - dx * sin60 + dy * cos60;
+                        pointList = new List<Point>
+                        {
+                            new Point(ax, ay),
+                            new Point(endP.X, endP.Y),
+                            new Point(cx, cy),
+                            new Point(ax, ay)
+                        };
+                    }
+                    point = new StylusPointCollection(pointList);
+                    stroke = new Stroke(point)
+                    {
+                        DrawingAttributes = inkCanvas.DefaultDrawingAttributes.Clone()
+                    };
                     try
                     {
-                        inkCanvas.Strokes.Remove(lastTempStrokeCollection);
+                        inkCanvas.Strokes.Remove(lastTempStroke);
                     }
-                    catch
-                    {
-                        Trace.WriteLine("lastTempStrokeCollection failed.");
-                    }
+                    catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex); }
 
-                    lastTempStrokeCollection = strokes;
-                    inkCanvas.Strokes.Add(strokes);
+                    lastTempStroke = stroke;
+                    inkCanvas.Strokes.Add(stroke);
                     break;
-                case 13:
-                    _currentCommitType = CommitReason.ShapeDrawing;
-                    if (Math.Abs(iniP.Y - endP.Y) < 0.01) return;
-                    xAxisStart = new Point(2 * iniP.X - (endP.X - 20), iniP.Y);
-                    xAxisEnd = new Point(endP.X, iniP.Y);
-                    yAxisStart = new Point(iniP.X, iniP.Y + (iniP.Y - endP.Y) / Math.Abs(iniP.Y - endP.Y) * 25);
-                    yAxisEnd = new Point(iniP.X, endP.Y);
-                    strokes.Add(GenerateArrowLineStroke(xAxisStart, xAxisEnd));
-                    strokes.Add(GenerateArrowLineStroke(yAxisStart, yAxisEnd));
-                    AddCoordinateUnitMarks(strokes, iniP, xAxisStart, xAxisEnd, yAxisStart, yAxisEnd);
-                    try
-                    {
-                        inkCanvas.Strokes.Remove(lastTempStrokeCollection);
-                    }
-                    catch
-                    {
-                        Trace.WriteLine("lastTempStrokeCollection failed.");
-                    }
-
-                    lastTempStrokeCollection = strokes;
-                    inkCanvas.Strokes.Add(strokes);
-                    break;
-                case 14:
+                case 14: // 直角三角形：起点为直角顶点，横纵拖拽距离为两条直角边
                     _currentCommitType = CommitReason.ShapeDrawing;
                     if (Math.Abs(iniP.X - endP.X) < 0.01 || Math.Abs(iniP.Y - endP.Y) < 0.01) return;
-                    xAxisStart = new Point(iniP.X + (iniP.X - endP.X) / Math.Abs(iniP.X - endP.X) * 25, iniP.Y);
-                    xAxisEnd = new Point(endP.X, iniP.Y);
-                    yAxisStart = new Point(iniP.X, iniP.Y + (iniP.Y - endP.Y) / Math.Abs(iniP.Y - endP.Y) * 25);
-                    yAxisEnd = new Point(iniP.X, endP.Y);
-                    strokes.Add(GenerateArrowLineStroke(xAxisStart, xAxisEnd));
-                    strokes.Add(GenerateArrowLineStroke(yAxisStart, yAxisEnd));
-                    AddCoordinateUnitMarks(strokes, iniP, xAxisStart, xAxisEnd, yAxisStart, yAxisEnd);
+                    pointList = new List<Point>
+                    {
+                        new Point(iniP.X, iniP.Y),
+                        new Point(endP.X, iniP.Y),
+                        new Point(iniP.X, endP.Y),
+                        new Point(iniP.X, iniP.Y)
+                    };
+                    point = new StylusPointCollection(pointList);
+                    stroke = new Stroke(point)
+                    {
+                        DrawingAttributes = inkCanvas.DefaultDrawingAttributes.Clone()
+                    };
                     try
                     {
-                        inkCanvas.Strokes.Remove(lastTempStrokeCollection);
+                        inkCanvas.Strokes.Remove(lastTempStroke);
                     }
-                    catch
-                    {
-                        Trace.WriteLine("lastTempStrokeCollection failed.");
-                    }
+                    catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex); }
 
-                    lastTempStrokeCollection = strokes;
-                    inkCanvas.Strokes.Add(strokes);
+                    lastTempStroke = stroke;
+                    inkCanvas.Strokes.Add(stroke);
                     break;
                 case 17:
                     _currentCommitType = CommitReason.ShapeDrawing;
-                    xAxisStart = new Point(iniP.X, iniP.Y);
-                    xAxisEnd = new Point(iniP.X + Math.Abs(endP.X - iniP.X), iniP.Y);
-                    yAxisStart = new Point(iniP.X, iniP.Y);
-                    yAxisEnd = new Point(iniP.X, iniP.Y - Math.Abs(endP.Y - iniP.Y));
+                    var xAxisStart = new Point(iniP.X, iniP.Y);
+                    var xAxisEnd = new Point(iniP.X + Math.Abs(endP.X - iniP.X), iniP.Y);
+                    var yAxisStart = new Point(iniP.X, iniP.Y);
+                    var yAxisEnd = new Point(iniP.X, iniP.Y - Math.Abs(endP.Y - iniP.Y));
                     strokes.Add(GenerateArrowLineStroke(xAxisStart, xAxisEnd));
                     strokes.Add(GenerateArrowLineStroke(yAxisStart, yAxisEnd));
                     d = (Math.Abs(iniP.X - endP.X) + Math.Abs(iniP.Y - endP.Y)) / 2;
@@ -3292,8 +3323,123 @@ namespace Ink_Canvas
         /// 3. 设置鼠标按下状态标志
         /// 4. 如果需要更新起始点，则更新起始点为当前鼠标位置
         /// </remarks>
+        #region 多边形绘制（模式 12）
+
+        /// <summary>
+        /// 处理多边形的单击：添加顶点；再次点击起点时闭合并完成绘制。
+        /// </summary>
+        private void HandlePolygonClick(Point position)
+        {
+            if (_polygonVertices.Count >= 3 &&
+                GetDistance(position, _polygonVertices[0]) <= PolygonCloseHitRadius)
+            {
+                CommitPolygon();
+                return;
+            }
+
+            // 忽略与上一个顶点几乎重合的点击，避免产生零长度边
+            if (_polygonVertices.Count > 0 &&
+                GetDistance(position, _polygonVertices[_polygonVertices.Count - 1]) < 1)
+                return;
+
+            _polygonVertices.Add(position);
+            UpdatePolygonPreview(position);
+        }
+
+        /// <summary>
+        /// 刷新多边形预览：已确定顶点 + 到光标的动态线段；
+        /// 光标靠近起点且顶点数足够时，预览直接连回起点提示可闭合。
+        /// </summary>
+        private void UpdatePolygonPreview(Point cursor)
+        {
+            RemovePolygonPreviewStroke();
+            if (_polygonVertices.Count == 0) return;
+
+            var points = new List<Point>(_polygonVertices);
+            if (_polygonVertices.Count >= 3 &&
+                GetDistance(cursor, _polygonVertices[0]) <= PolygonCloseHitRadius)
+                points.Add(_polygonVertices[0]);
+            else
+                points.Add(cursor);
+
+            var stroke = new Stroke(new StylusPointCollection(points))
+            {
+                DrawingAttributes = inkCanvas.DefaultDrawingAttributes.Clone()
+            };
+            inkCanvas.Strokes.Add(stroke);
+            _polygonPreviewStroke = stroke;
+        }
+
+        /// <summary>
+        /// 闭合多边形并提交：移除预览，生成首尾相连的笔画，写入历史并回到笔模式。
+        /// </summary>
+        private void CommitPolygon()
+        {
+            if (_polygonVertices.Count < 3)
+            {
+                CancelPolygonDrawing();
+                return;
+            }
+
+            RemovePolygonPreviewStroke();
+
+            var points = new List<Point>(_polygonVertices) { _polygonVertices[0] };
+            _polygonVertices.Clear();
+
+            var stroke = new Stroke(new StylusPointCollection(points))
+            {
+                DrawingAttributes = inkCanvas.DefaultDrawingAttributes.Clone()
+            };
+            inkCanvas.Strokes.Add(stroke);
+
+            _currentCommitType = CommitReason.UserInput;
+            try
+            {
+                timeMachine.CommitStrokeUserInputHistory(new StrokeCollection { stroke });
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine(ex);
+            }
+
+            // 多边形是连续绘制工具：完成一个后保持工具选中（图形按钮继续高亮），
+            // 便于紧接着绘制下一个，直到用户主动切换到其他工具。
+        }
+
+        /// <summary>
+        /// 取消未完成的多边形绘制（清理顶点与预览笔画）。
+        /// </summary>
+        private void CancelPolygonDrawing()
+        {
+            RemovePolygonPreviewStroke();
+            _polygonVertices.Clear();
+        }
+
+        private void RemovePolygonPreviewStroke()
+        {
+            if (_polygonPreviewStroke == null) return;
+            try
+            {
+                inkCanvas.Strokes.Remove(_polygonPreviewStroke);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine(ex);
+            }
+            _polygonPreviewStroke = null;
+        }
+
+        #endregion
+
         private void inkCanvas_MouseDown(object sender, MouseButtonEventArgs e)
         {
+            // 多边形：按下不绘制，顶点在抬起（单击）时确定
+            if (drawingShapeMode == 12 && e.ChangedButton == MouseButton.Left)
+            {
+                e.Handled = true;
+                return;
+            }
+
             if (e.ChangedButton == MouseButton.Left && inkCanvas.EditingMode == InkCanvasEditingMode.EraseByStroke)
             {
                 BeginSecAgentStrokeErase(e.GetPosition(inkCanvas));
@@ -3332,6 +3478,8 @@ namespace Ink_Canvas
             BlackboardUIGridForInkReplay.IsHitTestVisible = false;
 
             isMouseDown = true;
+            // 坐标系每次拖拽都重新分组，避免与上一次绘制的坐标系混用同一个标记
+            if (drawingShapeMode == 11) _pendingCoordinateTag = Guid.Empty;
             if (NeedUpdateIniP()) iniP = e.GetPosition(inkCanvas);
         }
 
@@ -3347,6 +3495,16 @@ namespace Ink_Canvas
         /// </remarks>
         private void inkCanvas_MouseMove(object sender, MouseEventArgs e)
         {
+            // 多边形：仅刷新“已确定顶点 + 光标”的预览，不参与拖动绘制
+            if (drawingShapeMode == 12)
+            {
+                if (IsPolygonDrawing)
+                    UpdatePolygonPreview(e.GetPosition(inkCanvas));
+                if (Settings.Canvas.IsShowCursor)
+                    SetCursorBasedOnEditingMode(inkCanvas);
+                return;
+            }
+
             if (inkCanvas.EditingMode == InkCanvasEditingMode.EraseByStroke
                 && e.LeftButton == MouseButtonState.Pressed
                 && MoveSecAgentStrokeErase(e.GetPosition(inkCanvas)))
@@ -3416,6 +3574,19 @@ namespace Ink_Canvas
         private void inkCanvas_MouseUp(object sender, MouseButtonEventArgs e)
         {
             EndSecAgentStrokeErase();
+
+            // 多边形：抬起即视为一次单击，添加顶点或点击起点闭合完成
+            if (drawingShapeMode == 12)
+            {
+                inkCanvas.ReleaseMouseCapture();
+                ViewboxFloatingBar.IsHitTestVisible = true;
+                BlackboardUIGridForInkReplay.IsHitTestVisible = true;
+                isMouseDown = false;
+                if (e.ChangedButton == MouseButton.Left)
+                    HandlePolygonClick(e.GetPosition(inkCanvas));
+                e.Handled = true;
+                return;
+            }
             // 视频展台特殊模式：结束鼠标拖动
             if (_isBoothMouseDragging)
             {
@@ -3648,6 +3819,9 @@ namespace Ink_Canvas
                     collection = lastTempStrokeCollection;
                 else if (lastTempStroke != null) collection = new StrokeCollection { lastTempStroke };
                 if (collection != null) timeMachine.CommitStrokeUserInputHistory(collection);
+                // 坐标系：登记整组笔画，选中后可拖动箭头端重新设定 X/Y 轴长度
+                if (completedShapeMode == 11 && collection != null)
+                    RegisterCoordinateSystem(collection, _pendingCoordinateTag);
             }
 
             if (completedShapeMode == 1 && lastTempStroke != null &&
@@ -3771,5 +3945,485 @@ namespace Ink_Canvas
                 }
             }
         }
+
+        #region 坐标系轴长调节
+
+        /// <summary>
+        /// 坐标系的一个笔画版本。撤销/重做会在画布上换回旧版本的笔画，
+        /// 因此一个坐标系保留多个版本，取「当前仍在画布上」的最新一版作为生效版本。
+        /// 原点与轴长不单独存字段，一律从笔画几何反推，这样整组被移动/旋转/缩放后依然正确。
+        /// </summary>
+        private sealed class CoordinateSystemVersion
+        {
+            public StrokeCollection Strokes;
+        }
+
+        /// <summary>可调节轴长的坐标系：整组笔画的分组标记 + 笔画版本列表。</summary>
+        private sealed class CoordinateSystemRecord
+        {
+            public readonly List<CoordinateSystemVersion> Versions = new List<CoordinateSystemVersion>();
+            public Guid Tag;
+        }
+
+        private readonly List<CoordinateSystemRecord> _coordinateSystems = new List<CoordinateSystemRecord>();
+
+        /// <summary>本次绘制的坐标系分组标记（绘制完成后据此注册记录）。</summary>
+        private Guid _pendingCoordinateTag = Guid.Empty;
+
+        /// <summary>轴长手柄对应的臂（四条臂各一个手柄）。</summary>
+        private enum CoordinateArmHandle
+        {
+            None,
+            XPlus,
+            XMinus,
+            YPlus,
+            YMinus
+        }
+
+        private CoordinateSystemRecord _coordinateHandleRecord;
+        private bool _coordinateHandleDragging;
+        private CoordinateArmHandle _coordinateHandleArm = CoordinateArmHandle.None;
+        private StrokeCollection _coordinateDragOriginalStrokes;
+
+        /// <summary>给坐标系的整组笔画打上分组标记。</summary>
+        private static void TagCoordinateStrokes(StrokeCollection strokes, Guid tag)
+        {
+            if (strokes == null || tag == Guid.Empty) return;
+            foreach (var stroke in strokes)
+            {
+                try
+                {
+                    if (!stroke.ContainsPropertyData(tag)) stroke.AddPropertyData(tag, true);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine(ex);
+                }
+            }
+        }
+
+        /// <summary>坐标系四条臂（X 正/负、Y 正/负方向）的长度。</summary>
+        private struct CoordinateArms
+        {
+            public double XPlus;
+            public double XMinus;
+            public double YPlus;
+            public double YMinus;
+        }
+
+        /// <summary>
+        /// 生成整组坐标系笔画（两条带箭头坐标轴 + 单位刻度）。
+        /// 先在以原点为中心、X 轴向右 Y 轴向下的局部坐标系里生成，
+        /// 再用 (axisX, axisY) 构成的矩阵映射到画布，因此支持整组被旋转/缩放后的重建。
+        /// </summary>
+        private StrokeCollection BuildCoordinateSystemStrokes(Point origin, Vector axisX, Vector axisY,
+            CoordinateArms arms, Guid tag)
+        {
+            var strokes = BuildCanonicalCoordinateSystemStrokes(arms, tag);
+            var matrix = new Matrix(axisX.X, axisX.Y, axisY.X, axisY.Y, origin.X, origin.Y);
+            foreach (Stroke stroke in strokes)
+            {
+                try
+                {
+                    stroke.Transform(matrix, false);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine(ex);
+                }
+            }
+
+            return strokes;
+        }
+
+        /// <summary>
+        /// 在局部坐标系（原点 0,0、正 X 向右、正 Y 向下）里生成整组笔画。
+        /// 四条臂长各自独立，互不影响。
+        /// </summary>
+        private StrokeCollection BuildCanonicalCoordinateSystemStrokes(CoordinateArms arms, Guid tag)
+        {
+            var strokes = new StrokeCollection();
+            var origin = new Point(0, 0);
+            var xAxisEnd = new Point(arms.XPlus, 0);
+            var yAxisEnd = new Point(0, arms.YPlus);
+            var xAxisStart = new Point(-arms.XMinus, 0);
+            var yAxisStart = new Point(0, -arms.YMinus);
+            strokes.Add(GenerateArrowLineStroke(xAxisStart, xAxisEnd));
+            strokes.Add(GenerateArrowLineStroke(yAxisStart, yAxisEnd));
+            AddCoordinateUnitMarks(strokes, origin, xAxisStart, xAxisEnd, yAxisStart, yAxisEnd);
+            TagCoordinateStrokes(strokes, tag);
+            return strokes;
+        }
+
+        /// <summary>
+        /// 从整组笔画反推坐标系的当前几何：原点（两轴交点）、X/Y 轴正方向单位向量、四条臂长。
+        /// 依据是生成顺序——集合前两条笔画依次为 X 轴、Y 轴，
+        /// 每条笔画的前两个点分别是负方向臂端与箭头端。
+        /// </summary>
+        private static bool TryGetCoordinateFrame(StrokeCollection strokes, out Point origin, out Vector axisX,
+            out Vector axisY, out CoordinateArms arms)
+        {
+            origin = default;
+            axisX = new Vector(1, 0);
+            axisY = new Vector(0, 1);
+            arms = default;
+
+            if (strokes == null || strokes.Count < 2) return false;
+            var xStroke = strokes[0];
+            var yStroke = strokes[1];
+            if (xStroke == null || yStroke == null) return false;
+            if (xStroke.StylusPoints.Count < 2 || yStroke.StylusPoints.Count < 2) return false;
+
+            var xStart = xStroke.StylusPoints[0].ToPoint();
+            var xEnd = xStroke.StylusPoints[1].ToPoint();
+            var yStart = yStroke.StylusPoints[0].ToPoint();
+            var yEnd = yStroke.StylusPoints[1].ToPoint();
+
+            if (!TryIntersectLines(xStart, xEnd, yStart, yEnd, out origin)) return false;
+
+            var xArm = xEnd - origin;
+            var yArm = yEnd - origin;
+            if (xArm.Length < 0.01 || yArm.Length < 0.01) return false;
+
+            arms.XPlus = xArm.Length;
+            arms.XMinus = (xStart - origin).Length;
+            arms.YPlus = yArm.Length;
+            arms.YMinus = (yStart - origin).Length;
+
+            xArm.Normalize();
+            yArm.Normalize();
+            axisX = xArm;
+            axisY = yArm;
+            return true;
+        }
+
+        /// <summary>求两条直线（由各两点确定）的交点。</summary>
+        private static bool TryIntersectLines(Point p1, Point p2, Point p3, Point p4, out Point intersection)
+        {
+            intersection = default;
+            var denominator = (p2.X - p1.X) * (p4.Y - p3.Y) - (p2.Y - p1.Y) * (p4.X - p3.X);
+            if (Math.Abs(denominator) < 1e-6) return false;
+            var t = ((p3.X - p1.X) * (p4.Y - p3.Y) - (p3.Y - p1.Y) * (p4.X - p3.X)) / denominator;
+            intersection = new Point(p1.X + t * (p2.X - p1.X), p1.Y + t * (p2.Y - p1.Y));
+            return true;
+        }
+
+        /// <summary>绘制完成后把整组笔画登记为「轴长可调」的坐标系。</summary>
+        private void RegisterCoordinateSystem(StrokeCollection strokes, Guid tag)
+        {
+            if (strokes == null || strokes.Count == 0) return;
+            if (tag == Guid.Empty) tag = Guid.NewGuid();
+            TagCoordinateStrokes(strokes, tag);
+            PruneCoordinateSystems();
+
+            var record = new CoordinateSystemRecord { Tag = tag };
+            record.Versions.Add(new CoordinateSystemVersion { Strokes = strokes });
+            _coordinateSystems.Add(record);
+            if (_coordinateSystems.Count > 64)
+                _coordinateSystems.RemoveRange(0, _coordinateSystems.Count - 64);
+        }
+
+        /// <summary>画布当前笔画集合（用于批量判断某个版本是否仍在画布上，避免逐个 Contains 的 O(n) 扫描）。</summary>
+        private HashSet<Stroke> BuildLiveStrokeSet()
+        {
+            var live = new HashSet<Stroke>();
+            if (inkCanvas == null) return live;
+            foreach (Stroke stroke in inkCanvas.Strokes) live.Add(stroke);
+            return live;
+        }
+
+        /// <summary>取该坐标系当前仍在画布上的最新笔画版本（撤销/重做后也能找到正确的一版）。</summary>
+        private static CoordinateSystemVersion GetLiveCoordinateVersion(CoordinateSystemRecord record,
+            HashSet<Stroke> live)
+        {
+            if (record == null || live == null) return null;
+            for (var i = record.Versions.Count - 1; i >= 0; i--)
+            {
+                var version = record.Versions[i];
+                if (version?.Strokes == null || version.Strokes.Count == 0) continue;
+                var alive = true;
+                foreach (Stroke stroke in version.Strokes)
+                {
+                    if (live.Contains(stroke)) continue;
+                    alive = false;
+                    break;
+                }
+
+                if (alive) return version;
+            }
+
+            return null;
+        }
+
+        /// <summary>取该坐标系在画布上生效的笔画版本。</summary>
+        private CoordinateSystemVersion GetLiveCoordinateVersion(CoordinateSystemRecord record)
+        {
+            return GetLiveCoordinateVersion(record, BuildLiveStrokeSet());
+        }
+
+        /// <summary>清理笔画已被擦除/撤销掉的坐标系记录。</summary>
+        private void PruneCoordinateSystems()
+        {
+            if (_coordinateSystems.Count == 0) return;
+            var live = BuildLiveStrokeSet();
+            for (var i = _coordinateSystems.Count - 1; i >= 0; i--)
+            {
+                if (GetLiveCoordinateVersion(_coordinateSystems[i], live) == null)
+                    _coordinateSystems.RemoveAt(i);
+            }
+        }
+
+        /// <summary>找出「当前选中墨迹所覆盖」的坐标系（至少选中一半以上的笔画）。</summary>
+        private CoordinateSystemRecord FindSelectedCoordinateSystem()
+        {
+            if (inkCanvas == null || _coordinateSystems.Count == 0) return null;
+            var selected = inkCanvas.GetSelectedStrokes();
+            if (selected == null || selected.Count == 0) return null;
+
+            var live = BuildLiveStrokeSet();
+            for (var i = _coordinateSystems.Count - 1; i >= 0; i--)
+            {
+                var record = _coordinateSystems[i];
+                var version = GetLiveCoordinateVersion(record, live);
+                if (version == null)
+                {
+                    _coordinateSystems.RemoveAt(i);
+                    continue;
+                }
+
+                var hits = 0;
+                foreach (Stroke stroke in version.Strokes)
+                {
+                    if (selected.Contains(stroke)) hits++;
+                }
+
+                if (hits > 0 && hits * 2 >= version.Strokes.Count) return record;
+            }
+
+            return null;
+        }
+
+        /// <summary>选中坐标系后，在两条正方向轴的箭头端显示轴长调节手柄。</summary>
+        private void UpdateCoordinateAxisHandles()
+        {
+            if (CoordinateAxisHandleCanvas == null) return;
+
+            var record = _coordinateHandleDragging ? _coordinateHandleRecord : FindSelectedCoordinateSystem();
+            var version = GetLiveCoordinateVersion(record);
+            if (!TryGetCoordinateFrame(version?.Strokes, out var origin, out var axisX, out var axisY, out var arms))
+            {
+                CoordinateAxisHandleCanvas.Visibility = Visibility.Collapsed;
+                if (!_coordinateHandleDragging) _coordinateHandleRecord = null;
+                return;
+            }
+
+            _coordinateHandleRecord = record;
+            // 四条臂的端点各一个手柄
+            PositionCoordinateAxisHandle(CoordinateAxisHandleX, origin + axisX * arms.XPlus);
+            PositionCoordinateAxisHandle(CoordinateAxisHandleXMinus, origin - axisX * arms.XMinus);
+            PositionCoordinateAxisHandle(CoordinateAxisHandleY, origin + axisY * arms.YPlus);
+            PositionCoordinateAxisHandle(CoordinateAxisHandleYMinus, origin - axisY * arms.YMinus);
+            CoordinateAxisHandleCanvas.Visibility = Visibility.Visible;
+        }
+
+        /// <summary>隐藏轴长调节手柄。</summary>
+        private void HideCoordinateAxisHandles()
+        {
+            if (CoordinateAxisHandleCanvas == null) return;
+            CoordinateAxisHandleCanvas.Visibility = Visibility.Collapsed;
+            if (!_coordinateHandleDragging) _coordinateHandleRecord = null;
+        }
+
+        private static void PositionCoordinateAxisHandle(FrameworkElement handle, Point canvasPoint)
+        {
+            if (handle == null) return;
+            System.Windows.Controls.Canvas.SetLeft(handle, canvasPoint.X - handle.Width / 2);
+            System.Windows.Controls.Canvas.SetTop(handle, canvasPoint.Y - handle.Height / 2);
+        }
+
+        /// <summary>
+        /// 逐条移除坐标系笔画。整集合 Remove 只要有一条已不在画布上就会抛 ArgumentException，
+        /// 因此这里先拷贝一份再逐条判断，容错处理。
+        /// </summary>
+        private void RemoveCoordinateSystemStrokes(StrokeCollection strokes)
+        {
+            if (strokes == null || strokes.Count == 0) return;
+            var snapshot = new List<Stroke>(strokes.Count);
+            foreach (Stroke stroke in strokes) snapshot.Add(stroke);
+            foreach (var stroke in snapshot)
+            {
+                try
+                {
+                    if (inkCanvas.Strokes.Contains(stroke)) inkCanvas.Strokes.Remove(stroke);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine(ex);
+                }
+            }
+        }
+
+        /// <summary>
+        /// 用新的四条臂长重建整组坐标系笔画（删旧集合、加新集合），
+        /// 重建期间抑制逐帧入撤销栈，抬笔时由调用方一次性提交。
+        /// 未拖动臂的长度按原值原样传入，因此不会被牵连改变。
+        /// </summary>
+        private void RebuildCoordinateSystem(CoordinateSystemRecord record, Point origin, Vector axisX, Vector axisY,
+            CoordinateArms arms)
+        {
+            var version = GetLiveCoordinateVersion(record);
+            if (version == null) return;
+
+            // 必须在替换版本字段之前取出旧笔画：lastVersion 与 version 通常是同一个对象，
+            // 替换其 Strokes 会让 version.Strokes 也变成新笔画，导致 Remove 抛「笔画不存在」。
+            var oldStrokes = version.Strokes;
+
+            var newStrokes = BuildCoordinateSystemStrokes(origin, axisX, axisY, arms, record.Tag);
+            if (newStrokes.Count == 0) return;
+
+            // 拖动过程中的中间版本直接替换，只有"拖动前"那一版需要保留（撤销要能回去）
+            var lastVersion = record.Versions.Count > 0 ? record.Versions[record.Versions.Count - 1] : null;
+            if (lastVersion != null && !ReferenceEquals(lastVersion.Strokes, _coordinateDragOriginalStrokes))
+                lastVersion.Strokes = newStrokes;
+            else
+                record.Versions.Add(new CoordinateSystemVersion { Strokes = newStrokes });
+
+            if (record.Versions.Count > 16)
+                record.Versions.RemoveRange(0, record.Versions.Count - 16);
+
+            var previousCommitType = _currentCommitType;
+            _currentCommitType = CommitReason.CodeInput;
+            try
+            {
+                RemoveCoordinateSystemStrokes(oldStrokes);
+                inkCanvas.Strokes.Add(newStrokes);
+            }
+            finally
+            {
+                _currentCommitType = previousCommitType;
+            }
+
+            // 换过笔画后选区会失效，重新选中新笔画，选择框与手柄才能继续跟随
+            if (inkCanvas.EditingMode == InkCanvasEditingMode.Select)
+            {
+                try
+                {
+                    // 拖动过程中不触发选区事件（否则每帧都会重置旋转中心、挪动选择工具栏）
+                    isProgramChangeStrokeSelection = true;
+                    inkCanvas.Select(newStrokes);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine(ex);
+                }
+                finally
+                {
+                    isProgramChangeStrokeSelection = false;
+                }
+
+                try
+                {
+                    UpdateSelectionDisplay();
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine(ex);
+                }
+            }
+
+            UpdateCoordinateAxisHandles();
+        }
+
+        /// <summary>把拖到的臂长限制为不小于 24 像素。</summary>
+        private static double ClampCoordinateAxisLength(double length)
+        {
+            const double minLength = 24;
+            return length < minLength ? minLength : length;
+        }
+
+        private void CoordinateAxisHandle_MouseDown(object sender, MouseButtonEventArgs e)
+        {
+            if (TryBlockFrozenPageMutation("调整坐标轴长度"))
+            {
+                e.Handled = true;
+                return;
+            }
+
+            var record = _coordinateHandleRecord ?? FindSelectedCoordinateSystem();
+            var version = GetLiveCoordinateVersion(record);
+            if (record == null || version == null) return;
+
+            var arm = ReferenceEquals(sender, CoordinateAxisHandleX) ? CoordinateArmHandle.XPlus
+                : ReferenceEquals(sender, CoordinateAxisHandleXMinus) ? CoordinateArmHandle.XMinus
+                : ReferenceEquals(sender, CoordinateAxisHandleY) ? CoordinateArmHandle.YPlus
+                : ReferenceEquals(sender, CoordinateAxisHandleYMinus) ? CoordinateArmHandle.YMinus
+                : CoordinateArmHandle.None;
+            if (arm == CoordinateArmHandle.None) return;
+
+            _coordinateHandleRecord = record;
+            _coordinateHandleArm = arm;
+            _coordinateDragOriginalStrokes = version.Strokes;
+            _coordinateHandleDragging = true;
+
+            if (sender is UIElement element) element.CaptureMouse();
+            e.Handled = true;
+        }
+
+        private void CoordinateAxisHandle_MouseMove(object sender, MouseEventArgs e)
+        {
+            if (!_coordinateHandleDragging) return;
+            if (!(sender is UIElement element) || !element.IsMouseCaptured) return;
+
+            var record = _coordinateHandleRecord;
+            var version = GetLiveCoordinateVersion(record);
+            if (version == null) return;
+
+            if (!TryGetCoordinateFrame(version.Strokes, out var origin, out var axisX, out var axisY, out var arms))
+                return;
+
+            // 把光标投影到被拖动那条臂的方向上，只改这条臂的长度，其余三条臂保持原值
+            var position = e.GetPosition(CoordinateAxisHandleCanvas);
+            var offset = position - origin;
+            switch (_coordinateHandleArm)
+            {
+                case CoordinateArmHandle.XPlus:
+                    arms.XPlus = ClampCoordinateAxisLength(offset.X * axisX.X + offset.Y * axisX.Y);
+                    break;
+                case CoordinateArmHandle.XMinus:
+                    arms.XMinus = ClampCoordinateAxisLength(-(offset.X * axisX.X + offset.Y * axisX.Y));
+                    break;
+                case CoordinateArmHandle.YPlus:
+                    arms.YPlus = ClampCoordinateAxisLength(offset.X * axisY.X + offset.Y * axisY.Y);
+                    break;
+                case CoordinateArmHandle.YMinus:
+                    arms.YMinus = ClampCoordinateAxisLength(-(offset.X * axisY.X + offset.Y * axisY.Y));
+                    break;
+                default:
+                    return;
+            }
+
+            RebuildCoordinateSystem(record, origin, axisX, axisY, arms);
+            e.Handled = true;
+        }
+
+        private void CoordinateAxisHandle_MouseUp(object sender, MouseButtonEventArgs e)
+        {
+            if (!_coordinateHandleDragging) return;
+            _coordinateHandleDragging = false;
+            if (sender is UIElement element && element.IsMouseCaptured) element.ReleaseMouseCapture();
+            e.Handled = true;
+
+            var version = GetLiveCoordinateVersion(_coordinateHandleRecord);
+            var original = _coordinateDragOriginalStrokes;
+            _coordinateDragOriginalStrokes = null;
+
+            // 一次拖动只记一条撤销历史（形状替换语义：撤销可回到拖动前的轴长）
+            if (original != null && version != null && !ReferenceEquals(original, version.Strokes))
+                timeMachine.CommitStrokeShapeHistory(original, version.Strokes);
+
+            UpdateCoordinateAxisHandles();
+        }
+
+        #endregion
     }
 }
