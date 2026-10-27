@@ -471,6 +471,11 @@ namespace Ink_Canvas
                 {
                     UpdateQuickColorPaletteIndicator(inkCanvas.DefaultDrawingAttributes.Color);
                 }), System.Windows.Threading.DispatcherPriority.Loaded);
+
+                // 布局完成后再按「显示比例 + 屏幕可用空间」统一校准一次所有工具栏的缩放
+                // （启动早期控件还没测量出尺寸且窗口可能尚未连接到呈现源，此处补齐）
+                Dispatcher.BeginInvoke(new Action(() => ApplyAllToolbarDisplayScale()),
+                    System.Windows.Threading.DispatcherPriority.Loaded);
                 LogHelper.WriteLogToFile("MW_Toolbar: RebuildToolbar 完成", LogHelper.LogType.Info);
             }
             catch (Exception ex)
@@ -505,12 +510,160 @@ namespace Ink_Canvas
                 btn.ApplyCompactMode(compact);
             }
 
-            // 浮动栏整体等比缩小（保持纵横比）
-            double baseScale = Settings.Appearance.ViewboxFloatingBarScaleTransformValue;
-            if (Math.Abs(baseScale) < 0.01) baseScale = 1.0;
-            double effectiveScale = compact ? baseScale * CompactFloatingBarScaleFactor : baseScale;
-            ApplyRawFloatingBarScale(effectiveScale);
+            // 紧凑模式在用户设置的倍率上再等比缩小
+            _floatingBarCompactFactor = compact ? CompactFloatingBarScaleFactor : 1.0;
+            ApplyEffectiveFloatingBarScale();
         }
+
+        /// <summary>当前生效的紧凑模式缩放系数（1 表示未启用紧凑模式）。</summary>
+        private double _floatingBarCompactFactor = 1.0;
+
+        /// <summary>
+        /// 按「用户设置 × 紧凑系数 × 显示比例补偿 × 自适应适配」重新计算并应用浮动工具栏缩放。
+        /// 自适应适配会参考当前屏幕可用空间（受分辨率与系统显示比例影响），
+        /// 避免高显示比例 / 低分辨率下工具栏超出屏幕、与白板底部的左右按钮重叠。
+        /// </summary>
+        internal void ApplyEffectiveFloatingBarScale()
+        {
+            if (ViewboxFloatingBarScaleTransform == null) return;
+
+            double userScale = Settings.Appearance.ViewboxFloatingBarScaleTransformValue;
+            if (userScale <= 0 || double.IsNaN(userScale) || double.IsInfinity(userScale)) userScale = 1.0;
+
+            // 与设置页滑块的有效范围保持一致：0.5x ~ 1.25x
+            userScale = userScale <= 0.5 ? 0.5 : userScale >= 1.25 ? 1.25 : userScale;
+
+            ApplyFloatingBarScaleWithAutoFit(userScale * _floatingBarCompactFactor);
+        }
+
+        /// <summary>
+        /// 在给定目标缩放上叠加「显示比例补偿」与「自适应适配」系数后应用（不改动 Settings 中的用户值）。
+        /// </summary>
+        internal void ApplyFloatingBarScaleWithAutoFit(double targetScale)
+        {
+            if (ViewboxFloatingBarScaleTransform == null) return;
+            if (targetScale <= 0 || double.IsNaN(targetScale) || double.IsInfinity(targetScale)) return;
+
+            // 先按系统显示比例补偿，再按屏幕可用空间自适应
+            var displayScale = targetScale * GetToolbarDisplayFitFactor();
+            var finalScale = displayScale * ComputeFloatingBarAutoFitScale(displayScale);
+
+            // 缩放没有变化时不要重复触发定位动画，避免抖动
+            if (Math.Abs(ViewboxFloatingBarScaleTransform.ScaleX - finalScale) < 0.001 &&
+                Math.Abs(ViewboxFloatingBarScaleTransform.ScaleY - finalScale) < 0.001)
+                return;
+
+            ApplyRawFloatingBarScale(finalScale);
+        }
+
+        #region 显示比例（DPI）自适应缩放
+
+        /// <summary>显示比例补偿的下限，避免超高显示比例下工具栏被缩得无法点击。</summary>
+        private const double MinToolbarDisplayFitFactor = 0.5;
+
+        /// <summary>
+        /// 当前主窗口所在显示器的系统显示比例（1.0 = 100%，1.5 = 150%）。
+        /// </summary>
+        internal double GetDisplayDpiScale(double? dpiScaleOverride = null)
+        {
+            if (dpiScaleOverride.HasValue && dpiScaleOverride.Value > 0 &&
+                !double.IsNaN(dpiScaleOverride.Value) && !double.IsInfinity(dpiScaleOverride.Value))
+                return dpiScaleOverride.Value;
+
+            try
+            {
+                var dpi = System.Windows.Media.VisualTreeHelper.GetDpi(this);
+                var scale = dpi.DpiScaleX;
+                if (scale > 0 && !double.IsNaN(scale) && !double.IsInfinity(scale)) return scale;
+            }
+            catch
+            {
+            }
+
+            return 1.0;
+        }
+
+        /// <summary>
+        /// 按系统显示比例计算工具栏缩放补偿系数：100% → 1.0、125% → 0.8、150% → 0.667、200% → 0.5。
+        /// WPF 以 DIP 布局，显示比例调高后屏幕可用的 DIP 空间按比例变小，而工具栏仍按固定 DIP 尺寸绘制，
+        /// 于是 150% 等比例下底部/两侧工具栏会互相覆盖。这里按 1/比例 反向补偿，
+        /// 让工具栏占用的屏幕比例（以及物理尺寸）与 100% 时一致，从根源上消除重叠。
+        /// </summary>
+        internal double GetToolbarDisplayFitFactor(double? dpiScaleOverride = null)
+        {
+            var dpiScale = GetDisplayDpiScale(dpiScaleOverride);
+            if (dpiScale <= 1.0) return 1.0;
+
+            var factor = 1.0 / dpiScale;
+            return factor < MinToolbarDisplayFitFactor ? MinToolbarDisplayFitFactor : factor;
+        }
+
+        /// <summary>
+        /// 按「用户设置 × 显示比例补偿」重新应用白板三栏（左/中/右）的缩放。
+        /// 三栏内的按钮与图标随之等比缩小，避免 150% 显示比例下三栏与浮动栏互相重叠。
+        /// </summary>
+        internal void ApplyBoardToolbarDisplayScale(double? dpiScaleOverride = null)
+        {
+            try
+            {
+                if (Settings?.Appearance == null) return;
+
+                var factor = GetToolbarDisplayFitFactor(dpiScaleOverride);
+                ApplyBoardBarScale(ViewboxBlackboardLeftSideScaleTransform,
+                    Settings.Appearance.ViewboxBlackBoardLeftScaleTransformValue, factor);
+                ApplyBoardBarScale(ViewboxBlackboardCenterSideScaleTransform,
+                    Settings.Appearance.ViewboxBlackBoardScaleTransformValue, factor);
+                ApplyBoardBarScale(ViewboxBlackboardRightSideScaleTransform,
+                    Settings.Appearance.ViewboxBlackBoardRightScaleTransformValue, factor);
+            }
+            catch (Exception ex)
+            {
+                LogHelper.WriteLogToFile($"应用白板工具栏显示比例缩放失败: {ex.Message}", LogHelper.LogType.Warning);
+            }
+        }
+
+        private static void ApplyBoardBarScale(System.Windows.Media.ScaleTransform transform, double userScale, double factor)
+        {
+            if (transform == null) return;
+            if (userScale <= 0 || double.IsNaN(userScale) || double.IsInfinity(userScale)) userScale = 1.0;
+
+            var scale = userScale * factor;
+            transform.ScaleX = scale;
+            transform.ScaleY = scale;
+        }
+
+        /// <summary>上一次记录的显示比例缩放系数，仅用于避免重复写日志。</summary>
+        private double _lastLoggedToolbarDisplayFactor = -1;
+
+        /// <summary>
+        /// 按当前显示比例统一刷新所有工具栏（浮动工具栏、白板三栏、PPT 翻页栏）的缩放。
+        /// 启动、显示比例变化、分辨率变化后都应调用一次。
+        /// </summary>
+        internal void ApplyAllToolbarDisplayScale(double? dpiScaleOverride = null)
+        {
+            var dpiScale = GetDisplayDpiScale(dpiScaleOverride);
+            var factor = GetToolbarDisplayFitFactor(dpiScaleOverride);
+            if (Math.Abs(factor - _lastLoggedToolbarDisplayFactor) > 0.0001)
+            {
+                _lastLoggedToolbarDisplayFactor = factor;
+                LogHelper.WriteLogToFile($"工具栏按显示比例缩放: 显示比例={dpiScale * 100:0}% 缩放系数={factor:0.###}",
+                    LogHelper.LogType.Info);
+            }
+
+            ApplyBoardToolbarDisplayScale(dpiScaleOverride);
+            ApplyEffectiveFloatingBarScale();
+
+            try
+            {
+                PPTUIManager?.UpdateNavigationButtonStyles();
+            }
+            catch (Exception ex)
+            {
+                LogHelper.WriteLogToFile($"应用 PPT 翻页栏显示比例缩放失败: {ex.Message}", LogHelper.LogType.Warning);
+            }
+        }
+
+        #endregion
 
         /// <summary>
         /// 直接设置浮动栏 ScaleTransform 的绝对值，不经过 Settings 保存。
@@ -644,6 +797,11 @@ namespace Ink_Canvas
         {
             var isPPT = IsInPPTPresentationMode;
             ToolbarRegistry.UpdateVisibilityByMode(StackPanelFloatingBarRoot, IsAnnotating, isPPT);
+
+            // 条目显隐会改变工具栏整体宽度，布局完成后按屏幕可用空间重新校准缩放
+            // （缩放无变化时内部会直接返回，不会重复触发定位动画）
+            Dispatcher.BeginInvoke(new Action(ApplyEffectiveFloatingBarScale),
+                System.Windows.Threading.DispatcherPriority.Loaded);
         }
 
         private void UpdateToolbarDimensions(Orientation orientation)

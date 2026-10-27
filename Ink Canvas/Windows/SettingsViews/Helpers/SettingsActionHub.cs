@@ -132,8 +132,10 @@ namespace Ink_Canvas.Windows.SettingsViews.Helpers
             var mw = GetMainWindow();
             if (mw != null)
             {
-                mw.ViewboxBlackboardCenterSideScaleTransform.ScaleX = value;
-                mw.ViewboxBlackboardCenterSideScaleTransform.ScaleY = value;
+                // 叠加系统显示比例补偿，避免 150% 等比例下三栏互相重叠
+                var scale = value * mw.GetToolbarDisplayFitFactor();
+                mw.ViewboxBlackboardCenterSideScaleTransform.ScaleX = scale;
+                mw.ViewboxBlackboardCenterSideScaleTransform.ScaleY = scale;
             }
         }
 
@@ -142,8 +144,9 @@ namespace Ink_Canvas.Windows.SettingsViews.Helpers
             var mw = GetMainWindow();
             if (mw != null)
             {
-                mw.ViewboxBlackboardLeftSideScaleTransform.ScaleX = value;
-                mw.ViewboxBlackboardLeftSideScaleTransform.ScaleY = value;
+                var scale = value * mw.GetToolbarDisplayFitFactor();
+                mw.ViewboxBlackboardLeftSideScaleTransform.ScaleX = scale;
+                mw.ViewboxBlackboardLeftSideScaleTransform.ScaleY = scale;
             }
         }
 
@@ -152,8 +155,9 @@ namespace Ink_Canvas.Windows.SettingsViews.Helpers
             var mw = GetMainWindow();
             if (mw != null)
             {
-                mw.ViewboxBlackboardRightSideScaleTransform.ScaleX = value;
-                mw.ViewboxBlackboardRightSideScaleTransform.ScaleY = value;
+                var scale = value * mw.GetToolbarDisplayFitFactor();
+                mw.ViewboxBlackboardRightSideScaleTransform.ScaleX = scale;
+                mw.ViewboxBlackboardRightSideScaleTransform.ScaleY = scale;
             }
         }
 
@@ -320,16 +324,11 @@ namespace Ink_Canvas.Windows.SettingsViews.Helpers
                 mw._userHasDraggedFloatingBar = false;
                 mw.pointDesktop = new Point(-1, -1);
                 mw.pointPPT = new Point(-1, -1);
-                // 紧凑模式叠加缩放因子
+                // 紧凑模式叠加缩放因子，并叠加屏幕可用空间的自适应适配系数
                 double effectiveScale = actualScale;
                 if (SettingsManager.Settings.Appearance.CompactFloatingBar)
                     effectiveScale = actualScale * MainWindow.CompactFloatingBarScaleFactor;
-                mw.ViewboxFloatingBarScaleTransform.ScaleX = effectiveScale;
-                mw.ViewboxFloatingBarScaleTransform.ScaleY = effectiveScale;
-                if (mw.IsInPPTPresentationMode)
-                    mw.ViewboxFloatingBarMarginAnimation(60);
-                else
-                    mw.ViewboxFloatingBarMarginAnimation(100, true);
+                mw.ApplyFloatingBarScaleWithAutoFit(effectiveScale);
             }
         }
 

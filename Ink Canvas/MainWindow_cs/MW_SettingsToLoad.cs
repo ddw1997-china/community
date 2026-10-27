@@ -245,22 +245,18 @@ namespace Ink_Canvas
                                                    userVal <= 0.5 ? 0.5 :
                                                    userVal >= 1.25 ? 1.25 : 1.0;
 
-                        double actualScale = clampedUserVal;
+                        // 叠加系统显示比例补偿（150% 等比例下按 1/比例 缩小，避免工具栏重叠）
+                        double actualScale = clampedUserVal * GetToolbarDisplayFitFactor();
 
-                        // 最终范围限制：0.5x ~ 1.25x
+                        // 最终范围限制：0.5x ~ 1.25x（显示比例补偿后可能更小）
                         ViewboxFloatingBarScaleTransform.ScaleX = actualScale;
                         ViewboxFloatingBarScaleTransform.ScaleY = actualScale;
                     }
 
                     ViewboxFloatingBar.Opacity = Settings.Appearance.ViewboxFloatingBarOpacityValue;
 
-                    ViewboxBlackboardCenterSideScaleTransform.ScaleX = Settings.Appearance.ViewboxBlackBoardScaleTransformValue;
-                    ViewboxBlackboardCenterSideScaleTransform.ScaleY = Settings.Appearance.ViewboxBlackBoardScaleTransformValue;
-
-                    ViewboxBlackboardLeftSideScaleTransform.ScaleX = Settings.Appearance.ViewboxBlackBoardLeftScaleTransformValue;
-                    ViewboxBlackboardLeftSideScaleTransform.ScaleY = Settings.Appearance.ViewboxBlackBoardLeftScaleTransformValue;
-                    ViewboxBlackboardRightSideScaleTransform.ScaleX = Settings.Appearance.ViewboxBlackBoardRightScaleTransformValue;
-                    ViewboxBlackboardRightSideScaleTransform.ScaleY = Settings.Appearance.ViewboxBlackBoardRightScaleTransformValue;
+                    // 白板三栏同样叠加显示比例补偿
+                    ApplyBoardToolbarDisplayScale();
 
                     ViewboxBlackboardLeftSide.Opacity = Settings.Appearance.BoardToolbarLeftOpacity;
                     ViewboxBlackboardCenterSide.Opacity = Settings.Appearance.BoardToolbarCenterOpacity;

@@ -46,6 +46,12 @@ namespace Ink_Canvas.Controls
         public event EventHandler<CompassArcEventArgs> ArcDrawing;
         public event EventHandler CloseRequested;
 
+        /// <summary>开始拖动圆规（按下任一可拖部件）</summary>
+        public event EventHandler DragStarted;
+
+        /// <summary>结束拖动圆规（抬起或丢失捕获）</summary>
+        public event EventHandler DragEnded;
+
         private enum DragKind { None, Move, Hinge, PencilTip }
 
         // 腿长（两脚等长）
@@ -102,6 +108,7 @@ namespace Ink_Canvas.Controls
         private readonly Ellipse _pencilTipZone = CreateTipZone(); // 笔尖热区：调整半径
         private readonly Rectangle _pivotLegHitZone = CreateLegHitZone();  // 针脚腿热区：整体移动
         private readonly Rectangle _pencilLegHitZone = CreateLegHitZone(); // 铅笔腿热区：整体移动
+        private readonly Rectangle _gripHitZone = CreateGripHitZone();     // 顶部手柄放大热区：旋转
         private readonly TextBlock _angleText = CreateAngleText();
         private readonly Button _drawBtn = CreateSmallButton();
         private readonly Button _closeBtn = CreateSmallButton();
@@ -121,6 +128,7 @@ namespace Ink_Canvas.Controls
             AttachDrag(_headHole, DragKind.Hinge);
             AttachDrag(_gripNeck, DragKind.Hinge);
             AttachDrag(_grip, DragKind.Hinge);
+            AttachDrag(_gripHitZone, DragKind.Hinge);
             AttachDrag(_pivotLegHitZone, DragKind.Move);
             AttachDrag(_pencilLegHitZone, DragKind.Move);
             AttachDrag(_pencilTipZone, DragKind.PencilTip);
@@ -140,6 +148,7 @@ namespace Ink_Canvas.Controls
             Children.Add(_headHole);
             Children.Add(_gripNeck);
             Children.Add(_grip);
+            Children.Add(_gripHitZone);
             Children.Add(_pencilBody);
             Children.Add(_pencilTipZone);
             Children.Add(_angleText);
@@ -267,8 +276,13 @@ namespace Ink_Canvas.Controls
 
             // 顶部滚花手柄
             double gripDist = HeadRadius + GripNeckHeight + GripHeight / 2;
-            SetCenter(_grip, new Point(h.X + handleDir.X * gripDist, h.Y + handleDir.Y * gripDist));
+            var gripCenter = new Point(h.X + handleDir.X * gripDist, h.Y + handleDir.Y * gripDist);
+            SetCenter(_grip, gripCenter);
             ((RotateTransform)_grip.RenderTransform).Angle = gripAngle;
+
+            // 手柄热区：比手柄本体大一圈，触摸屏上手指落点偏一点也能命中，
+            // 避免触摸穿透到 inkCanvas 后一边旋转一边被画笔画出多余线条
+            SetCenter(_gripHitZone, gripCenter);
 
             // 铅笔：笔尖对准出墨点，笔身沿腿向后并向圆规外侧偏 PencilTiltDeg（笔尾伸向圆规外侧）
             SetCanvas(_pencilBody, t.X, t.Y);
@@ -296,9 +310,7 @@ namespace Ink_Canvas.Controls
             el.MouseLeftButtonDown += (s, e) =>
             {
                 if (_drag != DragKind.None) return;
-                _drag = kind;
-                _dragLast = e.GetPosition(this);
-                _strokeNeedsNew = true;
+                BeginDrag(kind, e.GetPosition(this));
                 el.CaptureMouse();
                 e.Handled = true;
             };
@@ -311,18 +323,17 @@ namespace Ink_Canvas.Controls
             el.MouseLeftButtonUp += (s, e) =>
             {
                 if (_drag != kind) return;
-                _drag = DragKind.None;
-                _strokeNeedsNew = true;
                 el.ReleaseMouseCapture();
+                EndDrag();
                 e.Handled = true;
             };
+            // 捕获丢失（切换窗口、触摸被系统接管等）也要收尾，否则 InkCanvas 会一直处于抑制出墨状态
+            el.LostMouseCapture += (s, e) => EndDrag();
 
             el.TouchDown += (s, e) =>
             {
                 if (_drag != DragKind.None) return;
-                _drag = kind;
-                _dragLast = e.GetTouchPoint(this).Position;
-                _strokeNeedsNew = true;
+                BeginDrag(kind, e.GetTouchPoint(this).Position);
                 el.CaptureTouch(e.TouchDevice);
                 e.Handled = true;
             };
@@ -335,11 +346,27 @@ namespace Ink_Canvas.Controls
             el.TouchUp += (s, e) =>
             {
                 if (_drag != kind) return;
-                _drag = DragKind.None;
-                _strokeNeedsNew = true;
                 el.ReleaseTouchCapture(e.TouchDevice);
+                EndDrag();
                 e.Handled = true;
             };
+            el.LostTouchCapture += (s, e) => EndDrag();
+        }
+
+        private void BeginDrag(DragKind kind, Point pos)
+        {
+            _drag = kind;
+            _dragLast = pos;
+            _strokeNeedsNew = true;
+            DragStarted?.Invoke(this, EventArgs.Empty);
+        }
+
+        private void EndDrag()
+        {
+            if (_drag == DragKind.None) return;
+            _drag = DragKind.None;
+            _strokeNeedsNew = true;
+            DragEnded?.Invoke(this, EventArgs.Empty);
         }
 
         private void HandleMove(Point pos)
@@ -771,6 +798,24 @@ namespace Ink_Canvas.Controls
                 Fill = null,
                 IsHitTestVisible = false,
                 Visibility = System.Windows.Visibility.Collapsed
+            };
+        }
+
+        /// <summary>
+        /// 顶部手柄热区：透明矩形，比手柄本体（27×36）大一圈。
+        /// 触摸屏上手指的落点中心常有偏移，手柄太小时触摸会落到圆规覆盖层之外并穿透给 inkCanvas，
+        /// 表现为「一边转圆规一边画出一条线」。
+        /// </summary>
+        private static Rectangle CreateGripHitZone()
+        {
+            return new Rectangle
+            {
+                Width = 64,
+                Height = 76,
+                RadiusX = 8,
+                RadiusY = 8,
+                Fill = Brushes.Transparent,
+                Cursor = RotateCursor
             };
         }
 

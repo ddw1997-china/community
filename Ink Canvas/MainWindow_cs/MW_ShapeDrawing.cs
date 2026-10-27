@@ -405,14 +405,87 @@ namespace Ink_Canvas
         private Stroke _compassStroke;
         private readonly List<Point> _compassStrokePoints = new List<Point>();
 
+        /// <summary>拖动圆规期间是否临时关闭了 InkCanvas 出墨</summary>
+        private bool _isCompassDragSuppressingInk;
+        private InkCanvasEditingMode _compassEditingModeBeforeDrag = InkCanvasEditingMode.None;
+        private int _compassStrokeCountBeforeDrag;
+
+        /// <summary>本次拖动是否已记录过「拦截到画布触摸」的日志（每次拖动只记一条，便于现场排查）</summary>
+        private bool _compassDragBlockedCanvasTouchLogged;
+
+        /// <summary>记录一次「圆规拖动期间拦截画布触摸」，用于在触摸屏上确认多余线条的触发来源</summary>
+        internal void NoteCompassBlockedCanvasTouch()
+        {
+            if (_compassDragBlockedCanvasTouchLogged) return;
+            _compassDragBlockedCanvasTouchLogged = true;
+            LogHelper.WriteLogToFile("圆规拖动期间拦截到画布触摸，已阻止画出多余线条", LogHelper.LogType.Warning);
+        }
+
         /// <summary>
         /// 关闭圆规覆盖层（按钮关闭 / 退出批注模式 / 退出白板模式时调用）
         /// </summary>
         private void HideCompassTool()
         {
+            // 若关闭时仍处于拖动中，先恢复 InkCanvas 出墨状态，避免恢复不了导致一直画不出线
+            if (_isCompassDragSuppressingInk) CompassTool_DragEnded(null, EventArgs.Empty);
+
             if (CompassTool != null) CompassTool.Visibility = Visibility.Collapsed;
             _compassStroke = null;
             _compassStrokePoints.Clear();
+        }
+
+        /// <summary>
+        /// 开始拖动圆规：临时关闭 InkCanvas 出墨。
+        /// 触摸屏（鸿合白板等）上，圆规覆盖层的触摸/笔输入会同时被 InkCanvas 当成笔画，
+        /// 拖动顶部手柄旋转时除了正常画圆还会多出一条画笔线；拖动期间关闭出墨即可避免。
+        /// </summary>
+        private void CompassTool_DragStarted(object sender, EventArgs e)
+        {
+            if (_isCompassDragSuppressingInk) return;
+
+            _isCompassDragSuppressingInk = true;
+            _compassDragBlockedCanvasTouchLogged = false;
+            _compassStrokeCountBeforeDrag = inkCanvas.Strokes.Count;
+            _compassEditingModeBeforeDrag = inkCanvas.EditingMode;
+
+            if (inkCanvas.EditingMode != InkCanvasEditingMode.None)
+            {
+                inkCanvas.EditingMode = InkCanvasEditingMode.None;
+            }
+        }
+
+        /// <summary>结束拖动圆规：清理误产生的笔画并恢复出墨</summary>
+        private void CompassTool_DragEnded(object sender, EventArgs e)
+        {
+            if (!_isCompassDragSuppressingInk) return;
+
+            _isCompassDragSuppressingInk = false;
+            RemoveStrayStrokesFromCompassDrag();
+            inkCanvas.EditingMode = _compassEditingModeBeforeDrag;
+
+
+        }
+
+        /// <summary>
+        /// 删除拖动圆规期间被 InkCanvas 误收集的笔画（保留圆规自身绘制的弧线笔画）。
+        /// 按下瞬间 InkCanvas 可能已经开了一笔湿墨，切到 None 后这一笔会被提交，需要清掉。
+        /// </summary>
+        private void RemoveStrayStrokesFromCompassDrag()
+        {
+            try
+            {
+                // 拖动开始后新增的笔画里，除了圆规自己画的弧线，其余都是误收集的画笔笔画
+                for (int i = inkCanvas.Strokes.Count - 1; i >= _compassStrokeCountBeforeDrag; i--)
+                {
+                    var stroke = inkCanvas.Strokes[i];
+                    if (ReferenceEquals(stroke, _compassStroke)) continue;
+                    inkCanvas.Strokes.Remove(stroke);
+                }
+            }
+            catch (Exception ex)
+            {
+                LogHelper.WriteLogToFile($"清理圆规拖动时的多余笔画失败: {ex.Message}", LogHelper.LogType.Warning);
+            }
         }
 
         /// <summary>
@@ -421,6 +494,9 @@ namespace Ink_Canvas
         private void CompassTool_ArcDrawing(object sender, CompassArcEventArgs e)
         {
             if (TryBlockFrozenPageMutation("圆规绘制")) return;
+
+            // 拖动过程中随时清掉 InkCanvas 误收集的笔画，避免多余线条在拖动期间一直可见
+            if (_isCompassDragSuppressingInk) RemoveStrayStrokesFromCompassDrag();
 
             var newPoints = BuildCompassArcPoints(e.Pivot, e.Radius, e.FromAngleDeg, e.ToAngleDeg);
 

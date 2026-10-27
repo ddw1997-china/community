@@ -1819,6 +1819,16 @@ namespace Ink_Canvas
         /// </remarks>
         private void Main_Grid_TouchDown(object sender, TouchEventArgs e)
         {
+            // 圆规拖动期间：此时落到画布上的触摸（拖圆规的手指抖动、手掌、第二根手指）
+            // 不能把编辑模式重新切回 Ink，否则会在画圆之外多画一条线。
+            // 圆规覆盖层会自行处理旋转，这里直接吞掉该触摸。
+            if (_isCompassDragSuppressingInk)
+            {
+                NoteCompassBlockedCanvasTouch();
+                e.Handled = true;
+                return;
+            }
+
             // 视频展台特殊模式：不在此处切换 EditingMode，
             // PreviewTouchDown 已临时切到 None 抑制 InkCanvas 框选/绘制；
             // 这里再切会覆盖 None → Ink，导致特殊模式下仍画出墨迹（Q7 真正根因）。
@@ -1933,6 +1943,14 @@ namespace Ink_Canvas
         /// </remarks>
         private void InkCanvas_PreviewTouchDown(object sender, TouchEventArgs e)
         {
+            // 圆规拖动期间画布上的触摸一律不处理：手掌/第二指不该被当成画笔或橡皮
+            if (_isCompassDragSuppressingInk)
+            {
+                NoteCompassBlockedCanvasTouch();
+                e.Handled = true;
+                return;
+            }
+
             // 中垂线 / 中点：新的一次按下，允许重新绘制（上一次手势的收尾锁定到此解除）
             if (drawingShapeMode == 26) _perpendicularBisectorAwaitNewGesture = false;
             if (drawingShapeMode == 15) _midpointAwaitNewGesture = false;

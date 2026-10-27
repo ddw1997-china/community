@@ -271,6 +271,8 @@
                                        Visibility="Collapsed"
                                        Panel.ZIndex="1001"
                                        ArcDrawing="CompassTool_ArcDrawing"
+                                       DragStarted="CompassTool_DragStarted"
+                                       DragEnded="CompassTool_DragEnded"
                                        CloseRequested="CompassTool_CloseRequested" />
 
             <!-- 三角板工具（图形工具面板中选择，白色半透明镂空板身 + 斜边刻度，拖板框移动 / 拖角旋转）。

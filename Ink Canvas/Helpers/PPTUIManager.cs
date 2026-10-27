@@ -455,10 +455,12 @@ namespace Ink_Canvas.Helpers
         {
             try
             {
-                _mainWindow.LeftBottomPanelForPPTNavigation.SetBarScale(PPTLBButtonScale);
-                _mainWindow.RightBottomPanelForPPTNavigation.SetBarScale(PPTRBButtonScale);
-                _mainWindow.LeftSidePanelForPPTNavigation.SetBarScale(PPTLSButtonScale);
-                _mainWindow.RightSidePanelForPPTNavigation.SetBarScale(PPTRSButtonScale);
+                // 叠加系统显示比例补偿（150% → 0.667），避免翻页栏与其它工具栏重叠
+                var fitFactor = _mainWindow.GetToolbarDisplayFitFactor();
+                _mainWindow.LeftBottomPanelForPPTNavigation.SetBarScale(PPTLBButtonScale * fitFactor);
+                _mainWindow.RightBottomPanelForPPTNavigation.SetBarScale(PPTRBButtonScale * fitFactor);
+                _mainWindow.LeftSidePanelForPPTNavigation.SetBarScale(PPTLSButtonScale * fitFactor);
+                _mainWindow.RightSidePanelForPPTNavigation.SetBarScale(PPTRSButtonScale * fitFactor);
             }
             catch (Exception ex)
             {

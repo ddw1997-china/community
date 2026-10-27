@@ -1543,6 +1543,13 @@ namespace Ink_Canvas
                 else ViewboxFloatingBarMarginAnimation(100, true, skipAnimation: true);
             }
 
+            // 浮动栏显示/隐藏状态变化时（首次显示、从托盘恢复、切换模式）重新校准自适应缩放
+            ViewboxFloatingBar.IsVisibleChanged -= ViewboxFloatingBar_IsVisibleChanged;
+            ViewboxFloatingBar.IsVisibleChanged += ViewboxFloatingBar_IsVisibleChanged;
+
+            // 首个布局周期结束后按真实尺寸校准一次（启动早期控件尚未测量出尺寸）
+            RefreshFloatingBarAutoFitScaleAfterLayout();
+
             // 默认模式沿用 1.7.19.4：通知与自动化在 Window_Loaded 中初始化。
             if (App.IsDefaultStartupMode)
             {
@@ -1721,14 +1728,50 @@ namespace Ink_Canvas
         private void SystemEventsOnDisplaySettingsChanged(object sender, EventArgs e)
         {
             if (!Settings.Advanced.IsEnableResolutionChangeDetection) return;
+            RefreshFloatingBarScaleForDisplayChange();
             HandleFloatingBarRecovery();
         }
 
         private void MainWindow_OnDpiChanged(object sender, DpiChangedEventArgs e)
         {
-            if (e.OldDpi.DpiScaleX != e.NewDpi.DpiScaleX && e.OldDpi.DpiScaleY != e.NewDpi.DpiScaleY && Settings.Advanced.IsEnableDPIChangeDetection)
+            // 显示比例一旦变化就必须重新计算所有工具栏的缩放：150% 等比例下
+            // 屏幕可用的 DIP 空间变小，工具栏仍按原尺寸绘制就会互相重叠。
+            // 这里不再受 IsEnableDPIChangeDetection 开关限制（该开关只控制额外的恢复动画）。
+            if (e.OldDpi.DpiScaleX == e.NewDpi.DpiScaleX && e.OldDpi.DpiScaleY == e.NewDpi.DpiScaleY)
+                return;
+
+            try
+            {
+                ApplyAllToolbarDisplayScale(e.NewDpi.DpiScaleX);
+            }
+            catch (Exception ex)
+            {
+                LogHelper.WriteLogToFile($"显示比例变化后应用工具栏缩放失败: {ex.Message}", LogHelper.LogType.Warning);
+            }
+
+            RefreshFloatingBarScaleForDisplayChange();
+
+            if (Settings.Advanced.IsEnableDPIChangeDetection)
             {
                 HandleFloatingBarRecovery();
+            }
+        }
+
+        /// <summary>
+        /// 分辨率或系统显示比例变化后，按新的屏幕可用空间重新校准浮动工具栏的缩放，
+        /// 避免工具栏在高显示比例下超出屏幕、与底部左右按钮重叠。
+        /// </summary>
+        private void RefreshFloatingBarScaleForDisplayChange()
+        {
+            try
+            {
+                // 先按新的显示比例刷新所有工具栏缩放，再按新屏幕可用空间校准并重新定位（底边避让）
+                ApplyAllToolbarDisplayScale();
+                RefreshFloatingBarAutoFitScaleAfterLayout();
+            }
+            catch (Exception ex)
+            {
+                LogHelper.WriteLogToFile($"浮动工具栏自适应缩放调度失败: {ex.Message}", LogHelper.LogType.Warning);
             }
         }
 

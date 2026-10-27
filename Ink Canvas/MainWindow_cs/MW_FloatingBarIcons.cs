@@ -986,6 +986,7 @@ namespace Ink_Canvas
                         AnimationsHelper.HideWithSlideAndFade(BlackboardLeftSide);
                         AnimationsHelper.HideWithSlideAndFade(BlackboardCenterSide);
                         AnimationsHelper.HideWithSlideAndFade(BlackboardRightSide);
+                        RefreshFloatingBarAutoFitScaleAfterLayout();
                     }
 
                     BtnHideInkCanvas_Click(null, null);
@@ -2119,6 +2120,147 @@ namespace Ink_Canvas
             return (useWorkingArea ? screen.WorkingArea.Width : screen.Bounds.Width) / dpiScaleX;
         }
 
+        /// <summary>浮动工具栏自适应缩放的下限，保证高显示比例/低分辨率下图标仍然可点。</summary>
+        private const double MinFloatingBarAutoFitScale = 0.5;
+
+        /// <summary>浮动工具栏与屏幕边缘、底部工具栏之间预留的间隙（DIP）。</summary>
+        private const double FloatingBarAutoFitGap = 8;
+
+        /// <summary>
+        /// 计算浮动工具栏的「自适应适配」倍率（0.5~1，1 表示不需要缩小）。
+        /// 系统显示比例调高（如 150%）或分辨率较低时，屏幕可用的 DIP 尺寸变小，
+        /// 而工具栏的自然尺寸不变，容易超出屏幕、与白板底部的左右按钮重叠；
+        /// 这里按「当前屏幕可用空间 ÷ 工具栏当前尺寸」反算需要的缩放倍率。
+        /// 返回值是相对目标缩放的倍率，调用方再乘以它得到最终缩放。
+        /// </summary>
+        private double ComputeFloatingBarAutoFitScale(double targetScale)
+        {
+            if (ViewboxFloatingBar == null || targetScale <= 0) return 1;
+            if (!IsLoaded) return 1;
+
+            if (!IsVerticalToolbar)
+            {
+                // Right/Left 位置 = 屏幕底部居中的横向工具栏：受屏幕宽度限制
+                // （底部位置还要避开左右两侧的翻页按钮，否则 150% 等缩放下会与其重叠）
+                var naturalWidth = GetElementWidthForFloatingBar(ViewboxFloatingBar, 0);
+                if (naturalWidth <= 0) return 1;
+
+                var screenWidth = GetFloatingBarScreenWidth(Settings.Advanced.IsEnableAvoidFullScreenHelper);
+                if (screenWidth <= 0) return 1;
+
+                var availableWidth = screenWidth - GetFloatingBarBottomCornerReservedWidth()
+                                                   - FloatingBarAutoFitGap * 2;
+                if (availableWidth <= 0) return MinFloatingBarAutoFitScale;
+
+                var currentWidth = naturalWidth * targetScale;
+                if (currentWidth <= availableWidth) return 1;
+
+                return Math.Max(MinFloatingBarAutoFitScale, availableWidth / currentWidth);
+            }
+
+            // Top/Bottom 位置 = 靠右的竖向工具栏：受屏幕高度限制（要避开底部工具栏）
+            var naturalHeight = GetElementHeightForFloatingBar(ViewboxFloatingBar, 58);
+            if (naturalHeight <= 0) return 1;
+
+            var screenHeight = GetFloatingBarScreenHeight(Settings.Advanced.IsEnableAvoidFullScreenHelper);
+            if (screenHeight <= 0) return 1;
+
+            var availableHeight = screenHeight - GetFloatingBarBottomReservedHeight()
+                                                 - FloatingBarAutoFitGap * 2;
+            if (availableHeight <= 0) return MinFloatingBarAutoFitScale;
+
+            var currentHeight = naturalHeight * targetScale;
+            if (currentHeight <= availableHeight) return 1;
+
+            return Math.Max(MinFloatingBarAutoFitScale, availableHeight / currentHeight);
+        }
+
+        /// <summary>
+        /// 白板底部工具栏显隐变化后，等布局更新完成再重新校准浮动工具栏缩放
+        /// （底部工具栏出现/消失会改变可用于浮动栏的横向/纵向空间）。
+        /// </summary>
+        private void RefreshFloatingBarAutoFitScaleAfterLayout()
+        {
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                try
+                {
+                    ApplyEffectiveFloatingBarScale();
+
+                    // 缩放没变化时也要重新定位：底部工具栏显隐会改变安全区，
+                    // 必须重新走一遍定位才能应用「底边避让」。
+                    if (ViewboxFloatingBarScaleTransform == null) return;
+                    if (IsInPPTPresentationMode) ViewboxFloatingBarMarginAnimation(60);
+                    else ViewboxFloatingBarMarginAnimation(100, true);
+                }
+                catch (Exception ex)
+                {
+                    LogHelper.WriteLogToFile($"浮动工具栏自适应定位失败: {ex.Message}", LogHelper.LogType.Warning);
+                }
+            }), System.Windows.Threading.DispatcherPriority.Loaded);
+        }
+
+        /// <summary>
+        /// 浮动工具栏显示状态变化：刚显示时控件才被测量出真实尺寸，需要在此重新校准缩放。
+        /// </summary>
+        private void ViewboxFloatingBar_IsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+        {
+            if (e.NewValue is bool isVisible && isVisible)
+                RefreshFloatingBarAutoFitScaleAfterLayout();
+        }
+
+        /// <summary>底部左右翻页按钮占用的横向宽度（DIP，已含各自缩放）；非底部位置返回 0。</summary>
+        private double GetFloatingBarBottomCornerReservedWidth()
+        {
+            if (currentMode != 1) return 0;
+            if (Settings.Appearance.ToolbarPosition != ToolbarPosition.Bottom) return 0;
+
+            return GetScaledBlackboardBarWidth(BlackboardLeftSide, ViewboxBlackboardLeftSideScaleTransform)
+                   + GetScaledBlackboardBarWidth(BlackboardRightSide, ViewboxBlackboardRightSideScaleTransform);
+        }
+
+        /// <summary>
+        /// 底部工具栏占用的最大高度（DIP，已含各自缩放）。
+        /// 白板/黑板模式（currentMode == 1）底部一定有翻页工具栏，因此这里不依赖按钮的
+        /// 可见性判断（显隐动画、PPT 非放映等状态下按钮可能暂时为空），避免避让失效。
+        /// </summary>
+        private double GetFloatingBarBottomReservedHeight()
+        {
+            if (currentMode != 1) return 0;
+
+            var height = 0.0;
+            height = Math.Max(height,
+                GetScaledBlackboardBarHeight(BlackboardLeftSide, ViewboxBlackboardLeftSideScaleTransform));
+            height = Math.Max(height,
+                GetScaledBlackboardBarHeight(BlackboardCenterSide, ViewboxBlackboardCenterSideScaleTransform));
+            height = Math.Max(height,
+                GetScaledBlackboardBarHeight(BlackboardRightSide, ViewboxBlackboardRightSideScaleTransform));
+            return height;
+        }
+
+        private double GetScaledBlackboardBarWidth(FrameworkElement bar, ScaleTransform scaleTransform)
+        {
+            if (bar == null || !bar.IsVisible) return 0;
+
+            var width = GetElementWidthForFloatingBar(bar, 0);
+            if (width <= 0) return 0;
+
+            var scale = scaleTransform != null && scaleTransform.ScaleX > 0 ? scaleTransform.ScaleX : 1;
+            return width * scale + 12;
+        }
+
+        private double GetScaledBlackboardBarHeight(FrameworkElement bar, ScaleTransform scaleTransform)
+        {
+            if (bar == null) return 0;
+
+            // 白板模式下工具栏即使短暂不可见也按标称高度（50）预留安全区
+            var height = GetElementHeightForFloatingBar(bar, 50);
+            if (height <= 0) height = 50;
+
+            var scale = scaleTransform != null && scaleTransform.ScaleY > 0 ? scaleTransform.ScaleY : 1;
+            return height * scale + 12;
+        }
+
         private void SetFloatingBarHeadPlacement(bool headOnRight)
         {
             if (FloatingBarRootPanel == null) return;
@@ -3007,6 +3149,19 @@ namespace Ink_Canvas
             else if (IsVerticalToolbar)
             {
                 pos.X = screenWidth - MarginFromEdge * ViewboxFloatingBarScaleTransform.ScaleX;
+            }
+
+            // 白板/黑板模式下屏幕底部有翻页工具栏（左/中/右），底部居中的横向浮动栏贴底显示时
+            // 会与它们重叠（显示比例越高越明显）。这里做最后一次避让：
+            // 保证浮动栏底边始终高于底部工具栏，任何调用路径（含手动拖动位置）都不会压上去。
+            if (MarginFromEdge >= 0 && !IsVerticalToolbar)
+            {
+                var bottomReservedHeightForPosition = GetFloatingBarBottomReservedHeight();
+                if (bottomReservedHeightForPosition > 0)
+                {
+                    var maxTopForBottomToolbar = screenHeight - bottomReservedHeightForPosition - floatingBarHeight;
+                    if (pos.Y > maxTopForBottomToolbar) pos.Y = maxTopForBottomToolbar;
+                }
             }
 
             LogHelper.WriteLogToFile(
@@ -4899,6 +5054,7 @@ namespace Ink_Canvas
                         AnimationsHelper.HideWithSlideAndFade(BlackboardLeftSide);
                         AnimationsHelper.HideWithSlideAndFade(BlackboardCenterSide);
                         AnimationsHelper.HideWithSlideAndFade(BlackboardRightSide);
+                        RefreshFloatingBarAutoFitScaleAfterLayout();
 
                         // 在PPT模式下隐藏手势面板和手势按钮
                         AnimationsHelper.HideWithSlideAndFade(TwoFingerGestureBorder);
@@ -4978,6 +5134,7 @@ namespace Ink_Canvas
                         AnimationsHelper.ShowWithSlideFromBottomAndFade(BlackboardLeftSide);
                         AnimationsHelper.ShowWithSlideFromBottomAndFade(BlackboardCenterSide);
                         AnimationsHelper.ShowWithSlideFromBottomAndFade(BlackboardRightSide);
+                        RefreshFloatingBarAutoFitScaleAfterLayout();
 
                         SaveStrokes(true);
                         ClearStrokes(true);

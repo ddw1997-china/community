@@ -32,6 +32,10 @@ namespace Ink_Canvas.Helpers
         private bool _isMouseOverWindow = false;
         private System.Windows.Threading.DispatcherTimer _mousePositionTimer;
 
+        // 加载失败后的停止重试控制，避免定时器每 500ms 反复重试导致日志刷屏
+        private bool _isLoadingHotkeys = false;
+        private DateTime _hotkeyLoadRetryNotBefore = DateTime.MinValue;
+
         // 配置文件路径
         private static readonly string HotkeyConfigFile = Path.Combine(App.RootPath, "Configs", "HotkeyConfig.json");
         #endregion
@@ -315,34 +319,87 @@ namespace Ink_Canvas.Helpers
                     return;
                 }
 
-                // 如果配置文件不存在，先创建默认配置文件
-                if (!File.Exists(HotkeyConfigFile))
+                // 重入保护：加载过程中会再次调用（RegisterHotkey -> ShouldRegisterHotkeys）
+                if (_isLoadingHotkeys)
                 {
-                    LogHelper.WriteLogToFile($"快捷键配置文件不存在: {HotkeyConfigFile}", LogHelper.LogType.Warning);
-                    CreateDefaultConfigFile();
-                    RegisterDefaultHotkeys();
-                    _hotkeysShouldBeRegistered = true;
                     return;
                 }
 
-                // 尝试从配置文件加载
-                if (LoadHotkeysFromConfigFile())
+                // 退避保护：上一次加载失败后，在退避时间到达前不再重试
+                // 鼠标位置定时器每 500ms 检查一次，若这里不拦截会在失败时无限重试并刷日志
+                if (_hotkeyLoadRetryNotBefore > DateTime.UtcNow)
                 {
-                    // 成功从配置文件加载快捷键设置
-                    _hotkeysShouldBeRegistered = true;
+                    return;
                 }
-                else
+
+                _isLoadingHotkeys = true;
+                try
                 {
-                    LogHelper.WriteLogToFile("配置文件存在但加载失败，回退到默认快捷键", LogHelper.LogType.Warning);
-                    RegisterDefaultHotkeys();
-                    _hotkeysShouldBeRegistered = true;
+                    // 如果配置文件不存在，先创建默认配置文件
+                    if (!File.Exists(HotkeyConfigFile))
+                    {
+                        CreateDefaultConfigFile();
+
+                        // 创建后仍不存在说明落盘失败，直接退避，避免每次调用重复走此分支
+                        if (!File.Exists(HotkeyConfigFile))
+                        {
+                            LogHelper.WriteLogToFile($"创建快捷键配置文件失败: {HotkeyConfigFile}", LogHelper.LogType.Warning);
+                            ScheduleHotkeyLoadRetry();
+                            return;
+                        }
+                    }
+
+                    // 尝试从配置文件加载；失败时回退到默认快捷键
+                    if (!LoadHotkeysFromConfigFile())
+                    {
+                        LogHelper.WriteLogToFile("配置文件存在但加载失败，回退到默认快捷键", LogHelper.LogType.Warning);
+                        RegisterDefaultHotkeys();
+                    }
+
+                    if (_registeredHotkeys.Count > 0)
+                    {
+                        _hotkeysShouldBeRegistered = true;
+                        _hotkeyLoadRetryNotBefore = DateTime.MinValue;
+                    }
+                    else
+                    {
+                        LogHelper.WriteLogToFile("快捷键加载完成但未注册任何快捷键", LogHelper.LogType.Warning);
+                        ScheduleHotkeyLoadRetry();
+                    }
+                }
+                finally
+                {
+                    _isLoadingHotkeys = false;
                 }
             }
             catch (Exception ex)
             {
                 LogHelper.WriteLogToFile($"从设置加载快捷键时出错: {ex.Message}", LogHelper.LogType.Error);
                 // 出错时不自动使用默认快捷键，保持当前状态
+                ScheduleHotkeyLoadRetry();
             }
+        }
+
+        /// <summary>
+        /// 加载失败后停止自动重试。
+        /// 定时器/焦点/鼠标进出事件会每 500ms 再次请求加载，重试并不会让注册成功，
+        /// 只会让日志不断刷屏；这里把闸门直接推到无穷远，只保留一条日志。
+        /// 用户在设置页保存快捷键（SaveHotkeysToSettings）时会重置闸门并重新加载。
+        /// </summary>
+        private void ScheduleHotkeyLoadRetry()
+        {
+            if (_hotkeyLoadRetryNotBefore == DateTime.MaxValue) return;
+
+            _hotkeyLoadRetryNotBefore = DateTime.MaxValue;
+            LogHelper.WriteLogToFile("快捷键加载失败，已停止自动重试（在设置中保存快捷键可重新加载）", LogHelper.LogType.Warning);
+        }
+
+        /// <summary>
+        /// 重置加载闸门，使下一次加载立即执行（仅在用户显式保存快捷键后调用）
+        /// </summary>
+        private void ResetHotkeyLoadRetryGate()
+        {
+            _hotkeyLoadRetryNotBefore = DateTime.MinValue;
         }
 
         /// <summary>
@@ -355,6 +412,8 @@ namespace Ink_Canvas.Helpers
 
                 if (SaveHotkeysToConfigFile())
                 {
+                    // 配置已更新，重置退避，允许后续加载立即生效
+                    ResetHotkeyLoadRetryGate();
                 }
                 else
                 {
