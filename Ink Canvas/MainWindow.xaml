@@ -240,6 +240,7 @@
                        MouseDown="inkCanvas_MouseDown"
                        MouseMove="inkCanvas_MouseMove"
                        MouseUp="inkCanvas_MouseUp"
+                       LostMouseCapture="inkCanvas_LostMouseCapture"
                        ManipulationStarting="InkCanvas_ManipulationStarting"
                        SelectionChanged="inkCanvas_SelectionChanged"
                        StrokeCollected="inkCanvas_StrokeCollected" 
@@ -953,6 +954,24 @@
                       MouseMove="CoordinateAxisHandle_MouseMove"
                       MouseUp="CoordinateAxisHandle_MouseUp">
                     <Ellipse Width="12" Height="12" Fill="LightBlue" Stroke="Blue" StrokeThickness="1" />
+                </Grid>
+            </Canvas>
+
+            <!-- 几何线条端点伸缩手柄：选中垂线/中垂线/平行线后出现在两端，选中角平分线后只出现在远端 -->
+            <Canvas x:Name="GeometryLineHandleCanvas" Visibility="Collapsed" Panel.ZIndex="1002">
+                <Grid x:Name="GeometryLineHandleStart" Width="24" Height="24" Background="Transparent" Cursor="SizeAll"
+                      MouseDown="GeometryLineHandle_MouseDown"
+                      MouseMove="GeometryLineHandle_MouseMove"
+                      MouseUp="GeometryLineHandle_MouseUp"
+                      LostMouseCapture="GeometryLineHandle_LostMouseCapture">
+                    <Ellipse Width="12" Height="12" Fill="LightGreen" Stroke="Green" StrokeThickness="1" />
+                </Grid>
+                <Grid x:Name="GeometryLineHandleEnd" Width="24" Height="24" Background="Transparent" Cursor="SizeAll"
+                      MouseDown="GeometryLineHandle_MouseDown"
+                      MouseMove="GeometryLineHandle_MouseMove"
+                      MouseUp="GeometryLineHandle_MouseUp"
+                      LostMouseCapture="GeometryLineHandle_LostMouseCapture">
+                    <Ellipse Width="12" Height="12" Fill="LightGreen" Stroke="Green" StrokeThickness="1" />
                 </Grid>
             </Canvas>
 

@@ -70,13 +70,13 @@
     <value>多边形</value>
   </data>
   <data name="DrawCoordinate3" xml:space="preserve">
-    <value>等边三角形</value>
+    <value>等边△</value>
   </data>
   <data name="DrawCoordinate4" xml:space="preserve">
-    <value>直角三角形</value>
+    <value>Rt△</value>
   </data>
   <data name="DrawCoordinate5" xml:space="preserve">
-    <value>三维坐标</value>
+    <value>画平行线</value>
   </data>
   <data name="DrawCuboid" xml:space="preserve">
     <value>长方体</value>
@@ -103,25 +103,28 @@
     <value>抛物线</value>
   </data>
   <data name="DrawParabola2" xml:space="preserve">
-    <value>抛物线2</value>
+    <value>垂线</value>
+  </data>
+  <data name="DrawPerpendicularBisector" xml:space="preserve">
+    <value>中垂线</value>
   </data>
 <data name="DrawCompass" xml:space="preserve">
     <value>圆规</value>
   </data>
   <data name="DrawTriangleRuler" xml:space="preserve">
-    <value>45°三角板</value>
+    <value>45°△板</value>
   </data>
   <data name="DrawTriangleRuler2" xml:space="preserve">
-    <value>30-60°三角板</value>
+    <value>30°△板</value>
   </data>
   <data name="DrawStraightRuler" xml:space="preserve">
     <value>直尺</value>
   </data>
   <data name="DrawParabolaWithFocal" xml:space="preserve">
-    <value>抛物线(焦点)</value>
+    <value>角平分线</value>
   </data>
   <data name="DrawParallelLines" xml:space="preserve">
-    <value>4平行线</value>
+    <value>中点</value>
   </data>
   <data name="DrawSquare" xml:space="preserve">
     <value>正方形</value>

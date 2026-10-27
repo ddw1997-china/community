@@ -274,6 +274,7 @@ namespace Ink_Canvas
             content.DrawRectangleBtn.ButtonMouseUp += GeometryButton_Click;
             content.DrawCylinderBtn.ButtonMouseUp += GeometryButton_Click;
             content.DrawConeBtn.ButtonMouseUp += GeometryButton_Click;
+            content.DrawPerpendicularBisectorBtn.ButtonMouseUp += GeometryButton_Click;
             content.DrawCoordinate1Btn.ButtonMouseUp += GeometryButton_Click;
             content.DrawCoordinate2Btn.ButtonMouseUp += GeometryButton_Click;
             content.DrawCoordinate3Btn.ButtonMouseUp += GeometryButton_Click;
@@ -443,6 +444,7 @@ namespace Ink_Canvas
             content.DrawRectangleBtn.ButtonMouseUp += GeometryButton_Click;
             content.DrawCylinderBtn.ButtonMouseUp += GeometryButton_Click;
             content.DrawConeBtn.ButtonMouseUp += GeometryButton_Click;
+            content.DrawPerpendicularBisectorBtn.ButtonMouseUp += GeometryButton_Click;
             content.DrawCoordinate1Btn.ButtonMouseUp += GeometryButton_Click;
             content.DrawCoordinate2Btn.ButtonMouseUp += GeometryButton_Click;
             content.DrawCoordinate3Btn.ButtonMouseUp += GeometryButton_Click;
@@ -2241,6 +2243,10 @@ namespace Ink_Canvas
         private void inkCanvas_PreviewMouseUp(object sender, MouseButtonEventArgs e)
         {
             if (e.ChangedButton != MouseButton.Left) return;
+            // 中垂线 / 中点：在 Preview 阶段就收尾（冒泡的 MouseUp 可能被内部处理吞掉，
+            // 导致荧光笔线段延迟到下一次点击才消失）
+            if (drawingShapeMode == 26) CompletePerpendicularBisectorNow();
+            if (drawingShapeMode == 15) CompleteMidpointNow();
             if (inkCanvas?.EditingMode == InkCanvasEditingMode.EraseByStroke)
                 EndSecAgentStrokeErase();
         }
@@ -2296,6 +2302,10 @@ namespace Ink_Canvas
         // 手写笔抬起事件（用于橡皮擦自动切换）
         private void inkCanvas_StylusUp(object sender, StylusEventArgs e)
         {
+            // 中垂线 / 中点：触控笔抬起立刻收尾（放在最前面，避免被后面的分支提前 return 或 e.Handled 拦截）
+            if (drawingShapeMode == 26) CompletePerpendicularBisectorNow();
+            if (drawingShapeMode == 15) CompleteMidpointNow();
+
             EndSecAgentStrokeErase();
             if (_isBoardRoamingPointerDown)
             {

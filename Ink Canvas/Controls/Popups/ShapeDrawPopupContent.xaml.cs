@@ -19,6 +19,7 @@ namespace Ink_Canvas.Controls
         public GeometryButton DrawRectangleBtn => BoardImageDrawRectangle;
         public GeometryButton DrawCylinderBtn => BoardImageDrawCylinder;
         public GeometryButton DrawConeBtn => BoardImageDrawCone;
+        public GeometryButton DrawPerpendicularBisectorBtn => BoardImageDrawPerpendicularBisector;
         public GeometryButton DrawCompassBtn => BoardImageDrawCompass;
         public GeometryButton DrawTriangleRulerBtn => BoardImageDrawTriangleRuler;
         public GeometryButton DrawTriangleRuler2Btn => BoardImageDrawTriangleRuler2;

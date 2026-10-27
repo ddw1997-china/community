@@ -1437,6 +1437,9 @@ namespace Ink_Canvas
 
             // 选中的是坐标系时，额外显示轴长调节手柄
             UpdateCoordinateAxisHandles();
+
+            // 选中的是垂线/中垂线/角平分线时，显示端点伸缩手柄
+            UpdateGeometryLineHandles();
         }
 
         /// <summary>
@@ -1451,6 +1454,7 @@ namespace Ink_Canvas
             SelectionRectangle.Visibility = Visibility.Collapsed;
             SelectionHandlesCanvas.Visibility = Visibility.Collapsed;
             HideCoordinateAxisHandles();
+            HideGeometryLineHandles();
             if (currentSelectedElement == null)
             {
                 if (_isStrokeRotationOverlayActive)

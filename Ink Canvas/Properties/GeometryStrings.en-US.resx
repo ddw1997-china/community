@@ -70,13 +70,13 @@
     <value>Polygon</value>
   </data>
   <data name="DrawCoordinate3" xml:space="preserve">
-    <value>Equilateral Triangle</value>
+    <value>Equilateral △</value>
   </data>
   <data name="DrawCoordinate4" xml:space="preserve">
-    <value>Right Triangle</value>
+    <value>Rt△</value>
   </data>
   <data name="DrawCoordinate5" xml:space="preserve">
-    <value>3D Coordinate</value>
+    <value>Parallel Line</value>
   </data>
   <data name="DrawCuboid" xml:space="preserve">
     <value>Cuboid</value>
@@ -103,25 +103,28 @@
     <value>Parabola</value>
   </data>
   <data name="DrawParabola2" xml:space="preserve">
-    <value>Parabola 2</value>
+    <value>Perpendicular</value>
+  </data>
+  <data name="DrawPerpendicularBisector" xml:space="preserve">
+    <value>Perpendicular Bisector</value>
   </data>
 <data name="DrawCompass" xml:space="preserve">
     <value>Compass</value>
   </data>
   <data name="DrawTriangleRuler" xml:space="preserve">
-    <value>45° Set Square</value>
+    <value>45°△</value>
   </data>
   <data name="DrawTriangleRuler2" xml:space="preserve">
-    <value>30-60° Set Square</value>
+    <value>30°△</value>
   </data>
   <data name="DrawStraightRuler" xml:space="preserve">
     <value>Straight Ruler</value>
   </data>
   <data name="DrawParabolaWithFocal" xml:space="preserve">
-    <value>Parabola (Focal)</value>
+    <value>Angle Bisector</value>
   </data>
   <data name="DrawParallelLines" xml:space="preserve">
-    <value>4 parallel lines</value>
+    <value>Midpoint</value>
   </data>
   <data name="DrawSquare" xml:space="preserve">
     <value>Square</value>

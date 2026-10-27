@@ -850,7 +850,8 @@ namespace Ink_Canvas
                     (sender as Stroke).StylusPoints.Clone());
             if ((StrokeManipulationHistory.Count == count || sender == null)
                 && dec.Count == 0
-                && !_isStrokeRotationOverlayActive)
+                && !_isStrokeRotationOverlayActive
+                && !_geometryLineHandleDragging)
             {
                 CommitPendingStrokeManipulationHistory();
             }

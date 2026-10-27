@@ -140,7 +140,7 @@ namespace Ink_Canvas
         /// 18: 点线
         /// 19: 中心矩形
         /// 20: 抛物线1
-        /// 21: 抛物线2
+        /// 21: 垂线（两步：第一笔基准线，第二笔点）
         /// 22: 带焦点的抛物线
         /// 23: 带焦点的中心椭圆
         /// 24: 双曲线
@@ -316,11 +316,18 @@ namespace Ink_Canvas
             }
 
             // 进入新模式
+            if (drawingShapeMode == 15) CancelMidpointDrawing();
+            if (drawingShapeMode == 17) CancelParallelDrawing();
+            if (drawingShapeMode == 21) CancelPerpendicularDrawing();
+            if (drawingShapeMode == 22) CancelAngleBisectorDrawing();
+            if (drawingShapeMode == 26) CancelPerpendicularBisector();
             forcePointEraser = false;
             DisableEraserOverlay();
 
             forceEraser = true;
             drawingShapeMode = mode;
+            // 每次进入工具都从第一步开始，避免上一次多步绘制残留的步骤状态
+            drawMultiStepShapeCurrentStep = 0;
             inkCanvas.EditingMode = InkCanvasEditingMode.None;
             inkCanvas.IsManipulationEnabled = true;
             CancelSingleFingerDragMode();
@@ -342,6 +349,11 @@ namespace Ink_Canvas
         /// </summary>
         private void ExitShapeDrawingMode()
         {
+            if (drawingShapeMode == 15) CancelMidpointDrawing();
+            if (drawingShapeMode == 17) CancelParallelDrawing();
+            if (drawingShapeMode == 21) CancelPerpendicularDrawing();
+            if (drawingShapeMode == 22) CancelAngleBisectorDrawing();
+            if (drawingShapeMode == 26) CancelPerpendicularBisector();
             forceEraser = false;
             drawingShapeMode = 0;
             isLongPressSelected = false;
@@ -660,6 +672,7 @@ namespace Ink_Canvas
                 list.Add(content.DrawRectangleBtn);
                 list.Add(content.DrawCylinderBtn);
                 list.Add(content.DrawConeBtn);
+                list.Add(content.DrawPerpendicularBisectorBtn);
                 list.Add(content.DrawCoordinate1Btn);
                 list.Add(content.DrawCoordinate2Btn);
                 list.Add(content.DrawCoordinate3Btn);
@@ -693,6 +706,7 @@ namespace Ink_Canvas
                 list.Add(boardContent.DrawRectangleBtn);
                 list.Add(boardContent.DrawCylinderBtn);
                 list.Add(boardContent.DrawConeBtn);
+                list.Add(boardContent.DrawPerpendicularBisectorBtn);
                 list.Add(boardContent.DrawCoordinate1Btn);
                 list.Add(boardContent.DrawCoordinate2Btn);
                 list.Add(boardContent.DrawCoordinate3Btn);
@@ -744,6 +758,7 @@ namespace Ink_Canvas
             if (btn == content?.DrawEllipseCenterWithFocalPointBtn || btn == boardContent?.DrawEllipseCenterWithFocalPointBtn) return 23;
             if (btn == content?.DrawHyperbolaBtn || btn == boardContent?.DrawHyperbolaBtn) return 24;
             if (btn == content?.DrawBezierBtn || btn == boardContent?.DrawBezierBtn) return 25;
+            if (btn == content?.DrawPerpendicularBisectorBtn || btn == boardContent?.DrawPerpendicularBisectorBtn) return 26;
             // 圆规/三角板不占用绘制模式，由 IsCompassButton / IsTriangleRulerButton 单独处理（返回 0 = 非绘制模式按钮）
 
             return 0;
@@ -766,6 +781,11 @@ namespace Ink_Canvas
         private void BtnPen_Click(object sender, RoutedEventArgs e)
         {
             if (TryBlockFrozenPageMutation("切换到画笔")) return;
+            if (drawingShapeMode == 15) CancelMidpointDrawing();
+            if (drawingShapeMode == 17) CancelParallelDrawing();
+            if (drawingShapeMode == 21) CancelPerpendicularDrawing();
+            if (drawingShapeMode == 22) CancelAngleBisectorDrawing();
+            if (drawingShapeMode == 26) CancelPerpendicularBisector();
             forceEraser = false;
             drawingShapeMode = 0;
             inkCanvas.EditingMode = InkCanvasEditingMode.Ink;
@@ -1140,12 +1160,12 @@ namespace Ink_Canvas
         /// <param name="sender">事件发送者</param>
         /// <param name="e">鼠标按钮事件参数</param>
         /// <remarks>
-        /// 当绘制坐标系5按钮被点击时：
+        /// 当绘制平行线（原坐标系5按钮）被点击时：
         /// 1. 检查是否在多点触控模式下
         /// 2. 禁用点橡皮擦模式
         /// 3. 禁用橡皮擦覆盖
         /// 4. 设置强制橡皮擦模式
-        /// 5. 设置绘制模式为坐标系5
+        /// 5. 设置绘制模式为平行线
         /// 6. 设置墨水画布编辑模式为无
         /// 7. 启用墨水画布的操作功能
         /// 8. 取消单指拖拽模式
@@ -1159,6 +1179,10 @@ namespace Ink_Canvas
 
             forceEraser = true;
             drawingShapeMode = 17;
+            drawMultiStepShapeCurrentStep = 0;
+            _parallelLastPreview = null;
+            _parallelBaselineStroke = null;
+            _parallelUpPoint = null;
             inkCanvas.EditingMode = InkCanvasEditingMode.None;
             inkCanvas.IsManipulationEnabled = true;
             CancelSingleFingerDragMode();
@@ -1447,17 +1471,17 @@ namespace Ink_Canvas
         }
 
         /// <summary>
-        /// 处理绘制带焦点的抛物线按钮点击事件
+        /// 处理绘制角平分线按钮点击事件
         /// </summary>
         /// <param name="sender">事件发送者</param>
         /// <param name="e">鼠标按钮事件参数</param>
         /// <remarks>
-        /// 当绘制带焦点的抛物线按钮被点击时：
+        /// 当绘制角平分线按钮被点击时：
         /// 1. 检查是否在多点触控模式下
         /// 2. 禁用点橡皮擦模式
         /// 3. 禁用橡皮擦覆盖
         /// 4. 设置强制橡皮擦模式
-        /// 5. 设置绘制模式为带焦点的抛物线
+        /// 5. 设置绘制模式为角平分线
         /// 6. 设置墨水画布编辑模式为无
         /// 7. 启用墨水画布的操作功能
         /// 8. 取消单指拖拽模式
@@ -1471,6 +1495,12 @@ namespace Ink_Canvas
 
             forceEraser = true;
             drawingShapeMode = 22;
+            drawMultiStepShapeCurrentStep = 0;
+            _angleBisectorLastPreview = null;
+            _angleBisectorSide1Stroke = null;
+            _angleBisectorUpPoint = null;
+            _angleBisectorVertex = default;
+            _angleBisectorSide1End = default;
             inkCanvas.EditingMode = InkCanvasEditingMode.None;
             inkCanvas.IsManipulationEnabled = true;
             CancelSingleFingerDragMode();
@@ -1478,17 +1508,17 @@ namespace Ink_Canvas
         }
 
         /// <summary>
-        /// 处理绘制抛物线2按钮点击事件
+        /// 处理绘制垂线按钮点击事件
         /// </summary>
         /// <param name="sender">事件发送者</param>
         /// <param name="e">鼠标按钮事件参数</param>
         /// <remarks>
-        /// 当绘制抛物线2按钮被点击时：
+        /// 当绘制垂线按钮被点击时：
         /// 1. 检查是否在多点触控模式下
         /// 2. 禁用点橡皮擦模式
         /// 3. 禁用橡皮擦覆盖
         /// 4. 设置强制橡皮擦模式
-        /// 5. 设置绘制模式为抛物线2
+        /// 5. 设置绘制模式为垂线
         /// 6. 设置墨水画布编辑模式为无
         /// 7. 启用墨水画布的操作功能
         /// 8. 取消单指拖拽模式
@@ -1502,6 +1532,10 @@ namespace Ink_Canvas
 
             forceEraser = true;
             drawingShapeMode = 21;
+            drawMultiStepShapeCurrentStep = 0;
+            _perpendicularLastPreview = null;
+            _perpendicularBaselineStroke = null;
+            _perpendicularUpPoint = null;
             inkCanvas.EditingMode = InkCanvasEditingMode.None;
             inkCanvas.IsManipulationEnabled = true;
             CancelSingleFingerDragMode();
@@ -1727,6 +1761,43 @@ namespace Ink_Canvas
         private StrokeCollection _bezierLastPreview;
         private Point _bezierEndPoint = default;
 
+        // 垂线（模式 21）专用：跨帧预览清理跟踪、基准线笔画与端点
+        private StrokeCollection _perpendicularLastPreview;
+        private Stroke _perpendicularBaselineStroke;
+        private Point _perpendicularBaseStart = default;
+        private Point _perpendicularBaseEnd = default;
+        // 触摸/手写笔抬起时传入的落点（鼠标抬起直接取事件坐标）
+        private Point? _perpendicularUpPoint;
+
+        // 中垂线（模式 26）专用：拖动时的荧光笔线段与定稿笔画（平分线 + 直角标记）
+        private Stroke _perpendicularBisectorGuide;
+        private StrokeCollection _perpendicularBisectorResult;
+
+        // 角平分线（模式 22）专用：两条边的荧光笔辅助线、第二步预览（平分线 + 等角弧）与顶点/端点
+        private StrokeCollection _angleBisectorLastPreview;
+        private Stroke _angleBisectorSide1Stroke;
+        private Stroke _angleBisectorSide2Stroke;
+        private Point _angleBisectorVertex = default;
+        private Point _angleBisectorSide1End = default;
+        // 触摸/手写笔抬起时传入的落点（鼠标抬起直接取事件坐标）
+        private Point? _angleBisectorUpPoint;
+
+        // 平行线（模式 17）专用：跨帧预览清理跟踪、基准线笔画与端点（交互与垂线一致）
+        private StrokeCollection _parallelLastPreview;
+        private Stroke _parallelBaselineStroke;
+        private Point _parallelBaseStart = default;
+        private Point _parallelBaseEnd = default;
+        // 触摸/手写笔抬起时传入的落点（鼠标抬起直接取事件坐标）
+        private Point? _parallelUpPoint;
+
+        // 中点（模式 15）专用：拖动时的荧光笔线段与定稿的中点标记（交互与中垂线一致）
+        private Stroke _midpointGuide;
+        private StrokeCollection _midpointResult;
+        /// <summary>中点本次手势是否已经收尾（收尾后再补来的帧要丢弃）。</summary>
+        private bool _midpointAwaitNewGesture;
+        /// <summary>中点上一帧的笔画（荧光笔线段 + 中点标记预览），每帧开头据此清理旧帧。</summary>
+        private StrokeCollection _midpointLastFrame;
+
         // 多边形（模式 12）专用：单击添加顶点，点击起点闭合完成
         private readonly List<Point> _polygonVertices = new List<Point>();
         private Stroke _polygonPreviewStroke;
@@ -1771,6 +1842,7 @@ namespace Ink_Canvas
         ///    - 带焦点的双曲线
         ///    - 抛物线
         ///    - 带焦点的抛物线
+        ///    - 垂线（模式 21，两步：基准线 + 点）
         ///    - 圆柱
         ///    - 圆锥
         ///    - 长方体
@@ -1869,71 +1941,34 @@ namespace Ink_Canvas
                     inkCanvas.Strokes.Add(stroke);
                     break;
                 case 15:
+                    // 中点（交互与中垂线一致）：拖出一条线段（荧光笔辅助），实时给出它的中点标记；
+                    // 松手时移除荧光笔线段，只保留中点标记
+                    // 收尾后同一手势补来的帧直接丢弃，避免再落下一个点
+                    if (_midpointAwaitNewGesture) return;
                     _currentCommitType = CommitReason.ShapeDrawing;
-                    var d = GetDistance(iniP, endP);
-                    if (d == 0) return;
-                    var sinTheta = (iniP.Y - endP.Y) / d;
-                    var cosTheta = (endP.X - iniP.X) / d;
-                    var tanTheta = Math.Abs(sinTheta / cosTheta);
-                    double x = 25;
-                    if (Math.Abs(tanTheta) < 1.0 / 12)
                     {
-                        sinTheta = 0;
-                        cosTheta = 1;
-                        endP.Y = iniP.Y;
-                    }
+                        var segment = endP - iniP;
+                        // 拖动距离过小（单击或手抖）不生成，避免落下退化标记
+                        if (segment.Length < 8) return;
 
-                    if (tanTheta < 0.63 && tanTheta > 0.52) //30
-                    {
-                        sinTheta = sinTheta / Math.Abs(sinTheta) * 0.5;
-                        cosTheta = cosTheta / Math.Abs(cosTheta) * 0.866;
-                        endP.Y = iniP.Y - d * sinTheta;
-                        endP.X = iniP.X + d * cosTheta;
-                    }
+                        var mid = new Point((iniP.X + endP.X) / 2, (iniP.Y + endP.Y) / 2);
+                        var result = BuildMidpointStrokes(mid);
 
-                    if (tanTheta < 1.08 && tanTheta > 0.92) //45
-                    {
-                        sinTheta = sinTheta / Math.Abs(sinTheta) * 0.707;
-                        cosTheta = cosTheta / Math.Abs(cosTheta) * 0.707;
-                        endP.Y = iniP.Y - d * sinTheta;
-                        endP.X = iniP.X + d * cosTheta;
-                    }
+                        // 拖动阶段的预览：荧光笔线段 + 中点标记
+                        _midpointGuide = GenerateMidpointGuideStroke(iniP, endP);
+                        _midpointResult = result;
+                        strokes.Add(_midpointGuide);
+                        foreach (Stroke resultStroke in result) strokes.Add(resultStroke);
 
-                    if (tanTheta < 1.95 && tanTheta > 1.63) //60
-                    {
-                        sinTheta = sinTheta / Math.Abs(sinTheta) * 0.866;
-                        cosTheta = cosTheta / Math.Abs(cosTheta) * 0.5;
-                        endP.Y = iniP.Y - d * sinTheta;
-                        endP.X = iniP.X + d * cosTheta;
-                    }
+                        // 逐条清理上一帧：用本模式自己的字段跟踪，避免旧帧残留
+                        RemoveStrokesSafe(_midpointLastFrame);
+                        RemoveStrokesSafe(lastTempStrokeCollection);
 
-                    if (Math.Abs(cosTheta / sinTheta) < 1.0 / 12)
-                    {
-                        endP.X = iniP.X;
-                        sinTheta = 1;
-                        cosTheta = 0;
+                        _midpointLastFrame = strokes;
+                        lastTempStrokeCollection = strokes;
+                        inkCanvas.Strokes.Add(strokes);
+                        break;
                     }
-
-                    strokes.Add(GenerateLineStroke(new Point(iniP.X - 3 * x * sinTheta, iniP.Y - 3 * x * cosTheta),
-                        new Point(endP.X - 3 * x * sinTheta, endP.Y - 3 * x * cosTheta)));
-                    strokes.Add(GenerateLineStroke(new Point(iniP.X - x * sinTheta, iniP.Y - x * cosTheta),
-                        new Point(endP.X - x * sinTheta, endP.Y - x * cosTheta)));
-                    strokes.Add(GenerateLineStroke(new Point(iniP.X + x * sinTheta, iniP.Y + x * cosTheta),
-                        new Point(endP.X + x * sinTheta, endP.Y + x * cosTheta)));
-                    strokes.Add(GenerateLineStroke(new Point(iniP.X + 3 * x * sinTheta, iniP.Y + 3 * x * cosTheta),
-                        new Point(endP.X + 3 * x * sinTheta, endP.Y + 3 * x * cosTheta)));
-                    try
-                    {
-                        inkCanvas.Strokes.Remove(lastTempStrokeCollection);
-                    }
-                    catch
-                    {
-                        Trace.WriteLine("lastTempStrokeCollection failed.");
-                    }
-
-                    lastTempStrokeCollection = strokes;
-                    inkCanvas.Strokes.Add(strokes);
-                    break;
                 case 11:
                     _currentCommitType = CommitReason.ShapeDrawing;
                     // 本次绘制的坐标系分组标记：绘制完成后据此把整组笔画注册为「轴长可调」
@@ -2008,52 +2043,93 @@ namespace Ink_Canvas
                     break;
                 case 14: // 直角三角形：起点为直角顶点，横纵拖拽距离为两条直角边
                     _currentCommitType = CommitReason.ShapeDrawing;
-                    if (Math.Abs(iniP.X - endP.X) < 0.01 || Math.Abs(iniP.Y - endP.Y) < 0.01) return;
-                    pointList = new List<Point>
                     {
-                        new Point(iniP.X, iniP.Y),
-                        new Point(endP.X, iniP.Y),
-                        new Point(iniP.X, endP.Y),
-                        new Point(iniP.X, iniP.Y)
-                    };
-                    point = new StylusPointCollection(pointList);
-                    stroke = new Stroke(point)
-                    {
-                        DrawingAttributes = inkCanvas.DefaultDrawingAttributes.Clone()
-                    };
-                    try
-                    {
-                        inkCanvas.Strokes.Remove(lastTempStroke);
-                    }
-                    catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex); }
+                        var rightWidth = endP.X - iniP.X;
+                        var rightHeight = endP.Y - iniP.Y;
+                        if (Math.Abs(rightWidth) < 0.01 || Math.Abs(rightHeight) < 0.01) return;
 
-                    lastTempStroke = stroke;
-                    inkCanvas.Strokes.Add(stroke);
-                    break;
+                        pointList = new List<Point>
+                        {
+                            new Point(iniP.X, iniP.Y),
+                            new Point(endP.X, iniP.Y),
+                            new Point(iniP.X, endP.Y),
+                            new Point(iniP.X, iniP.Y)
+                        };
+                        point = new StylusPointCollection(pointList);
+
+                        var triangleAttributes = inkCanvas.DefaultDrawingAttributes.Clone();
+                        var triangleStrokes = new StrokeCollection
+                        {
+                            new Stroke(point)
+                            {
+                                DrawingAttributes = triangleAttributes
+                            }
+                        };
+
+                        // 直角标记：以直角顶点（起点）为角点，沿两条直角边各取一段，画成小方块
+                        const double rightMarkSize = 14;
+                        var markDirX = new Vector(Math.Sign(rightWidth), 0);
+                        var markDirY = new Vector(0, Math.Sign(rightHeight));
+                        var markP1 = iniP + markDirX * rightMarkSize;
+                        var markP2 = iniP + markDirY * rightMarkSize;
+                        var markCorner = markP1 + markDirY * rightMarkSize;
+                        triangleStrokes.Add(new Stroke(new StylusPointCollection(new List<Point>
+                        {
+                            markP1,
+                            markCorner,
+                            markP2
+                        }))
+                        {
+                            DrawingAttributes = triangleAttributes.Clone()
+                        });
+
+                        RemoveStrokesSafe(lastTempStrokeCollection);
+                        lastTempStrokeCollection = triangleStrokes;
+                        inkCanvas.Strokes.Add(triangleStrokes);
+                        break;
+                    }
                 case 17:
-                    _currentCommitType = CommitReason.ShapeDrawing;
-                    var xAxisStart = new Point(iniP.X, iniP.Y);
-                    var xAxisEnd = new Point(iniP.X + Math.Abs(endP.X - iniP.X), iniP.Y);
-                    var yAxisStart = new Point(iniP.X, iniP.Y);
-                    var yAxisEnd = new Point(iniP.X, iniP.Y - Math.Abs(endP.Y - iniP.Y));
-                    strokes.Add(GenerateArrowLineStroke(xAxisStart, xAxisEnd));
-                    strokes.Add(GenerateArrowLineStroke(yAxisStart, yAxisEnd));
-                    d = (Math.Abs(iniP.X - endP.X) + Math.Abs(iniP.Y - endP.Y)) / 2;
-                    var zAxisEnd = new Point(iniP.X - d / 1.76, iniP.Y + d / 1.76);
-                    strokes.Add(GenerateArrowLineStroke(new Point(iniP.X, iniP.Y), zAxisEnd));
-                    AddCoordinateUnitMarks(strokes, iniP, xAxisStart, xAxisEnd, yAxisStart, yAxisEnd, zAxisEnd);
-                    try
+                    // 平行线（交互步骤与垂线一致）：第一笔拖出红色荧光笔基准辅助线，
+                    // 第二笔点击（或拖动）给出一点，过该点作基准线的平行线；完成后辅助线消失
+                    if (drawMultiStepShapeCurrentStep == 0)
                     {
-                        inkCanvas.Strokes.Remove(lastTempStrokeCollection);
-                    }
-                    catch
-                    {
-                        Trace.WriteLine("lastTempStrokeCollection failed.");
+                        // 辅助线不写入撤销历史，完成绘制后直接移除
+                        _currentCommitType = CommitReason.UserInput;
+                        if (GetDistance(iniP, endP) < 0.01) return;
+                        try { inkCanvas.Strokes.Remove(_parallelLastPreview); }
+                        catch { }
+
+                        _parallelBaseStart = iniP;
+                        _parallelBaseEnd = endP;
+                        _parallelBaselineStroke = GenerateLineStroke(iniP, endP);
+                        _parallelBaselineStroke.DrawingAttributes = CreatePerpendicularGuideDrawingAttributes();
+                        strokes.Add(_parallelBaselineStroke);
+                        lastTempStrokeCollection = strokes;
+                        inkCanvas.Strokes.Add(strokes);
+                        _parallelLastPreview = strokes;
+                        break;
                     }
 
-                    lastTempStrokeCollection = strokes;
-                    inkCanvas.Strokes.Add(strokes);
-                    break;
+                    _currentCommitType = CommitReason.ShapeDrawing;
+                    {
+                        var baseVector = _parallelBaseEnd - _parallelBaseStart;
+                        var baseLength = baseVector.Length;
+                        if (baseLength < 0.01) return;
+                        baseVector.Normalize();
+
+                        // 只清理上一帧的平行线预览，基准辅助线保持到完成时再移除
+                        try { inkCanvas.Strokes.Remove(_parallelLastPreview); }
+                        catch { }
+
+                        // 平行线：方向与基准线一致、过所给点，长度取基准线长度（至少 48px）并居中于该点
+                        var half = Math.Max(baseLength / 2, 24);
+                        strokes.Add(GenerateParallelStroke(endP - baseVector * half, endP + baseVector * half));
+
+                        lastTempStrokeCollection = strokes;
+                        inkCanvas.Strokes.Add(strokes);
+                        _parallelLastPreview = strokes;
+                        break;
+                    }
                 case 3:
                     _currentCommitType = CommitReason.ShapeDrawing;
                     pointList = new List<Point> {
@@ -2494,121 +2570,163 @@ namespace Ink_Canvas
                     inkCanvas.Strokes.Add(strokes);
                     break;
                 case 21:
+                    //垂线：第一笔拖出红色荧光笔基准辅助线，第二笔点击（或拖动）给出一点，
+                    //过该点作基准线的垂线并标直角；完成后辅助线消失
+                    if (drawMultiStepShapeCurrentStep == 0)
+                    {
+                        // 辅助线不写入撤销历史，完成绘制后直接移除
+                        _currentCommitType = CommitReason.UserInput;
+                        if (GetDistance(iniP, endP) < 0.01) return;
+                        try { inkCanvas.Strokes.Remove(_perpendicularLastPreview); }
+                        catch { }
+
+                        _perpendicularBaseStart = iniP;
+                        _perpendicularBaseEnd = endP;
+                        _perpendicularBaselineStroke = GenerateLineStroke(iniP, endP);
+                        _perpendicularBaselineStroke.DrawingAttributes = CreatePerpendicularGuideDrawingAttributes();
+                        strokes.Add(_perpendicularBaselineStroke);
+                        lastTempStrokeCollection = strokes;
+                        inkCanvas.Strokes.Add(strokes);
+                        _perpendicularLastPreview = strokes;
+                        break;
+                    }
+
                     _currentCommitType = CommitReason.ShapeDrawing;
-                    //抛物线 y^2=ax
-                    if (Math.Abs(iniP.X - endP.X) < 0.01 || Math.Abs(iniP.Y - endP.Y) < 0.01) return;
-                    a = (iniP.X - endP.X) / ((iniP.Y - endP.Y) * (iniP.Y - endP.Y));
-                    pointList = new List<Point>();
-                    pointList2 = new List<Point>();
-                    for (var i = 0.0; i <= Math.Abs(endP.Y - iniP.Y); i += 0.5)
                     {
-                        pointList.Add(new Point(iniP.X - a * i * i, iniP.Y + i));
-                        pointList2.Add(new Point(iniP.X - a * i * i, iniP.Y - i));
-                    }
+                        var baseVector = _perpendicularBaseEnd - _perpendicularBaseStart;
+                        var baseLengthSquared = baseVector.LengthSquared;
+                        if (baseLengthSquared < 1e-6) return;
 
-                    if (Settings.Canvas.ParabolaSingleStroke)
-                    {
-                        // 一笔绘制：下臂反序接顶点再接上臂，合成一条连续曲线（单个对象）
-                        var merged = new List<Point>(pointList2);
-                        merged.Reverse();
-                        merged.AddRange(pointList);
-                        point = new StylusPointCollection(merged);
-                        stroke = new Stroke(point)
-                        {
-                            DrawingAttributes = inkCanvas.DefaultDrawingAttributes.Clone()
-                        };
-                        strokes.Add(stroke.Clone());
-                    }
-                    else
-                    {
-                        point = new StylusPointCollection(pointList);
-                        stroke = new Stroke(point)
-                        {
-                            DrawingAttributes = inkCanvas.DefaultDrawingAttributes.Clone()
-                        };
-                        strokes.Add(stroke.Clone());
-                        point = new StylusPointCollection(pointList2);
-                        stroke = new Stroke(point)
-                        {
-                            DrawingAttributes = inkCanvas.DefaultDrawingAttributes.Clone()
-                        };
-                        strokes.Add(stroke.Clone());
-                    }
-                    try
-                    {
-                        inkCanvas.Strokes.Remove(lastTempStrokeCollection);
-                    }
-                    catch
-                    {
-                        Trace.WriteLine("lastTempStrokeCollection failed.");
-                    }
+                        var externalPoint = endP;
+                        var offset = externalPoint - _perpendicularBaseStart;
+                        var t = Vector.Multiply(offset, baseVector) / baseLengthSquared;
+                        var foot = _perpendicularBaseStart + baseVector * t;
+                        var normal = externalPoint - foot;
+                        // 点正好落在基准线上时，直接用基准线的法向作为垂线方向
+                        if (normal.Length < 0.01)
+                            normal = new Vector(-baseVector.Y, baseVector.X);
+                        normal.Normalize();
 
-                    lastTempStrokeCollection = strokes;
-                    inkCanvas.Strokes.Add(strokes);
-                    break;
+                        // 只清理上一帧的垂线预览，基准辅助线保持到完成时再移除
+                        try { inkCanvas.Strokes.Remove(_perpendicularLastPreview); }
+                        catch { }
+
+                        // 垂线：穿过垂足与所给点，并略微延长，视觉上更接近“一条线”
+                        const double overshoot = 16;
+                        strokes.Add(GeneratePerpendicularStroke(foot - normal * overshoot, externalPoint + normal * overshoot));
+
+                        // 直角符号：以垂足为角点，沿基准线与垂线各取一段边长，画两条直角边
+                        const double markSize = 14;
+                        var alongBase = baseVector;
+                        alongBase.Normalize();
+                        // 垂足落在基准线延长线上时让符号朝线段内侧，避免悬空
+                        if (t > 1) alongBase = -alongBase;
+                        var markCorner = foot + alongBase * markSize + normal * markSize;
+                        strokes.Add(GeneratePerpendicularStroke(foot + alongBase * markSize, markCorner));
+                        strokes.Add(GeneratePerpendicularStroke(markCorner, foot + normal * markSize));
+
+                        lastTempStrokeCollection = strokes;
+                        inkCanvas.Strokes.Add(strokes);
+                        _perpendicularLastPreview = strokes;
+                        break;
+                    }
                 case 22:
+                    // 角平分线（用法与垂线一致）：第一步用荧光笔拖出角的第一条边，
+                    // 第二步再用荧光笔拖出第二条边，随后自动画出角平分线与两个等角弧；
+                    // 完成时两条荧光笔辅助边移除，只保留平分线与等角弧
                     _currentCommitType = CommitReason.ShapeDrawing;
-                    //抛物线 y^2=ax, 含焦点
-                    if (Math.Abs(iniP.X - endP.X) < 0.01 || Math.Abs(iniP.Y - endP.Y) < 0.01) return;
-                    var p = (iniP.Y - endP.Y) * (iniP.Y - endP.Y) / (2 * (iniP.X - endP.X));
-                    a = 0.5 / p;
-                    pointList = new List<Point>();
-                    pointList2 = new List<Point>();
-                    for (var i = 0.0; i <= Math.Abs(endP.Y - iniP.Y); i += 0.5)
+                    if (drawMultiStepShapeCurrentStep == 0)
                     {
-                        pointList.Add(new Point(iniP.X - a * i * i, iniP.Y + i));
-                        pointList2.Add(new Point(iniP.X - a * i * i, iniP.Y - i));
+                        if (GetDistance(iniP, endP) < 0.01) return;
+                        RemoveAngleBisectorStroke(_angleBisectorSide1Stroke);
+
+                        // 第一条边用荧光笔辅助线绘制（与垂线基准线一致，完成时移除）
+                        _angleBisectorVertex = iniP;
+                        _angleBisectorSide1End = endP;
+                        _angleBisectorSide1Stroke = GenerateAngleBisectorGuideStroke(iniP, endP);
+                        inkCanvas.Strokes.Add(_angleBisectorSide1Stroke);
+                        break;
                     }
 
-                    if (Settings.Canvas.ParabolaSingleStroke)
                     {
-                        // 一笔绘制：下臂反序接顶点再接上臂，合成一条连续曲线（单个对象）；
-                        // 焦点因位置不连续仍为独立笔画
-                        var merged = new List<Point>(pointList2);
-                        merged.Reverse();
-                        merged.AddRange(pointList);
-                        point = new StylusPointCollection(merged);
-                        stroke = new Stroke(point)
-                        {
-                            DrawingAttributes = inkCanvas.DefaultDrawingAttributes.Clone()
-                        };
-                        strokes.Add(stroke.Clone());
-                    }
-                    else
-                    {
-                        point = new StylusPointCollection(pointList);
-                        stroke = new Stroke(point)
-                        {
-                            DrawingAttributes = inkCanvas.DefaultDrawingAttributes.Clone()
-                        };
-                        strokes.Add(stroke.Clone());
-                        point = new StylusPointCollection(pointList2);
-                        stroke = new Stroke(point)
-                        {
-                            DrawingAttributes = inkCanvas.DefaultDrawingAttributes.Clone()
-                        };
-                        strokes.Add(stroke.Clone());
-                    }
-                    stylusPoint = new StylusPoint(iniP.X - p / 2, iniP.Y, (float)1.0);
-                    point = new StylusPointCollection();
-                    point.Add(stylusPoint);
-                    stroke = new Stroke(point)
-                    {
-                        DrawingAttributes = inkCanvas.DefaultDrawingAttributes.Clone()
-                    };
-                    strokes.Add(stroke.Clone());
-                    try
-                    {
-                        inkCanvas.Strokes.Remove(lastTempStrokeCollection);
-                    }
-                    catch
-                    {
-                        Trace.WriteLine("lastTempStrokeCollection failed.");
-                    }
+                        var vertex = _angleBisectorVertex;
+                        var side1 = _angleBisectorSide1End - vertex;
+                        var side2 = endP - vertex;
+                        if (side1.Length < 0.01 || side2.Length < 0.01) return;
 
-                    lastTempStrokeCollection = strokes;
-                    inkCanvas.Strokes.Add(strokes);
-                    break;
+                        // 清理上一帧：第二条边辅助线与平分线预览
+                        RemoveAngleBisectorStroke(_angleBisectorSide2Stroke);
+                        RemoveAngleBisectorStrokes(_angleBisectorLastPreview);
+
+                        var sideLength = side1.Length;
+                        side1.Normalize();
+                        side2.Normalize();
+
+                        // 第二条边同样用荧光笔辅助线，且与第一条边等长
+                        _angleBisectorSide2Stroke =
+                            GenerateAngleBisectorGuideStroke(vertex, vertex + side2 * sideLength);
+                        inkCanvas.Strokes.Add(_angleBisectorSide2Stroke);
+
+                        // 角平分线方向 = 两条边的单位向量之和；两边接近 180° 时改用垂直方向
+                        var bisector = side1 + side2;
+                        if (bisector.Length < 0.01) bisector = new Vector(-side1.Y, side1.X);
+                        bisector.Normalize();
+                        var bisectorLength = Math.Max(sideLength, 24) * 1.15;
+                        strokes.Add(GenerateAngleBisectorStroke(vertex, vertex + bisector * bisectorLength));
+
+                        // 等角弧：以顶点为圆心、同一半径，在「边1→平分线」「平分线→边2」各画一段
+                        var arcRadius = Math.Max(Math.Min(sideLength * 0.32, 30), 12);
+                        AddEqualAngleArc(strokes, vertex, side1, bisector, arcRadius);
+                        AddEqualAngleArc(strokes, vertex, bisector, side2, arcRadius);
+
+                        lastTempStrokeCollection = strokes;
+                        inkCanvas.Strokes.Add(strokes);
+                        _angleBisectorLastPreview = strokes;
+                        break;
+                    }
+                case 26:
+                    // 中垂线：拖出一条线段（荧光笔辅助，与垂线第一步一致），同时实时给出它的
+                    // 垂直平分线与直角标记；松手时移除荧光笔线段，只保留平分线与直角标记
+                    // 本次手势已经收尾后又补来一帧（触摸/手写笔抬起时的鼠标提升事件）时直接丢弃，
+                    // 否则会在已完成的中垂线旁边再画出第二条
+                    if (_perpendicularBisectorAwaitNewGesture) return;
+                    _currentCommitType = CommitReason.ShapeDrawing;
+                    {
+                        var segment = endP - iniP;
+                        // 拖动距离过小（单击或手抖）不生成，避免落下一条退化的中垂线
+                        if (segment.Length < 8) return;
+
+                        var mid = new Point((iniP.X + endP.X) / 2, (iniP.Y + endP.Y) / 2);
+                        var normal = new Vector(-segment.Y, segment.X);
+                        normal.Normalize();
+                        var along = segment;
+                        along.Normalize();
+
+                        // 定稿笔画：垂直平分线（向两侧各延伸线段长度的 0.7 倍，至少 30）+ 直角标记
+                        var result = new StrokeCollection();
+                        var half = Math.Max(segment.Length * 0.7, 30);
+                        result.Add(GeneratePerpendicularStroke(mid - normal * half, mid + normal * half));
+                        const double markSize = 14;
+                        var corner = mid + along * markSize + normal * markSize;
+                        result.Add(GeneratePerpendicularStroke(mid + along * markSize, corner));
+                        result.Add(GeneratePerpendicularStroke(corner, mid + normal * markSize));
+
+                        // 拖动阶段的预览：荧光笔线段 + 定稿笔画
+                        _perpendicularBisectorGuide = GeneratePerpendicularBisectorGuideStroke(iniP, endP);
+                        _perpendicularBisectorResult = result;
+                        strokes.Add(_perpendicularBisectorGuide);
+                        foreach (Stroke resultStroke in result) strokes.Add(resultStroke);
+
+                        // 逐条清理上一帧：用本模式自己的字段跟踪，避免 lastTempStrokeCollection
+                        // 被其它收尾路径提前清空后旧帧残留成「画了 2 条」
+                        RemovePerpendicularBisectorFrame(_perpendicularBisectorLastFrame);
+                        RemovePerpendicularBisectorFrame(lastTempStrokeCollection);
+
+                        _perpendicularBisectorLastFrame = strokes;
+                        lastTempStrokeCollection = strokes;
+                        inkCanvas.Strokes.Add(strokes);
+                        break;
+                    }
                 case 6:
                     _currentCommitType = CommitReason.ShapeDrawing;
                     newIniP = iniP;
@@ -2755,7 +2873,7 @@ namespace Ink_Canvas
                     }
                     else
                     {
-                        d = CuboidFrontRectIniP.Y - endP.Y;
+                        var d = CuboidFrontRectIniP.Y - endP.Y;
                         if (d < 0) d = -d; //就是懒不想做反向的，不要让我去做，想做自己做好之后 Pull Request
                         a = CuboidFrontRectEndP.X - CuboidFrontRectIniP.X; //正面矩形长
                         b = CuboidFrontRectEndP.Y - CuboidFrontRectIniP.Y; //正面矩形宽
@@ -3177,6 +3295,527 @@ namespace Ink_Canvas
         }
 
         /// <summary>
+        /// 移除垂线第一步的红色荧光笔基准辅助线。
+        /// </summary>
+        private void RemovePerpendicularGuideStroke()
+        {
+            if (_perpendicularBaselineStroke == null) return;
+            try { inkCanvas.Strokes.Remove(_perpendicularBaselineStroke); }
+            catch { }
+            _perpendicularBaselineStroke = null;
+        }
+
+        /// <summary>
+        /// 取消未完成的垂线绘制：清理辅助线、预览与步骤状态。
+        /// </summary>
+        private void CancelPerpendicularDrawing()
+        {
+            RemovePerpendicularGuideStroke();
+            try { inkCanvas.Strokes.Remove(_perpendicularLastPreview); }
+            catch { }
+            _perpendicularLastPreview = null;
+            _perpendicularUpPoint = null;
+            _perpendicularBaseStart = default;
+            _perpendicularBaseEnd = default;
+            drawMultiStepShapeCurrentStep = 0;
+        }
+
+        /// <summary>
+        /// 生成平行线使用的画笔直线笔画（与垂线共用同一套画笔属性）。
+        /// </summary>
+        private Stroke GenerateParallelStroke(Point st, Point ed)
+        {
+            var stroke = GenerateLineStroke(st, ed);
+            stroke.DrawingAttributes = CreatePerpendicularDrawingAttributes();
+            return stroke;
+        }
+
+        /// <summary>
+        /// 移除平行线第一步的红色荧光笔基准辅助线。
+        /// </summary>
+        private void RemoveParallelGuideStroke()
+        {
+            if (_parallelBaselineStroke == null) return;
+            try
+            {
+                if (inkCanvas.Strokes.Contains(_parallelBaselineStroke)) inkCanvas.Strokes.Remove(_parallelBaselineStroke);
+            }
+            catch { }
+            _parallelBaselineStroke = null;
+        }
+
+        /// <summary>
+        /// 取消未完成的平行线绘制：清理辅助线、预览与步骤状态。
+        /// </summary>
+        private void CancelParallelDrawing()
+        {
+            RemoveParallelGuideStroke();
+            try
+            {
+                if (_parallelLastPreview != null) inkCanvas.Strokes.Remove(_parallelLastPreview);
+            }
+            catch { }
+            _parallelLastPreview = null;
+            _parallelUpPoint = null;
+            _parallelBaseStart = default;
+            _parallelBaseEnd = default;
+            drawMultiStepShapeCurrentStep = 0;
+        }
+
+        /// <summary>
+        /// 逐条容错移除一组笔画。整集合 Remove 只要有一条已不在画布上就会整体失败，
+        /// 导致上一帧预览残留，因此这里逐条判断后删除。
+        /// </summary>
+        private void RemoveStrokesSafe(StrokeCollection strokes)
+        {
+            if (strokes == null || strokes.Count == 0 || inkCanvas == null) return;
+            var snapshot = new List<Stroke>(strokes.Count);
+            foreach (Stroke stroke in strokes) snapshot.Add(stroke);
+            foreach (var stroke in snapshot)
+            {
+                try
+                {
+                    if (stroke != null && inkCanvas.Strokes.Contains(stroke)) inkCanvas.Strokes.Remove(stroke);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine(ex);
+                }
+            }
+        }
+
+        /// <summary>
+        /// 生成中点标记：用当前画笔的属性渲染的一个圆点。
+        /// 圆点直径＝当前画笔粗细，颜色/透明度/笔尖与画笔设置完全一致（不额外加粗）。
+        /// </summary>
+        private StrokeCollection BuildMidpointStrokes(Point mid)
+        {
+            var strokes = new StrokeCollection();
+
+            // 与垂线使用同一套「最近使用的画笔」属性：颜色、粗细、透明度都跟随画笔设置
+            var attributes = CreatePerpendicularDrawingAttributes();
+            attributes.IsHighlighter = false;
+            attributes.StylusTip = StylusTip.Ellipse;
+            attributes.IgnorePressure = true;
+            attributes.FitToCurve = false;
+
+            // 用一段极短的线段 + 圆笔尖渲染成点：两端半圆帽合起来正好是直径≈线宽的点，
+            // 不会像小圆环那样比笔画粗一圈
+            var half = Math.Max(attributes.Width, 0.01) * 0.1;
+            var points = new StylusPointCollection
+            {
+                new StylusPoint(mid.X - half, mid.Y),
+                new StylusPoint(mid.X + half, mid.Y)
+            };
+
+            strokes.Add(new Stroke(points)
+            {
+                DrawingAttributes = attributes
+            });
+            return strokes;
+        }
+
+        /// <summary>
+        /// 生成中点工具拖动阶段的荧光笔辅助线段（与中垂线拖动阶段的线段同款）。
+        /// </summary>
+        private Stroke GenerateMidpointGuideStroke(Point st, Point ed)
+        {
+            var stroke = GenerateLineStroke(st, ed);
+            stroke.DrawingAttributes = CreatePerpendicularGuideDrawingAttributes();
+            return stroke;
+        }
+
+        /// <summary>
+        /// 中点收尾：移除拖动阶段的荧光笔线段，只保留中点标记，并把它提交为一次撤销。
+        /// 由 PreviewMouseUp / 触摸抬起 / 手写笔抬起 / 捕获丢失等多个时机调用，重复调用安全。
+        /// </summary>
+        private void CompleteMidpointNow()
+        {
+            var guide = _midpointGuide;
+            var result = _midpointResult;
+            if (guide == null && result == null) return;
+
+            _midpointGuide = null;
+            _midpointResult = null;
+
+            // 移除荧光笔线段
+            if (guide != null)
+            {
+                try
+                {
+                    if (inkCanvas.Strokes.Contains(guide)) inkCanvas.Strokes.Remove(guide);
+                }
+                catch { }
+            }
+
+            // 中点标记入撤销栈（避免依赖 inkCanvas_MouseUp 的提交块）
+            if (result != null && result.Count > 0)
+            {
+                var alive = true;
+                foreach (Stroke stroke in result)
+                {
+                    if (inkCanvas.Strokes.Contains(stroke)) continue;
+                    alive = false;
+                    break;
+                }
+
+                if (alive)
+                {
+                    var previousCommitType = _currentCommitType;
+                    _currentCommitType = CommitReason.UserInput;
+                    try
+                    {
+                        timeMachine.CommitStrokeUserInputHistory(result);
+                    }
+                    finally
+                    {
+                        _currentCommitType = previousCommitType;
+                    }
+                }
+            }
+
+            // 本次手势到此结束：后续同一手势补来的帧一律丢弃，避免再落一个点
+            _midpointAwaitNewGesture = true;
+            _midpointLastFrame = null;
+            lastTempStrokeCollection = null;
+        }
+
+        /// <summary>
+        /// 取消未完成的中点绘制：清掉拖动阶段的荧光笔线段与预览笔画。
+        /// </summary>
+        private void CancelMidpointDrawing()
+        {
+            var guide = _midpointGuide;
+            var result = _midpointResult;
+            _midpointGuide = null;
+            _midpointResult = null;
+
+            if (guide != null)
+            {
+                try
+                {
+                    if (inkCanvas.Strokes.Contains(guide)) inkCanvas.Strokes.Remove(guide);
+                }
+                catch { }
+            }
+
+            RemoveStrokesSafe(result);
+            _midpointLastFrame = null;
+        }
+
+        /// <summary>
+        /// 生成垂线第一步基准辅助线使用的红色荧光笔绘图属性。
+        /// </summary>
+        private DrawingAttributes CreatePerpendicularGuideDrawingAttributes()
+        {
+            var attributes = inkCanvas.DefaultDrawingAttributes.Clone();
+            attributes.IsHighlighter = true;
+            attributes.StylusTip = StylusTip.Rectangle;
+            var width = Settings.Canvas.HighlighterWidth;
+            if (width <= 0) width = 20;
+            attributes.Width = width / 2;
+            attributes.Height = width;
+            attributes.Color = Color.FromArgb(150, 255, 0, 0);
+            attributes.IgnorePressure = true;
+            attributes.FitToCurve = false;
+            return attributes;
+        }
+
+        /// <summary>
+        /// 生成垂线第二步（垂线与直角符号）使用的画笔绘图属性。
+        /// 当前处于荧光笔/激光笔时，恢复为最近使用的画笔颜色、宽度与透明度。
+        /// </summary>
+        private DrawingAttributes CreatePerpendicularDrawingAttributes()
+        {
+            var attributes = inkCanvas.DefaultDrawingAttributes.Clone();
+            attributes.IsHighlighter = false;
+            attributes.StylusTip = StylusTip.Ellipse;
+
+            var width = Settings.Canvas.InkWidth;
+            if (width <= 0) width = 2.5;
+            attributes.Width = width;
+            attributes.Height = width;
+            attributes.IgnorePressure = true;
+            attributes.FitToCurve = false;
+
+            var alpha = (byte)Math.Max(0, Math.Min(255, Settings.Canvas.InkAlpha));
+            if (penType == 0)
+                attributes.Color = Color.FromArgb(alpha, attributes.Color.R, attributes.Color.G, attributes.Color.B);
+            else
+                attributes.Color = GetPenColorByIndex(inkColor, alpha);
+
+            return attributes;
+        }
+
+        /// <summary>
+        /// 按画笔颜色索引获取当前主题下的画笔颜色。
+        /// </summary>
+        private Color GetPenColorByIndex(int index, byte alpha)
+        {
+            if (index == 0) return Color.FromArgb(alpha, 0, 0, 0);
+            if (index == 5) return Color.FromArgb(alpha, 255, 255, 255);
+
+            if (isUselightThemeColor)
+            {
+                switch (index)
+                {
+                    case 1: return Color.FromArgb(alpha, 239, 68, 68);
+                    case 2: return Color.FromArgb(alpha, 34, 197, 94);
+                    case 3: return Color.FromArgb(alpha, 59, 130, 246);
+                    case 4: return Color.FromArgb(alpha, 250, 204, 21);
+                    case 6: return Color.FromArgb(alpha, 236, 72, 153);
+                    case 7: return Color.FromArgb(alpha, 20, 184, 166);
+                    case 8: return Color.FromArgb(alpha, 249, 115, 22);
+                }
+            }
+            else
+            {
+                switch (index)
+                {
+                    case 1: return Color.FromArgb(alpha, 220, 38, 38);
+                    case 2: return Color.FromArgb(alpha, 22, 163, 74);
+                    case 3: return Color.FromArgb(alpha, 37, 99, 235);
+                    case 4: return Color.FromArgb(alpha, 234, 179, 8);
+                    case 6: return Color.FromArgb(alpha, 147, 51, 234);
+                    case 7: return Color.FromArgb(alpha, 13, 148, 136);
+                    case 8: return Color.FromArgb(alpha, 234, 88, 12);
+                }
+            }
+
+            var current = inkCanvas.DefaultDrawingAttributes.Color;
+            return Color.FromArgb(alpha, current.R, current.G, current.B);
+        }
+
+        /// <summary>
+        /// 生成使用画笔属性的直线笔画（用于垂线与直角符号）。
+        /// </summary>
+        private Stroke GeneratePerpendicularStroke(Point st, Point ed)
+        {
+            var stroke = GenerateLineStroke(st, ed);
+            stroke.DrawingAttributes = CreatePerpendicularDrawingAttributes();
+            return stroke;
+        }
+
+        /// <summary>
+        /// 生成角平分线使用的画笔绘图属性（与垂线共用同一套画笔属性）。
+        /// </summary>
+        private DrawingAttributes CreateAngleBisectorDrawingAttributes()
+        {
+            return CreatePerpendicularDrawingAttributes();
+        }
+
+        /// <summary>
+        /// 生成使用画笔属性的直线笔画（用于角的两条边与角平分线）。
+        /// </summary>
+        private Stroke GenerateAngleBisectorStroke(Point st, Point ed)
+        {
+            var stroke = GenerateLineStroke(st, ed);
+            stroke.DrawingAttributes = CreateAngleBisectorDrawingAttributes();
+            return stroke;
+        }
+
+        /// <summary>
+        /// 以顶点为圆心，在 from 与 to 两个方向之间画一段圆弧（用作等角标记）。
+        /// </summary>
+        private void AddEqualAngleArc(StrokeCollection strokes, Point vertex, Vector from, Vector to, double radius)
+        {
+            if (radius < 1) return;
+            from.Normalize();
+            to.Normalize();
+
+            const int steps = 16;
+            var pointList = new List<Point>(steps + 1);
+            for (var i = 0; i <= steps; i++)
+            {
+                var t = i / (double)steps;
+                var direction = from * (1 - t) + to * t;
+                if (direction.Length < 1e-6) direction = from;
+                direction.Normalize();
+                pointList.Add(vertex + direction * radius);
+            }
+
+            var stroke = new Stroke(new StylusPointCollection(pointList))
+            {
+                DrawingAttributes = CreateAngleBisectorDrawingAttributes()
+            };
+            strokes.Add(stroke);
+        }
+
+        /// <summary>
+        /// 生成角的两条边使用的荧光笔辅助线笔画（与垂线基准辅助线同款）。
+        /// </summary>
+        private Stroke GenerateAngleBisectorGuideStroke(Point st, Point ed)
+        {
+            var stroke = GenerateLineStroke(st, ed);
+            stroke.DrawingAttributes = CreatePerpendicularGuideDrawingAttributes();
+            return stroke;
+        }
+
+        /// <summary>
+        /// 生成中垂线第一步线段的荧光笔辅助线笔画（与垂线基准辅助线同款）。
+        /// </summary>
+        private Stroke GeneratePerpendicularBisectorGuideStroke(Point st, Point ed)
+        {
+            var stroke = GenerateLineStroke(st, ed);
+            stroke.DrawingAttributes = CreatePerpendicularGuideDrawingAttributes();
+            return stroke;
+        }
+
+        /// <summary>
+        /// 中垂线本次手势是否已经收尾。收尾后若同一手势又补来一帧（触摸/手写笔抬起时
+        /// 鼠标事件被提升、或多指抬起产生的事件），必须丢弃，否则会画出第二条中垂线。
+        /// 每次按下笔/手指（新的一次手势）时复位。
+        /// </summary>
+        private bool _perpendicularBisectorAwaitNewGesture;
+
+        /// <summary>中垂线上一帧的笔画（荧光笔线段 + 平分线预览），每帧开头据此清理旧帧。</summary>
+        private StrokeCollection _perpendicularBisectorLastFrame;
+
+        /// <summary>
+        /// 逐条移除中垂线上一帧的笔画。整集合 Remove 只要有一条已不在画布上就会整体失败，
+        /// 上一帧的平分线残留下来就会变成「画了 2 条」，因此这里逐条容错删除。
+        /// </summary>
+        private void RemovePerpendicularBisectorFrame(StrokeCollection strokes)
+        {
+            RemoveStrokesSafe(strokes);
+        }
+
+        /// <summary>
+        /// 中垂线收尾：移除拖动阶段的荧光笔线段，只保留垂直平分线与直角标记，并把它们提交为一次撤销。
+        /// 由 PreviewMouseUp / 触摸抬起 / 捕获丢失等多个时机调用，重复调用安全。
+        /// </summary>
+        private void CompletePerpendicularBisectorNow()
+        {
+            var guide = _perpendicularBisectorGuide;
+            var result = _perpendicularBisectorResult;
+            if (guide == null && result == null) return;
+
+            _perpendicularBisectorGuide = null;
+            _perpendicularBisectorResult = null;
+
+            // 移除荧光笔线段
+            if (guide != null)
+            {
+                try
+                {
+                    if (inkCanvas.Strokes.Contains(guide)) inkCanvas.Strokes.Remove(guide);
+                }
+                catch { }
+            }
+
+            // 平分线 + 直角标记照常入撤销栈（避免依赖 inkCanvas_MouseUp 的提交块）
+            if (result != null && result.Count > 0)
+            {
+                var alive = true;
+                foreach (Stroke stroke in result)
+                {
+                    if (inkCanvas.Strokes.Contains(stroke)) continue;
+                    alive = false;
+                    break;
+                }
+
+                if (alive)
+                {
+                    var previousCommitType = _currentCommitType;
+                    _currentCommitType = CommitReason.UserInput;
+                    try
+                    {
+                        timeMachine.CommitStrokeUserInputHistory(result);
+                    }
+                    finally
+                    {
+                        _currentCommitType = previousCommitType;
+                    }
+
+                    // 中垂线：登记主线笔画，选中后可拖动两端伸缩
+                    RegisterGeometryLine(result, GeometryLineKind.PerpendicularBisector);
+                }
+            }
+
+            // 本次手势到此结束：后续同一手势补来的帧一律丢弃，避免再画一条
+            _perpendicularBisectorAwaitNewGesture = true;
+            _perpendicularBisectorLastFrame = null;
+            lastTempStrokeCollection = null;
+        }
+
+        /// <summary>
+        /// 取消未完成的中垂线绘制：清掉拖动阶段的荧光笔线段与预览笔画。
+        /// </summary>
+        private void CancelPerpendicularBisector()
+        {
+            var guide = _perpendicularBisectorGuide;
+            var result = _perpendicularBisectorResult;
+            _perpendicularBisectorGuide = null;
+            _perpendicularBisectorResult = null;
+
+            if (guide != null)
+            {
+                try
+                {
+                    if (inkCanvas.Strokes.Contains(guide)) inkCanvas.Strokes.Remove(guide);
+                }
+                catch { }
+            }
+
+            if (result != null)
+            {
+                foreach (Stroke stroke in result)
+                {
+                    try
+                    {
+                        if (inkCanvas.Strokes.Contains(stroke)) inkCanvas.Strokes.Remove(stroke);
+                    }
+                    catch { }
+                }
+            }
+
+            _perpendicularBisectorLastFrame = null;
+        }
+
+
+
+        /// <summary>
+        /// 移除单条角平分线相关笔画（不存在时静默跳过）。
+        /// </summary>
+        private void RemoveAngleBisectorStroke(Stroke stroke)
+        {
+            if (stroke == null) return;
+            try
+            {
+                if (inkCanvas.Strokes.Contains(stroke)) inkCanvas.Strokes.Remove(stroke);
+            }
+            catch { }
+        }
+
+        /// <summary>
+        /// 移除一组角平分线相关笔画（逐条判断，避免整集合删除抛异常）。
+        /// </summary>
+        private void RemoveAngleBisectorStrokes(StrokeCollection strokes)
+        {
+            if (strokes == null || strokes.Count == 0) return;
+            var snapshot = new List<Stroke>(strokes.Count);
+            foreach (Stroke stroke in strokes) snapshot.Add(stroke);
+            foreach (var stroke in snapshot) RemoveAngleBisectorStroke(stroke);
+        }
+
+        /// <summary>
+        /// 取消未完成的角平分线绘制：清理第一条边、预览与步骤状态。
+        /// </summary>
+        private void CancelAngleBisectorDrawing()
+        {
+            RemoveAngleBisectorStrokes(_angleBisectorLastPreview);
+            _angleBisectorLastPreview = null;
+            RemoveAngleBisectorStroke(_angleBisectorSide1Stroke);
+            _angleBisectorSide1Stroke = null;
+            RemoveAngleBisectorStroke(_angleBisectorSide2Stroke);
+            _angleBisectorSide2Stroke = null;
+            _angleBisectorUpPoint = null;
+            _angleBisectorVertex = default;
+            _angleBisectorSide1End = default;
+            drawMultiStepShapeCurrentStep = 0;
+        }
+
+        /// <summary>
         /// 生成带箭头的直线笔画
         /// </summary>
         /// <param name="st">起始点坐标</param>
@@ -3440,6 +4079,14 @@ namespace Ink_Canvas
                 return;
             }
 
+            // 鼠标按下开始新的一笔，清掉上一次触摸落点
+            if (drawingShapeMode == 17) _parallelUpPoint = null;
+            if (drawingShapeMode == 21) _perpendicularUpPoint = null;
+            if (drawingShapeMode == 22) _angleBisectorUpPoint = null;
+            // 中垂线 / 中点：新的一次按下，允许重新绘制（上一次手势的收尾锁定到此解除）
+            if (drawingShapeMode == 26) _perpendicularBisectorAwaitNewGesture = false;
+            if (drawingShapeMode == 15) _midpointAwaitNewGesture = false;
+
             if (e.ChangedButton == MouseButton.Left && inkCanvas.EditingMode == InkCanvasEditingMode.EraseByStroke)
             {
                 BeginSecAgentStrokeErase(e.GetPosition(inkCanvas));
@@ -3565,12 +4212,23 @@ namespace Ink_Canvas
         /// 3. 根据不同的绘制模式进行处理：
         ///    - 圆形模式：创建圆形对象并添加到圆形集合
         ///    - 长方体模式：处理长方体绘制的两个步骤
-        ///    - 双曲线模式：处理多步绘制的步骤切换
+        ///    - 双曲线/贝塞尔/垂线模式：处理多步绘制的步骤切换
         /// 4. 还原到笔模式（除特殊情况外）
         /// 5. 提交笔画历史记录
         /// 6. 清理临时笔画和状态
         /// 7. 恢复FitToCurve设置
         /// </remarks>
+        /// <summary>
+        /// 鼠标捕获丢失（松手、切换窗口等）：中垂线/中点在此收尾，确保荧光笔线段一定被移除。
+        /// </summary>
+        private void inkCanvas_LostMouseCapture(object sender, MouseEventArgs e)
+        {
+            if (drawingShapeMode == 26) CompletePerpendicularBisectorNow();
+            if (drawingShapeMode == 15) CompleteMidpointNow();
+        }
+
+
+
         private void inkCanvas_MouseUp(object sender, MouseButtonEventArgs e)
         {
             EndSecAgentStrokeErase();
@@ -3605,6 +4263,36 @@ namespace Ink_Canvas
                 e.Handled = true;
                 return;
             }
+
+            // 平行线第二步：抬起时按落点补绘一次，保证“单击”也能完成绘制
+            if (drawingShapeMode == 17 && drawMultiStepShapeCurrentStep == 1)
+            {
+                var point = _parallelUpPoint ?? e.GetPosition(inkCanvas);
+                _parallelUpPoint = null;
+                MouseTouchMove(point);
+            }
+
+            // 垂线第二步：抬起时按落点补绘一次，保证“单击”也能完成绘制
+            if (drawingShapeMode == 21 && drawMultiStepShapeCurrentStep == 1)
+            {
+                var point = _perpendicularUpPoint ?? e.GetPosition(inkCanvas);
+                _perpendicularUpPoint = null;
+                MouseTouchMove(point);
+            }
+
+            // 角平分线第二步：抬起时按落点补绘一次，保证“单击”也能完成绘制
+            if (drawingShapeMode == 22 && drawMultiStepShapeCurrentStep == 1)
+            {
+                var point = _angleBisectorUpPoint ?? e.GetPosition(inkCanvas);
+                _angleBisectorUpPoint = null;
+                MouseTouchMove(point);
+            }
+
+            // 中垂线：松手后移除荧光笔线段，只保留垂直平分线与直角标记
+            if (drawingShapeMode == 26) CompletePerpendicularBisectorNow();
+
+            // 中点：松手后移除荧光笔线段，只保留中点标记
+            if (drawingShapeMode == 15) CompleteMidpointNow();
 
             var completedShapeMode = drawingShapeMode;
 
@@ -3670,7 +4358,9 @@ namespace Ink_Canvas
                 }
             }
 
-            if (drawingShapeMode != 9 && drawingShapeMode != 0 && drawingShapeMode != 24 && drawingShapeMode != 25)
+            if (drawingShapeMode != 9 && drawingShapeMode != 0 && drawingShapeMode != 24 && drawingShapeMode != 25
+                && drawingShapeMode != 21 && drawingShapeMode != 26 && drawingShapeMode != 17
+                && drawingShapeMode != 15)
             {
                 if (isLongPressSelected) { }
                 else
@@ -3732,11 +4422,49 @@ namespace Ink_Canvas
                 }
             }
 
-            if (drawingShapeMode == 24 || drawingShapeMode == 25)
+            if (drawingShapeMode == 24 || drawingShapeMode == 25 || drawingShapeMode == 21 || drawingShapeMode == 22
+                || drawingShapeMode == 26 || drawingShapeMode == 17 || drawingShapeMode == 15)
             {
-                if (drawMultiStepShapeCurrentStep == 0)
+                if (drawingShapeMode == 15)
                 {
-                    drawMultiStepShapeCurrentStep = 1;
+                    // 中点是单步图形，与中垂线同样「抬起即完成」
+                    CompleteMidpointNow();
+                    drawMultiStepShapeCurrentStep = 0;
+                }
+                else if (drawingShapeMode == 26)
+                {
+                    // 中垂线是单步图形，但沿用垂线这套「抬起即完成」的收尾位置：
+                    // 移除荧光笔线段，只保留垂直平分线与直角标记，并提交一次撤销
+                    CompletePerpendicularBisectorNow();
+                    drawMultiStepShapeCurrentStep = 0;
+                }
+                else if (drawMultiStepShapeCurrentStep == 0)
+                {
+                    // 平行线 / 垂线 / 角平分线：单击未拖出基准（边）时不进入第二步
+                    var canEnterNextStep = (drawingShapeMode != 17 || _parallelBaselineStroke != null)
+                                           && (drawingShapeMode != 21 || _perpendicularBaselineStroke != null)
+                                           && (drawingShapeMode != 22 || _angleBisectorSide1Stroke != null);
+                    if (canEnterNextStep)
+                    {
+                        drawMultiStepShapeCurrentStep = 1;
+                        if (drawingShapeMode == 17)
+                        {
+                            // 基准辅助线继续显示到第二步完成，但不能再被预览清理逻辑删除
+                            _parallelLastPreview = null;
+                        }
+                        else if (drawingShapeMode == 21)
+                        {
+                            // 基准辅助线继续显示到第二步完成，但不能再被预览清理逻辑删除
+                            _perpendicularLastPreview = null;
+                        }
+                        else if (drawingShapeMode == 22)
+                        {
+                            // 第一条边已完成并留在画布上，第二步的预览另行跟踪；
+                            // 此时不能把第一步当成一笔入撤销栈，等第二步完成时整体提交
+                            _angleBisectorLastPreview = null;
+                            _currentCommitType = CommitReason.UserInput;
+                        }
+                    }
                 }
                 else
                 {
@@ -3781,7 +4509,7 @@ namespace Ink_Canvas
                         // 本次双曲线已提交：置空预览跟踪，避免下一笔开头清理时误删已完成的双曲线
                         _hyperbolaLastPreview = null;
                     }
-                    else
+                    else if (drawingShapeMode == 25)
                     {
                         // 贝塞尔曲线（模式 25）：辅助弦始终移除，只保留曲线本身
                         if (drawMultiStepShapeSpecialStrokeCollection != null && drawMultiStepShapeSpecialStrokeCollection.Count > 0)
@@ -3793,12 +4521,53 @@ namespace Ink_Canvas
                         _bezierLastPreview = null;
                         _bezierEndPoint = default;
                     }
-
-                    BtnPen_Click(null, null); //画完还原到笔模式
-                    if (lastIsInMultiTouchMode)
+                    else if (drawingShapeMode == 22)
                     {
-                        ToggleSwitchEnableMultiTouchMode.IsOn = true;
-                        lastIsInMultiTouchMode = false;
+                        // 角平分线（模式 22）：完成时移除两条边的荧光笔辅助线，只提交平分线与等角弧
+                        RemoveAngleBisectorStroke(_angleBisectorSide1Stroke);
+                        RemoveAngleBisectorStroke(_angleBisectorSide2Stroke);
+                        _angleBisectorSide1Stroke = null;
+                        _angleBisectorSide2Stroke = null;
+
+                        if (_angleBisectorLastPreview != null && _angleBisectorLastPreview.Count > 0)
+                            lastTempStrokeCollection = _angleBisectorLastPreview;
+
+                        _angleBisectorLastPreview = null;
+                        _angleBisectorUpPoint = null;
+                        _angleBisectorVertex = default;
+                        _angleBisectorSide1End = default;
+                    }
+                    else if (drawingShapeMode == 17)
+                    {
+                        // 平行线（模式 17）：完成时移除第一步的红色荧光笔基准辅助线，只提交平行线
+                        RemoveParallelGuideStroke();
+                        _parallelLastPreview = null;
+                        _parallelBaselineStroke = null;
+                        _parallelBaseStart = default;
+                        _parallelBaseEnd = default;
+                        _parallelUpPoint = null;
+                    }
+                    else
+                    {
+                        // 垂线（模式 21）：完成时移除第一步的红色荧光笔基准辅助线，只提交垂线与直角符号
+                        RemovePerpendicularGuideStroke();
+                        _perpendicularLastPreview = null;
+                        _perpendicularBaselineStroke = null;
+                        _perpendicularBaseStart = default;
+                        _perpendicularBaseEnd = default;
+                        _perpendicularUpPoint = null;
+                    }
+
+                    // 平行线 / 垂线 / 角平分线工具完成后保持选中，便于连续绘制；其余多步图形仍还原到笔模式
+                    if (drawingShapeMode != 15 && drawingShapeMode != 17 && drawingShapeMode != 21
+                        && drawingShapeMode != 22)
+                    {
+                        BtnPen_Click(null, null); //画完还原到笔模式
+                        if (lastIsInMultiTouchMode)
+                        {
+                            ToggleSwitchEnableMultiTouchMode.IsOn = true;
+                            lastIsInMultiTouchMode = false;
+                        }
                     }
                 }
             }
@@ -3822,6 +4591,13 @@ namespace Ink_Canvas
                 // 坐标系：登记整组笔画，选中后可拖动箭头端重新设定 X/Y 轴长度
                 if (completedShapeMode == 11 && collection != null)
                     RegisterCoordinateSystem(collection, _pendingCoordinateTag);
+                // 平行线 / 垂线 / 角平分线：登记主线笔画，选中后可拖动端点伸缩（角平分线只有远端）
+                else if (completedShapeMode == 17 && collection != null)
+                    RegisterGeometryLine(collection, GeometryLineKind.Parallel);
+                else if (completedShapeMode == 21 && collection != null)
+                    RegisterGeometryLine(collection, GeometryLineKind.Perpendicular);
+                else if (completedShapeMode == 22 && collection != null)
+                    RegisterGeometryLine(collection, GeometryLineKind.AngleBisector);
             }
 
             if (completedShapeMode == 1 && lastTempStroke != null &&
@@ -4422,6 +5198,294 @@ namespace Ink_Canvas
                 timeMachine.CommitStrokeShapeHistory(original, version.Strokes);
 
             UpdateCoordinateAxisHandles();
+        }
+
+        #endregion
+
+        #region 几何线条端点伸缩
+
+        /// <summary>可伸缩端点的几何线条类型。</summary>
+        private enum GeometryLineKind
+        {
+            None,
+            /// <summary>垂线（模式 21）：两端可伸缩，固定点是垂足。</summary>
+            Perpendicular,
+            /// <summary>中垂线（模式 26）：两端可伸缩，固定点是原线段的中点。</summary>
+            PerpendicularBisector,
+            /// <summary>角平分线（模式 22）：只有远端可伸缩，固定点是角的顶点。</summary>
+            AngleBisector,
+            /// <summary>平行线（模式 17）：两端可伸缩，固定点是所过的那个点（线中点）。</summary>
+            Parallel
+        }
+
+        /// <summary>
+        /// 一条端点可伸缩的几何线条。只保存主线笔画与固定点在主线上的参数位置，
+        /// 端点坐标一律从笔画上实时读取，因此整组被移动/旋转/缩放后手柄依然跟随。
+        /// </summary>
+        private sealed class GeometryLineRecord
+        {
+            public Stroke MainStroke;
+            public GeometryLineKind Kind;
+            /// <summary>固定点（垂足/中点/顶点）在主线上的参数：0 = 首点，1 = 末点。</summary>
+            public double AnchorT;
+        }
+
+        /// <summary>垂线两端各自多画出的长度（与绘制垂线时的 overshoot 保持一致）。</summary>
+        private const double PerpendicularEndOvershoot = 16;
+
+        /// <summary>端点到固定点的最小距离，避免拖动时把线条拖没。</summary>
+        private const double GeometryLineMinArm = 8;
+
+        private readonly List<GeometryLineRecord> _geometryLines = new List<GeometryLineRecord>();
+
+        private GeometryLineRecord _geometryLineHandleRecord;
+        private bool _geometryLineHandleDragging;
+        private bool _geometryLineHandleAtStart;
+
+        /// <summary>
+        /// 绘制完成后把几何线条登记为「端点可伸缩」。
+        /// 约定集合第一条笔画是主线（绘制顺序已保证），其余笔画（直角符号、等角弧）不参与伸缩。
+        /// </summary>
+        private void RegisterGeometryLine(StrokeCollection strokes, GeometryLineKind kind)
+        {
+            if (strokes == null || strokes.Count == 0 || kind == GeometryLineKind.None) return;
+            if (inkCanvas == null) return;
+
+            var mainStroke = strokes[0];
+            if (mainStroke == null || mainStroke.StylusPoints.Count < 2) return;
+            if (!inkCanvas.Strokes.Contains(mainStroke)) return;
+
+            var start = mainStroke.StylusPoints[0].ToPoint();
+            var end = mainStroke.StylusPoints[mainStroke.StylusPoints.Count - 1].ToPoint();
+            var length = (end - start).Length;
+            if (length < 0.01) return;
+
+            foreach (var existing in _geometryLines)
+            {
+                if (ReferenceEquals(existing.MainStroke, mainStroke)) return;
+            }
+
+            // 固定点在主线上的参数位置：各类线条的几何在绘制时已经确定
+            double anchorT;
+            switch (kind)
+            {
+                case GeometryLineKind.Perpendicular:
+                    // 垂线两端各多画 16，垂足就在首点往内 16 处
+                    anchorT = Math.Max(0, Math.Min(1, PerpendicularEndOvershoot / length));
+                    break;
+                case GeometryLineKind.PerpendicularBisector:
+                case GeometryLineKind.Parallel:
+                    // 中垂线以原线段中点为心、平行线以所过点为心，都在线中点
+                    anchorT = 0.5;
+                    break;
+                default:
+                    // 角平分线的固定点是角的顶点，即首点
+                    anchorT = 0;
+                    break;
+            }
+
+            _geometryLines.Add(new GeometryLineRecord
+            {
+                MainStroke = mainStroke,
+                Kind = kind,
+                AnchorT = anchorT
+            });
+            if (_geometryLines.Count > 64)
+                _geometryLines.RemoveRange(0, _geometryLines.Count - 64);
+        }
+
+        /// <summary>找出「当前选中墨迹中包含主线」的几何线条。</summary>
+        private GeometryLineRecord FindSelectedGeometryLine()
+        {
+            if (inkCanvas == null || _geometryLines.Count == 0) return null;
+            var selected = inkCanvas.GetSelectedStrokes();
+            if (selected == null || selected.Count == 0) return null;
+
+            for (var i = _geometryLines.Count - 1; i >= 0; i--)
+            {
+                var record = _geometryLines[i];
+                if (record?.MainStroke != null && selected.Contains(record.MainStroke)) return record;
+            }
+
+            return null;
+        }
+
+        /// <summary>取线条两端在当前画布上的坐标（主线已不在画布上时返回 false）。</summary>
+        private bool TryGetGeometryLinePoints(GeometryLineRecord record, out Point start, out Point end)
+        {
+            start = default;
+            end = default;
+            if (record?.MainStroke == null || inkCanvas == null) return false;
+            if (!inkCanvas.Strokes.Contains(record.MainStroke)) return false;
+
+            var points = record.MainStroke.StylusPoints;
+            if (points.Count < 2) return false;
+
+            start = points[0].ToPoint();
+            end = points[points.Count - 1].ToPoint();
+            return (end - start).Length > 0.01;
+        }
+
+        /// <summary>
+        /// 选中垂线/中垂线/平行线/角平分线后，在线条端点显示伸缩手柄。
+        /// 角平分线的首点是角的顶点，不可拖动，只显示远端手柄。
+        /// </summary>
+        private void UpdateGeometryLineHandles()
+        {
+            if (GeometryLineHandleCanvas == null) return;
+
+            var record = _geometryLineHandleDragging ? _geometryLineHandleRecord : FindSelectedGeometryLine();
+            if (!TryGetGeometryLinePoints(record, out var start, out var end))
+            {
+                GeometryLineHandleCanvas.Visibility = Visibility.Collapsed;
+                if (!_geometryLineHandleDragging) _geometryLineHandleRecord = null;
+                return;
+            }
+
+            _geometryLineHandleRecord = record;
+            if (record.Kind == GeometryLineKind.AngleBisector)
+            {
+                GeometryLineHandleStart.Visibility = Visibility.Collapsed;
+            }
+            else
+            {
+                GeometryLineHandleStart.Visibility = Visibility.Visible;
+                PositionGeometryLineHandle(GeometryLineHandleStart, start);
+            }
+
+            PositionGeometryLineHandle(GeometryLineHandleEnd, end);
+            GeometryLineHandleCanvas.Visibility = Visibility.Visible;
+        }
+
+        /// <summary>隐藏几何线条端点手柄。</summary>
+        private void HideGeometryLineHandles()
+        {
+            if (GeometryLineHandleCanvas == null) return;
+            GeometryLineHandleCanvas.Visibility = Visibility.Collapsed;
+            if (!_geometryLineHandleDragging) _geometryLineHandleRecord = null;
+        }
+
+        private static void PositionGeometryLineHandle(FrameworkElement handle, Point canvasPoint)
+        {
+            if (handle == null) return;
+            System.Windows.Controls.Canvas.SetLeft(handle, canvasPoint.X - handle.Width / 2);
+            System.Windows.Controls.Canvas.SetTop(handle, canvasPoint.Y - handle.Height / 2);
+        }
+
+        /// <summary>把主线笔画改成新的两端（只替换触笔点，绘图属性保持不变）。</summary>
+        private static void SetGeometryLineEndpoints(Stroke stroke, Point start, Point end)
+        {
+            if (stroke == null) return;
+            stroke.StylusPoints = new StylusPointCollection
+            {
+                new StylusPoint(start.X, start.Y),
+                new StylusPoint(end.X, end.Y)
+            };
+        }
+
+        private void GeometryLineHandle_MouseDown(object sender, MouseButtonEventArgs e)
+        {
+            if (TryBlockFrozenPageMutation("调整线条长度"))
+            {
+                e.Handled = true;
+                return;
+            }
+
+            var record = _geometryLineHandleRecord ?? FindSelectedGeometryLine();
+            if (!TryGetGeometryLinePoints(record, out _, out _)) return;
+
+            _geometryLineHandleRecord = record;
+            _geometryLineHandleAtStart = record.Kind != GeometryLineKind.AngleBisector
+                                         && ReferenceEquals(sender, GeometryLineHandleStart);
+            _geometryLineHandleDragging = true;
+
+            if (sender is UIElement element) element.CaptureMouse();
+            e.Handled = true;
+        }
+
+        private void GeometryLineHandle_MouseMove(object sender, MouseEventArgs e)
+        {
+            if (!_geometryLineHandleDragging) return;
+            if (!(sender is UIElement element) || !element.IsMouseCaptured) return;
+
+            var record = _geometryLineHandleRecord;
+            if (!TryGetGeometryLinePoints(record, out var start, out var end)) return;
+
+            var direction = end - start;
+            var length = direction.Length;
+            if (length < 0.01) return;
+            direction /= length;
+
+            // 固定点（垂足/中点/顶点）按参数位置还原，拖动过程中保持不动，只改被拖那一端的长度
+            var anchorT = Math.Max(0, Math.Min(1, record.AnchorT));
+            var anchor = start + direction * (length * anchorT);
+            var position = e.GetPosition(GeometryLineHandleCanvas);
+
+            if (_geometryLineHandleAtStart)
+            {
+                var arm = Vector.Multiply(anchor - position, direction);
+                if (arm < GeometryLineMinArm) arm = GeometryLineMinArm;
+                var otherArm = (end - anchor).Length;
+                if (arm + otherArm < 0.01) return;
+
+                SetGeometryLineEndpoints(record.MainStroke, anchor - direction * arm, end);
+                record.AnchorT = arm / (arm + otherArm);
+            }
+            else
+            {
+                var arm = Vector.Multiply(position - anchor, direction);
+                if (arm < GeometryLineMinArm) arm = GeometryLineMinArm;
+                var otherArm = (anchor - start).Length;
+                if (arm + otherArm < 0.01) return;
+
+                SetGeometryLineEndpoints(record.MainStroke, start, anchor + direction * arm);
+                record.AnchorT = otherArm / (otherArm + arm);
+            }
+
+            // 换过端点后选区边界会变，同步刷选择框与手柄位置
+            try
+            {
+                UpdateSelectionDisplay();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine(ex);
+            }
+
+            e.Handled = true;
+        }
+
+        private void GeometryLineHandle_MouseUp(object sender, MouseButtonEventArgs e)
+        {
+            if (!_geometryLineHandleDragging) return;
+            FinishGeometryLineHandleDrag(sender);
+            e.Handled = true;
+        }
+
+        private void GeometryLineHandle_LostMouseCapture(object sender, MouseEventArgs e)
+        {
+            if (!_geometryLineHandleDragging) return;
+            FinishGeometryLineHandleDrag(sender);
+        }
+
+        private void FinishGeometryLineHandleDrag(object sender)
+        {
+            _geometryLineHandleDragging = false;
+            if (sender is UIElement element && element.IsMouseCaptured) element.ReleaseMouseCapture();
+
+            // 拖动期间的触笔点变化被 _geometryLineHandleDragging 抑制，
+            // 这里一次性提交，保证一次拖动只产生一条撤销记录
+            CommitPendingStrokeManipulationHistory();
+
+            UpdateGeometryLineHandles();
+            try
+            {
+                UpdateSelectionDisplay();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine(ex);
+            }
         }
 
         #endregion

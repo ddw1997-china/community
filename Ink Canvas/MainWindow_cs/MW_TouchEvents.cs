@@ -1231,6 +1231,10 @@ namespace Ink_Canvas
                 {
                     inkCanvas.EditingMode = InkCanvasEditingMode.None;
 
+                    // 中垂线 / 中点：新的一次落笔，允许重新绘制（上一次手势的收尾锁定到此解除）
+                    if (drawingShapeMode == 26) _perpendicularBisectorAwaitNewGesture = false;
+                    if (drawingShapeMode == 15) _midpointAwaitNewGesture = false;
+
                     isTouchDown = true;
                     ViewboxFloatingBar.IsHitTestVisible = false;
                     BlackboardUIGridForInkReplay.IsHitTestVisible = false;
@@ -1333,6 +1337,11 @@ namespace Ink_Canvas
         /// </remarks>
         private async void MainWindow_StylusUp(object sender, StylusEventArgs e)
         {
+            // 中垂线 / 中点：手写笔抬起立即收尾（本处理器后面可能因实时笔锋状态提前 return，
+            // 不能把收尾依赖放在后面，否则荧光笔线段会残留到下一次点击）
+            if (drawingShapeMode == 26) CompletePerpendicularBisectorNow();
+            if (drawingShapeMode == 15) CompleteMidpointNow();
+
             if (IsTouchStylusDevice(e.StylusDevice))
                 return;
 
@@ -1390,12 +1399,36 @@ namespace Ink_Canvas
                 BlackboardUIGridForInkReplay.IsHitTestVisible = true;
 
                 // 对于双曲线等需要多步绘制的图形，手写笔抬起时应该进入下一步
-                if (drawingShapeMode == 24 || drawingShapeMode == 25)
+                if (drawingShapeMode == 24 || drawingShapeMode == 25 || drawingShapeMode == 21 || drawingShapeMode == 22
+                    || drawingShapeMode == 17)
                 {
+                    // 平行线 / 垂线 / 角平分线第二步：记录手写笔落点，交由 inkCanvas_MouseUp 按该点补绘
+                    if (drawingShapeMode == 17 && drawMultiStepShapeCurrentStep == 1)
+                        _parallelUpPoint = e.GetPosition(inkCanvas);
+                    if (drawingShapeMode == 21 && drawMultiStepShapeCurrentStep == 1)
+                        _perpendicularUpPoint = e.GetPosition(inkCanvas);
+                    if (drawingShapeMode == 22 && drawMultiStepShapeCurrentStep == 1)
+                        _angleBisectorUpPoint = e.GetPosition(inkCanvas);
+
                     if (drawMultiStepShapeCurrentStep == 0)
                     {
-                        // 第一笔完成，进入第二笔
-                        drawMultiStepShapeCurrentStep = 1;
+                        // 第一笔完成，进入第二笔（平行线 / 垂线需先拖出基准线，角平分线需先拖出第一条边）
+                        if ((drawingShapeMode != 17 || _parallelBaselineStroke != null)
+                            && (drawingShapeMode != 21 || _perpendicularBaselineStroke != null)
+                            && (drawingShapeMode != 22 || _angleBisectorSide1Stroke != null))
+                        {
+                            drawMultiStepShapeCurrentStep = 1;
+                            if (drawingShapeMode == 17)
+                                _parallelLastPreview = null;
+                            else if (drawingShapeMode == 21)
+                                _perpendicularLastPreview = null;
+                            else if (drawingShapeMode == 22)
+                            {
+                                _angleBisectorLastPreview = null;
+                                // 第一步的边先不入撤销栈，等第二步完成后整体提交
+                                _currentCommitType = CommitReason.UserInput;
+                            }
+                        }
                     }
                     else
                     {
@@ -1900,6 +1933,10 @@ namespace Ink_Canvas
         /// </remarks>
         private void InkCanvas_PreviewTouchDown(object sender, TouchEventArgs e)
         {
+            // 中垂线 / 中点：新的一次按下，允许重新绘制（上一次手势的收尾锁定到此解除）
+            if (drawingShapeMode == 26) _perpendicularBisectorAwaitNewGesture = false;
+            if (drawingShapeMode == 15) _midpointAwaitNewGesture = false;
+
             var touchPointForBar = e.GetTouchPoint(this);
             var floatingBarBounds = ViewboxFloatingBar.TransformToAncestor(this).TransformBounds(
                 new Rect(0, 0, ViewboxFloatingBar.ActualWidth, ViewboxFloatingBar.ActualHeight));
@@ -2213,6 +2250,12 @@ namespace Ink_Canvas
         /// </remarks>
         private void InkCanvas_PreviewTouchUp(object sender, TouchEventArgs e)
         {
+            // 中垂线：手指/触控笔抬起时立刻收尾（移除荧光笔线段，只留平分线与直角标记）
+            if (drawingShapeMode == 26) CompletePerpendicularBisectorNow();
+
+            // 中点：手指/触控笔抬起时立刻收尾（移除荧光笔线段，只留中点标记）
+            if (drawingShapeMode == 15) CompleteMidpointNow();
+
             // 视频展台特殊模式：所有手指抬起后恢复用户原本的 EditingMode
             // （PreviewTouchDown 中为了抑制 InkCanvas 内部框选临时切到了 None）
             // 图形绘制模式例外：需要走正常绘制流程完成图形
@@ -2327,11 +2370,36 @@ namespace Ink_Canvas
                 ViewboxFloatingBar.IsHitTestVisible = true;
                 BlackboardUIGridForInkReplay.IsHitTestVisible = true;
 
-                if (drawingShapeMode == 24 || drawingShapeMode == 25)
+                if (drawingShapeMode == 24 || drawingShapeMode == 25 || drawingShapeMode == 21 || drawingShapeMode == 22
+                    || drawingShapeMode == 17)
                 {
+                    // 平行线 / 垂线 / 角平分线第二步：记录触摸落点，交由 inkCanvas_MouseUp 按该点补绘
+                    if (drawingShapeMode == 17 && drawMultiStepShapeCurrentStep == 1)
+                        _parallelUpPoint = e.GetTouchPoint(inkCanvas).Position;
+                    if (drawingShapeMode == 21 && drawMultiStepShapeCurrentStep == 1)
+                        _perpendicularUpPoint = e.GetTouchPoint(inkCanvas).Position;
+                    if (drawingShapeMode == 22 && drawMultiStepShapeCurrentStep == 1)
+                        _angleBisectorUpPoint = e.GetTouchPoint(inkCanvas).Position;
+
                     if (drawMultiStepShapeCurrentStep == 0)
                     {
-                        drawMultiStepShapeCurrentStep = 1;
+                        // 平行线 / 垂线 / 角平分线需先拖出基准（边），单击不进入第二步
+                        if ((drawingShapeMode != 17 || _parallelBaselineStroke != null)
+                            && (drawingShapeMode != 21 || _perpendicularBaselineStroke != null)
+                            && (drawingShapeMode != 22 || _angleBisectorSide1Stroke != null))
+                        {
+                            drawMultiStepShapeCurrentStep = 1;
+                            if (drawingShapeMode == 17)
+                                _parallelLastPreview = null;
+                            else if (drawingShapeMode == 21)
+                                _perpendicularLastPreview = null;
+                            else if (drawingShapeMode == 22)
+                            {
+                                _angleBisectorLastPreview = null;
+                                // 第一步的边先不入撤销栈，等第二步完成后整体提交
+                                _currentCommitType = CommitReason.UserInput;
+                            }
+                        }
                     }
                     else
                     {

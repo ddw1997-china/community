@@ -326,6 +326,115 @@
             </DrawingGroup>
         </DrawingImage.Drawing>
     </DrawingImage>
+    <!-- 中垂线工具图标：线段 + 垂直平分线 + 两侧等长刻度 -->
+    <DrawingImage x:Key="DrawShapeImageSource.PerpendicularBisector">
+        <DrawingImage.Drawing>
+            <DrawingGroup ClipGeometry="M0,0 V750 H750 V0 H0 Z">
+                <GeometryDrawing>
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="{DynamicResource FloatBarForeground}" Thickness="50" StartLineCap="Round" EndLineCap="Round" LineJoin="Miter" />
+                    </GeometryDrawing.Pen>
+                    <GeometryDrawing.Geometry>
+                        <LineGeometry StartPoint="150,520" EndPoint="600,520" />
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+                <GeometryDrawing>
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="{DynamicResource FloatBarForeground}" Thickness="50" StartLineCap="Round" EndLineCap="Round" LineJoin="Miter" />
+                    </GeometryDrawing.Pen>
+                    <GeometryDrawing.Geometry>
+                        <LineGeometry StartPoint="375,110" EndPoint="375,680" />
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+                <GeometryDrawing>
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="{DynamicResource FloatBarForeground}" Thickness="34" StartLineCap="Round" EndLineCap="Round" LineJoin="Miter" />
+                    </GeometryDrawing.Pen>
+                    <GeometryDrawing.Geometry>
+                        <LineGeometry StartPoint="262,485" EndPoint="262,555" />
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+                <GeometryDrawing>
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="{DynamicResource FloatBarForeground}" Thickness="34" StartLineCap="Round" EndLineCap="Round" LineJoin="Miter" />
+                    </GeometryDrawing.Pen>
+                    <GeometryDrawing.Geometry>
+                        <LineGeometry StartPoint="487,485" EndPoint="487,555" />
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+            </DrawingGroup>
+        </DrawingImage.Drawing>
+    </DrawingImage>
+    <!-- 角平分线工具图标（用于取代原「抛物线（焦点）」）：角 + 角平分线 + 等角弧 -->
+    <DrawingImage x:Key="DrawShapeImageSource.AngleBisector">
+        <DrawingImage.Drawing>
+            <DrawingGroup ClipGeometry="M0,0 V750 H750 V0 H0 Z">
+                <GeometryDrawing>
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="{DynamicResource FloatBarForeground}" Thickness="50" StartLineCap="Round" EndLineCap="Round" LineJoin="Miter" />
+                    </GeometryDrawing.Pen>
+                    <GeometryDrawing.Geometry>
+                        <LineGeometry StartPoint="150,620" EndPoint="700,620" />
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+                <GeometryDrawing>
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="{DynamicResource FloatBarForeground}" Thickness="50" StartLineCap="Round" EndLineCap="Round" LineJoin="Miter" />
+                    </GeometryDrawing.Pen>
+                    <GeometryDrawing.Geometry>
+                        <LineGeometry StartPoint="150,620" EndPoint="440,118" />
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+                <GeometryDrawing>
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="{DynamicResource FloatBarForeground}" Thickness="50" StartLineCap="Round" EndLineCap="Round" LineJoin="Miter" />
+                    </GeometryDrawing.Pen>
+                    <GeometryDrawing.Geometry>
+                        <LineGeometry StartPoint="150,620" EndPoint="612,352" />
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+                <GeometryDrawing>
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="{DynamicResource FloatBarForeground}" Thickness="34" StartLineCap="Round" EndLineCap="Round" LineJoin="Round" />
+                    </GeometryDrawing.Pen>
+                    <GeometryDrawing.Geometry>
+                        <PathGeometry Figures="M340,620 L337,587 L329,555 L315,525 L296,498 L272,474 L245,455" />
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+            </DrawingGroup>
+        </DrawingImage.Drawing>
+    </DrawingImage>
+    <!-- 垂线工具图标（用于取代原「抛物线2」） -->
+    <DrawingImage x:Key="DrawShapeImageSource.Perpendicular">
+        <DrawingImage.Drawing>
+            <DrawingGroup ClipGeometry="M0,0 V750 H750 V0 H0 Z">
+                <GeometryDrawing>
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="{DynamicResource FloatBarForeground}" Thickness="50" StartLineCap="Round" EndLineCap="Round" LineJoin="Miter" />
+                    </GeometryDrawing.Pen>
+                    <GeometryDrawing.Geometry>
+                        <LineGeometry StartPoint="80,600" EndPoint="670,600" />
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+                <GeometryDrawing>
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="{DynamicResource FloatBarForeground}" Thickness="50" StartLineCap="Round" EndLineCap="Round" LineJoin="Miter" />
+                    </GeometryDrawing.Pen>
+                    <GeometryDrawing.Geometry>
+                        <LineGeometry StartPoint="375,110" EndPoint="375,650" />
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+                <GeometryDrawing>
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="{DynamicResource FloatBarForeground}" Thickness="36" StartLineCap="Round" EndLineCap="Round" LineJoin="Miter" />
+                    </GeometryDrawing.Pen>
+                    <GeometryDrawing.Geometry>
+                        <PathGeometry Figures="M375,530 L445,530 445,600" />
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+            </DrawingGroup>
+        </DrawingImage.Drawing>
+    </DrawingImage>
     <DrawingImage x:Key="DrawShapeImageSource.Line">
         <DrawingImage.Drawing>
             <DrawingGroup ClipGeometry="M0,0 V750.75 H750.75 V0 H0 Z">
@@ -348,14 +457,6 @@
                         <Pen Brush="{DynamicResource FloatBarForeground}" Thickness="50" StartLineCap="Round" EndLineCap="Round" LineJoin="Miter" />
                     </GeometryDrawing.Pen>
                     <GeometryDrawing.Geometry>
-                        <LineGeometry StartPoint="25.42,25" EndPoint="726.79,25" />
-                    </GeometryDrawing.Geometry>
-                </GeometryDrawing>
-                <GeometryDrawing>
-                    <GeometryDrawing.Pen>
-                        <Pen Brush="{DynamicResource FloatBarForeground}" Thickness="50" StartLineCap="Round" EndLineCap="Round" LineJoin="Miter" />
-                    </GeometryDrawing.Pen>
-                    <GeometryDrawing.Geometry>
                         <LineGeometry StartPoint="25,241.08" EndPoint="726.38,241.08" />
                     </GeometryDrawing.Geometry>
                 </GeometryDrawing>
@@ -364,15 +465,26 @@
                         <Pen Brush="{DynamicResource FloatBarForeground}" Thickness="50" StartLineCap="Round" EndLineCap="Round" LineJoin="Miter" />
                     </GeometryDrawing.Pen>
                     <GeometryDrawing.Geometry>
-                        <LineGeometry StartPoint="29,673.08" EndPoint="730.38,673.08" />
+                        <LineGeometry StartPoint="25,457.08" EndPoint="726.38,457.08" />
                     </GeometryDrawing.Geometry>
                 </GeometryDrawing>
+            </DrawingGroup>
+        </DrawingImage.Drawing>
+    </DrawingImage>
+    <DrawingImage x:Key="DrawShapeImageSource.Midpoint">
+        <DrawingImage.Drawing>
+            <DrawingGroup ClipGeometry="M0,0 V698.08 H755.38 V0 H0 Z">
                 <GeometryDrawing>
                     <GeometryDrawing.Pen>
                         <Pen Brush="{DynamicResource FloatBarForeground}" Thickness="50" StartLineCap="Round" EndLineCap="Round" LineJoin="Miter" />
                     </GeometryDrawing.Pen>
                     <GeometryDrawing.Geometry>
-                        <LineGeometry StartPoint="25,457.08" EndPoint="726.38,457.08" />
+                        <LineGeometry StartPoint="25,349.04" EndPoint="730.38,349.04" />
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+                <GeometryDrawing Brush="{DynamicResource FloatBarForeground}">
+                    <GeometryDrawing.Geometry>
+                        <EllipseGeometry Center="377.69,349.04" RadiusX="80" RadiusY="80" />
                     </GeometryDrawing.Geometry>
                 </GeometryDrawing>
             </DrawingGroup>

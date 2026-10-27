@@ -3699,9 +3699,15 @@ namespace Ink_Canvas
                                     && string.Equals(GetCurrentSelectedMode(), "pen", StringComparison.OrdinalIgnoreCase));
             bool wasHighlighter = drawingAttributes.IsHighlighter;
 
-            if (drawingShapeMode != 0 && !isLongPressSelected)
+            // 图形工具激活时，点画笔一律先退出图形模式再走下面的正常切换流程。
+            // 原先是 «drawingShapeMode != 0 && !isLongPressSelected 就直接 return»，
+            // 但 isLongPressSelected 这个标志会被别处流程（改颜色 CancelSingleFingerDragMode、
+            // 白板/批注自动切换等）重置掉，导致在鸿合白板等场景下选了图形工具后画笔按钮
+            // 完全点不动；另外批注模式下走 «已在画笔模式» 分支时不会重设编辑模式，
+            // 也会表现为「切不过来」。用 BtnPen_Click 统一退出可同时覆盖这两种情况。
+            if (drawingShapeMode != 0)
             {
-                return;
+                BtnPen_Click(null, null);
             }
 
             if (Pen_Icon.Background == null || !IsAnnotating)
