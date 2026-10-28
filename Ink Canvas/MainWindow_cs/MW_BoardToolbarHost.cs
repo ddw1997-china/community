@@ -54,13 +54,13 @@ namespace Ink_Canvas
             penButton.IconBrush = brush;
 
             // 工具栏在模式切换时可能会异步重建，确保重建后的视图也应用颜色。
-            Dispatcher.BeginInvoke(new Action(() =>
+            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, new Action(() =>
             {
                 if (FindView("board.pen") is BoardToolbarButton currentPenButton)
                     currentPenButton.IconBrush = Settings.Appearance.ShowPenColorOnBoardToolbarIcon
                         ? new SolidColorBrush(inkCanvas.DefaultDrawingAttributes.Color)
                         : Application.Current.TryFindResource("FloatingBarForegroundBrush") as Brush;
-            }), System.Windows.Threading.DispatcherPriority.Loaded);
+            }));
         }
 
         /// <summary>
@@ -310,14 +310,14 @@ namespace Ink_Canvas
             // 跳过白板分页的按钮逻辑（否则 CanAddNewPage 会错误启用"下一页"）
             if (_isVideoPresenterSpecialMode)
             {
-                Dispatcher.BeginInvoke(new Action(() =>
+                Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, new Action(() =>
                 {
                     UpdatePageInfo();
-                }), System.Windows.Threading.DispatcherPriority.Loaded);
+                }));
                 return;
             }
 
-            Dispatcher.BeginInvoke(new Action(() =>
+            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, new Action(() =>
             {
                 UpdatePageInfo();
 
@@ -357,7 +357,7 @@ namespace Ink_Canvas
                 {
                     redoBtn.IsEnabled = CanRedo;
                 }
-            }), System.Windows.Threading.DispatcherPriority.Loaded);
+            }));
         }
 
         private void BindPageInfoClickHandler()

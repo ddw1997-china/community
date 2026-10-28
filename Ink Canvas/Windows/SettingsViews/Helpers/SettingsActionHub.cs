@@ -98,7 +98,7 @@ namespace Ink_Canvas.Windows.SettingsViews.Helpers
             if (mw != null)
             {
                 mw._isReloadingForLanguageChange = true;
-                Application.Current.Dispatcher.BeginInvoke(new Action(() =>
+                Application.Current.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle, new Action(() =>
                 {
                     try
                     {
@@ -117,7 +117,7 @@ namespace Ink_Canvas.Windows.SettingsViews.Helpers
                         System.Diagnostics.Debug.WriteLine($"重建主窗口以应用语言时出错: {ex.Message}");
                         mw._isReloadingForLanguageChange = false;
                     }
-                }), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                }));
             }
         }
 

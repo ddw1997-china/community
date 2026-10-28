@@ -156,7 +156,7 @@ namespace Ink_Canvas.Windows.SettingsViews
                 SetMaxSizeAndCenter();
                 RegisterDpiChangedListener();
 
-                Dispatcher.BeginInvoke(new Action(() =>
+                Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Normal, new Action(() =>
                 {
                     if (!SuppressInitialNavigation)
                     {
@@ -165,13 +165,13 @@ namespace Ink_Canvas.Windows.SettingsViews
                         NavigationViewControl.Header = NavStrings.Nav_Home;
                     }
 
-                    Dispatcher.BeginInvoke(new Action(() =>
+                    Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle, new Action(() =>
                     {
                         LoadPluginSettingsPages();
                         // 绑定设置窗口中的 ToggleSwitch 本地化文本
                         Ink_Canvas.Helpers.LocalizationHelper.BindToggleSwitchesInWindow(this);
-                    }), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
-                }), System.Windows.Threading.DispatcherPriority.Normal);
+                    }));
+                }));
 
                 _ = PreloadAllPagesAsync();
             };
@@ -539,18 +539,18 @@ namespace Ink_Canvas.Windows.SettingsViews
             void TriggerHighlight()
             {
                 // 第一段延迟：等模板/子元素生成完
-                Dispatcher.BeginInvoke(new Action(() =>
+                Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle, new Action(() =>
                 {
                     // 第二段延迟：等渲染稳定
-                    Dispatcher.BeginInvoke(new Action(() =>
+                    Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle, new Action(() =>
                     {
                         // 第三段延迟：再让出一帧，保证滚动条 BringIntoView 已生效
-                        Dispatcher.BeginInvoke(new Action(() =>
+                        Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
                         {
                             HighlightSetting(pendingKey);
-                        }), DispatcherPriority.Background);
-                    }), DispatcherPriority.ContextIdle);
-                }), DispatcherPriority.ContextIdle);
+                        }));
+                    }));
+                }));
             }
 
             void OnPageLoaded(object s, RoutedEventArgs e)
@@ -816,10 +816,10 @@ namespace Ink_Canvas.Windows.SettingsViews
 
             if (entry.Target != null && entry.Target.TryGetTarget(out var fe))
             {
-                Dispatcher.BeginInvoke(new Action(() =>
+                Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, new Action(() =>
                 {
                     try { fe.BringIntoView(); } catch { }
-                }), System.Windows.Threading.DispatcherPriority.Background);
+                }));
             }
         }
 
@@ -937,9 +937,7 @@ namespace Ink_Canvas.Windows.SettingsViews
 
         private void PluginManager_PluginsChanged(object sender, Ink_Canvas.Plugins.PluginInfo e)
         {
-            Dispatcher.BeginInvoke(
-                new Action(LoadPluginSettingsPages),
-                System.Windows.Threading.DispatcherPriority.Background);
+            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, new Action(LoadPluginSettingsPages));
         }
         #endregion
 
@@ -1048,7 +1046,7 @@ namespace Ink_Canvas.Windows.SettingsViews
         {
             try { target.BringIntoView(); } catch { }
 
-            Dispatcher.BeginInvoke(new Action(() =>
+            Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
             {
                 try
                 {
@@ -1090,7 +1088,7 @@ namespace Ink_Canvas.Windows.SettingsViews
                     timer.Start();
                 }
                 catch { }
-            }), DispatcherPriority.Background);
+            }));
         }
 
         /// <summary>

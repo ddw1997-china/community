@@ -96,7 +96,7 @@ namespace Ink_Canvas
                     // 等待图片加载完成后再进行后续处理
                     element.Loaded += (s, args) =>
                     {
-                        Dispatcher.BeginInvoke(new Action(() =>
+                        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
                         {
                             // 初始化TransformGroup
                             InitializeElementTransform(element);
@@ -112,7 +112,7 @@ namespace Ink_Canvas
                             SyncPdfPageSidebarWithCanvas();
 
                             LogHelper.WriteLogToFile($"图片插入完成: {element.Name}");
-                        }), DispatcherPriority.Loaded);
+                        }));
                     };
 
                     timeMachine.CommitElementInsertHistory(element);
@@ -1818,10 +1818,10 @@ namespace Ink_Canvas
                     loadedHandler = (sender, e) =>
                     {
                         element.Loaded -= loadedHandler;  // 一次性订阅，解除后释放 lambda 闭包
-                        Dispatcher.BeginInvoke(new Action(() =>
+                        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
                         {
                             CenterAndScaleElement(element);
-                        }), DispatcherPriority.Loaded);
+                        }));
                     };
                     element.Loaded += loadedHandler;
                     return;
@@ -2011,7 +2011,7 @@ namespace Ink_Canvas
         {
             if (_pdfSidebarPositionRefreshPending) return;
             _pdfSidebarPositionRefreshPending = true;
-            Dispatcher.BeginInvoke(new Action(() =>
+            Dispatcher.BeginInvoke(DispatcherPriority.Render, new Action(() =>
             {
                 _pdfSidebarPositionRefreshPending = false;
                 try
@@ -2037,7 +2037,7 @@ namespace Ink_Canvas
                 {
                     LogHelper.WriteLogToFile($"PDF 侧栏延迟定位失败: {ex.Message}", LogHelper.LogType.Warning);
                 }
-            }), DispatcherPriority.Render);
+            }));
         }
 
         /// <summary>
@@ -2072,12 +2072,12 @@ namespace Ink_Canvas
             inkCanvas.UpdateLayout();
             UpdatePdfPageSidebarPosition(pdf);
             RequestPdfSidebarPositionRefresh();
-            Dispatcher.BeginInvoke(new Action(() =>
+            Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle, new Action(() =>
             {
                 var t = GetPdfSidebarTargetElement();
                 if (t != null && BorderPdfPageSidebar?.Visibility == Visibility.Visible && inkCanvas.Children.Contains(t))
                     UpdatePdfPageSidebarPosition(t);
-            }), DispatcherPriority.ContextIdle);
+            }));
         }
 
         /// <summary>
@@ -2105,12 +2105,12 @@ namespace Ink_Canvas
                 Rect b = GetElementActualBounds(pdfEl);
                 if (b.Width <= 0 || b.Height <= 0 || double.IsNaN(b.Width) || double.IsNaN(b.Height))
                 {
-                    Dispatcher.BeginInvoke(new Action(() =>
+                    Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
                     {
                         var t = GetPdfSidebarTargetElement();
                         if (t is PdfEmbeddedView pe && inkCanvas.Children.Contains(pe) && BorderPdfPageSidebar?.Visibility == Visibility.Visible)
                             UpdatePdfPageSidebarPosition(pe);
-                    }), DispatcherPriority.Loaded);
+                    }));
                     return;
                 }
 
@@ -2559,7 +2559,7 @@ namespace Ink_Canvas
 
         private void SelectedPdf_PageNavigationStateChanged(object sender, EventArgs e)
         {
-            Dispatcher.BeginInvoke(new Action(() =>
+            Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
             {
                 if (sender is PdfEmbeddedView pdf)
                 {
@@ -2579,7 +2579,7 @@ namespace Ink_Canvas
                     if (ImageSelectionOverlay?.Visibility == Visibility.Visible)
                         UpdateImageResizeHandlesPosition(GetElementActualBounds(currentSelectedElement));
                 }
-            }), DispatcherPriority.Loaded);
+            }));
         }
 
         private async void BorderPdfSidebarPagePrev_MouseUp(object sender, MouseButtonEventArgs e)

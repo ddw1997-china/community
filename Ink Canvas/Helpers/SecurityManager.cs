@@ -203,11 +203,11 @@ namespace Ink_Canvas.Helpers
             {
                 dialog.Opened += (s, e) =>
                 {
-                    passwordBox.Dispatcher.BeginInvoke(new Action(() =>
+                    passwordBox.Dispatcher.BeginInvoke(DispatcherPriority.Input, new Action(() =>
                     {
                         passwordBox.Focus();
                         Keyboard.Focus(passwordBox);
-                    }), DispatcherPriority.Input);
+                    }));
                 };
 
                 var result = await dialog.ShowAsync();
@@ -335,11 +335,11 @@ namespace Ink_Canvas.Helpers
             {
                 dialog.Opened += (s, e) =>
                 {
-                    inputBox.Dispatcher.BeginInvoke(new Action(() =>
+                    inputBox.Dispatcher.BeginInvoke(DispatcherPriority.Input, new Action(() =>
                     {
                         inputBox.Focus();
                         Keyboard.Focus(inputBox);
-                    }), DispatcherPriority.Input);
+                    }));
                 };
 
                 var result = await dialog.ShowAsync();
@@ -417,11 +417,11 @@ namespace Ink_Canvas.Helpers
             {
                 dialog.Opened += (s, e) =>
                 {
-                    newPwdBox.Dispatcher.BeginInvoke(new Action(() =>
+                    newPwdBox.Dispatcher.BeginInvoke(DispatcherPriority.Input, new Action(() =>
                     {
                         newPwdBox.Focus();
                         Keyboard.Focus(newPwdBox);
-                    }), DispatcherPriority.Input);
+                    }));
                 };
 
                 var result = await dialog.ShowAsync();
@@ -510,11 +510,11 @@ namespace Ink_Canvas.Helpers
             {
                 dialog.Opened += (s, e) =>
                 {
-                    currentBox.Dispatcher.BeginInvoke(new Action(() =>
+                    currentBox.Dispatcher.BeginInvoke(DispatcherPriority.Input, new Action(() =>
                     {
                         currentBox.Focus();
                         Keyboard.Focus(currentBox);
-                    }), DispatcherPriority.Input);
+                    }));
                 };
 
                 var result = await dialog.ShowAsync();

@@ -94,7 +94,7 @@ namespace Ink_Canvas.Helpers
                 fe.Unloaded += Element_OnUnloaded;
                 TryHookContentChanged(fe, true);
 
-                fe.Dispatcher.BeginInvoke(new Action(() => TryAdjust(fe)), DispatcherPriority.Loaded);
+                fe.Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() => TryAdjust(fe)));
             }
             else
             {
@@ -109,7 +109,7 @@ namespace Ink_Canvas.Helpers
         {
             if (d is FrameworkElement fe && GetIsEnabled(fe))
             {
-                fe.Dispatcher.BeginInvoke(new Action(() => TryAdjust(fe)), DispatcherPriority.Loaded);
+                fe.Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() => TryAdjust(fe)));
             }
         }
 
@@ -117,7 +117,7 @@ namespace Ink_Canvas.Helpers
         {
             if (sender is FrameworkElement fe)
             {
-                fe.Dispatcher.BeginInvoke(new Action(() => TryAdjust(fe)), DispatcherPriority.Loaded);
+                fe.Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() => TryAdjust(fe)));
             }
         }
 
@@ -135,7 +135,7 @@ namespace Ink_Canvas.Helpers
         {
             if (sender is FrameworkElement fe)
             {
-                fe.Dispatcher.BeginInvoke(new Action(() => TryAdjust(fe)), DispatcherPriority.Loaded);
+                fe.Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() => TryAdjust(fe)));
             }
         }
 

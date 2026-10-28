@@ -542,21 +542,18 @@ namespace Ink_Canvas.Windows.SettingsViews.Pages
 
             if (result == MessageBoxResult.Yes)
             {
-                try
+                // 顺序重启：直接 Process.Start 会在旧实例仍持有单实例互斥体时被新实例拦下，
+                // 新实例秒退 + 旧实例关闭 = 程序彻底消失；必须等旧实例退出后再启动。
+                if (!AppRestartHelper.BeginSequentialRestart(false))
                 {
-                    App.IsAppExitByUser = true;
-                    var exePath = Process.GetCurrentProcess().MainModule.FileName;
-                    Process.Start(exePath);
-                    Application.Current.Shutdown();
-                }
-                catch (Exception ex)
-                {
-                    App.IsAppExitByUser = false;
                     MessageBoxHelper.Show(this,
-                        string.Format(PluginStrings.Market_RestartFailed, ex.Message),
+                        string.Format(PluginStrings.Market_RestartFailed, "无法启动重启进程"),
                         PluginStrings.Market_RestartTitle,
                         MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
                 }
+
+                Application.Current.Shutdown();
             }
         }
 

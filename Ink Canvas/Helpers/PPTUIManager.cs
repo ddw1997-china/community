@@ -105,7 +105,7 @@ namespace Ink_Canvas.Helpers
                         {
                             // 设置为画板模式，允许全屏操作
                             AvoidFullScreenHelper.SetBoardMode(true);
-                            _dispatcher.BeginInvoke(new Action(() =>
+                            _dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(() =>
                             {
                                 MainWindow.MoveWindow(new WindowInteropHelper(_mainWindow).Handle, 0, 0,
                                     System.Windows.Forms.Screen.PrimaryScreen.Bounds.Width,
@@ -115,7 +115,7 @@ namespace Ink_Canvas.Helpers
                                 // 在窗口尺寸最终确定后重新评估一次翻页面板的可见性。
                                 UpdateNavigationPanelsVisibility();
                                 UpdateNavigationButtonStyles();
-                            }), DispatcherPriority.ApplicationIdle);
+                            }));
 
                             _mainWindow.isFullScreenApplied = true; // 标记已应用全屏处理
                         }
@@ -134,14 +134,14 @@ namespace Ink_Canvas.Helpers
                             // 恢复为非画板模式，重新启用全屏限制
                             AvoidFullScreenHelper.SetBoardMode(false);
 
-                            _dispatcher.BeginInvoke(new Action(() =>
+                            _dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(() =>
                             {
                                 // 退出PPT放映模式，恢复到工作区域大小
                                 var workingArea = System.Windows.Forms.Screen.PrimaryScreen.WorkingArea;
                                 MainWindow.MoveWindow(new WindowInteropHelper(_mainWindow).Handle,
                                     workingArea.X, workingArea.Y,
                                     workingArea.Width, workingArea.Height, true);
-                            }), DispatcherPriority.ApplicationIdle);
+                            }));
 
                             _mainWindow.isFullScreenApplied = false; // 标记全屏处理已还原
                         }

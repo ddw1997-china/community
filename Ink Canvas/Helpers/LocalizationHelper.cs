@@ -54,10 +54,10 @@ namespace Ink_Canvas.Helpers
                 PatchModernStrings(onText, offText);
 
                 // 延迟更新所有已加载的 ToggleSwitch
-                System.Windows.Application.Current?.Dispatcher.BeginInvoke(new Action(() =>
+                System.Windows.Application.Current?.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, new Action(() =>
                 {
                     UpdateAllToggleSwitches(onText, offText);
-                }), System.Windows.Threading.DispatcherPriority.Loaded);
+                }));
             }
             catch { }
         }

@@ -339,7 +339,7 @@ namespace Ink_Canvas.Helpers
                 _cachedIsConnected = true;
 
                 // 在主线程中注册事件，确保COM对象在正确的线程中
-                Application.Current?.Dispatcher?.BeginInvoke(new Action(() =>
+                Application.Current?.Dispatcher?.BeginInvoke(DispatcherPriority.Normal, new Action(() =>
                 {
                     try
                     {
@@ -355,7 +355,7 @@ namespace Ink_Canvas.Helpers
                     {
                         LogHelper.WriteLogToFile($"PPT事件注册失败: {ex}", LogHelper.LogType.Error);
                     }
-                }), DispatcherPriority.Normal);
+                }));
 
                 // 获取当前演示文稿信息
                 UpdateCurrentPresentationInfo();
@@ -407,7 +407,7 @@ namespace Ink_Canvas.Helpers
                     {
                         try
                         {
-                            Application.Current?.Dispatcher?.BeginInvoke(new Action(() =>
+                            Application.Current?.Dispatcher?.BeginInvoke(DispatcherPriority.Normal, new Action(() =>
                             {
                                 try
                                 {
@@ -441,7 +441,7 @@ namespace Ink_Canvas.Helpers
                                 {
                                     LogHelper.WriteLogToFile($"取消PPT事件注册时发生异常: {ex}", LogHelper.LogType.Warning);
                                 }
-                            }), DispatcherPriority.Normal);
+                            }));
                         }
                         catch (Exception ex)
                         {

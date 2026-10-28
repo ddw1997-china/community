@@ -263,7 +263,7 @@ namespace Ink_Canvas
 
                 element.Loaded += (s, args) =>
                 {
-                    Dispatcher.BeginInvoke(new Action(() =>
+                    Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
                     {
                         // 初始化 TransformGroup（滚轮缩放/旋转/拖动依赖）
                         InitializeElementTransform(element);
@@ -280,7 +280,7 @@ namespace Ink_Canvas
 
                         // 最后绑定事件处理器（拖动/缩放/旋转/触摸）
                         BindElementEvents(element);
-                    }), DispatcherPriority.Loaded);
+                    }));
                 };
 
                 timeMachine.CommitElementInsertHistory(element);

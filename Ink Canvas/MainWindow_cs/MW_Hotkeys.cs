@@ -213,7 +213,7 @@ namespace Ink_Canvas
             finally
             {
                 // 3) 恢复扩展样式（延迟一两帧，确保系统已完成滚轮派发）
-                Dispatcher.BeginInvoke(new Action(() =>
+                Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, new Action(() =>
                 {
                     try
                     {
@@ -230,7 +230,7 @@ namespace Ink_Canvas
                     {
                         _wheelPassthroughInProgress = false;
                     }
-                }), System.Windows.Threading.DispatcherPriority.Background);
+                }));
             }
         }
 

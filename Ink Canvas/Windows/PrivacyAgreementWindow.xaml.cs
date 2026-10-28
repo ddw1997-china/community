@@ -30,13 +30,13 @@ namespace Ink_Canvas
             {
                 Topmost = true;
 
-                Dispatcher.BeginInvoke(new Action(() =>
+                Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
                 {
                     Activate();
                     Focus();
                     Topmost = true;
                     PInvoke.SetForegroundWindow(new HWND(new WindowInteropHelper(this).Handle));
-                }), DispatcherPriority.Loaded);
+                }));
 
                 string privacyText = null;
 

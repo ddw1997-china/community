@@ -719,13 +719,16 @@ namespace Ink_Canvas.Windows.SettingsViews.Pages
             {
                 try
                 {
-                    App.IsAppExitByUser = true;
-                    Process.Start(Process.GetCurrentProcess().MainModule.FileName);
+                    // 顺序重启：旧实例退出后再启动新实例，避免被单实例互斥体拦下后秒退
+                    if (!AppRestartHelper.BeginSequentialRestart(false))
+                    {
+                        throw new InvalidOperationException("无法启动重启进程");
+                    }
+
                     Application.Current.Shutdown();
                 }
                 catch (Exception ex)
                 {
-                    App.IsAppExitByUser = false;
                     MessageBoxHelper.Show(this,
                         string.Format(PluginStrings.Market_RestartFailed, ex.Message),
                         PluginStrings.Market_RestartTitle, MessageBoxButton.OK, MessageBoxImage.Error);

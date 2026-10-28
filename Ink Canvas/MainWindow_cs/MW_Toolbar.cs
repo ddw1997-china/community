@@ -467,15 +467,14 @@ namespace Ink_Canvas
                 ApplyCompactFloatingBarMode(Settings.Appearance.CompactFloatingBar);
                 ApplyHideFloatingBarBorder(Settings.Appearance.HideFloatingBarBorder);
                 ApplyFloatingBarBorderColor();
-                Dispatcher.BeginInvoke(new Action(() =>
+                Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, new Action(() =>
                 {
                     UpdateQuickColorPaletteIndicator(inkCanvas.DefaultDrawingAttributes.Color);
-                }), System.Windows.Threading.DispatcherPriority.Loaded);
+                }));
 
                 // 布局完成后再按「显示比例 + 屏幕可用空间」统一校准一次所有工具栏的缩放
                 // （启动早期控件还没测量出尺寸且窗口可能尚未连接到呈现源，此处补齐）
-                Dispatcher.BeginInvoke(new Action(() => ApplyAllToolbarDisplayScale()),
-                    System.Windows.Threading.DispatcherPriority.Loaded);
+                Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, new Action(() => ApplyAllToolbarDisplayScale()));
                 LogHelper.WriteLogToFile("MW_Toolbar: RebuildToolbar 完成", LogHelper.LogType.Info);
             }
             catch (Exception ex)
@@ -558,8 +557,11 @@ namespace Ink_Canvas
 
         #region 显示比例（DPI）自适应缩放
 
-        /// <summary>显示比例补偿的下限，避免超高显示比例下工具栏被缩得无法点击。</summary>
-        private const double MinToolbarDisplayFitFactor = 0.5;
+        /// <summary>工具栏的“设计宽度”（DIP）。可用宽度达到它时按 1.0 原尺寸显示。</summary>
+        private const double ToolbarDesignWidth = 1920.0;
+
+        /// <summary>工具栏缩放下限，避免小屏/超高缩放下缩得无法点击。</summary>
+        private const double MinToolbarDisplayFitFactor = 0.667;
 
         /// <summary>
         /// 当前主窗口所在显示器的系统显示比例（1.0 = 100%，1.5 = 150%）。
@@ -584,18 +586,41 @@ namespace Ink_Canvas
         }
 
         /// <summary>
-        /// 按系统显示比例计算工具栏缩放补偿系数：100% → 1.0、125% → 0.8、150% → 0.667、200% → 0.5。
-        /// WPF 以 DIP 布局，显示比例调高后屏幕可用的 DIP 空间按比例变小，而工具栏仍按固定 DIP 尺寸绘制，
-        /// 于是 150% 等比例下底部/两侧工具栏会互相覆盖。这里按 1/比例 反向补偿，
-        /// 让工具栏占用的屏幕比例（以及物理尺寸）与 100% 时一致，从根源上消除重叠。
+        /// 计算工具栏缩放系数（按「可用宽度」而不是按显示比例）：
+        /// <list type="bullet">
+        /// <item>可用宽度 ≥ 1920 DIP（游戏本 1080p@100%、2K@125%、4K@200% 等）→ 1.0，完全不缩；</item>
+        /// <item>可用宽度不足 1920 DIP 时按比例缩小：1080p@150% = 1280 DIP → 0.667，
+        ///       1080p@125% = 1536 DIP → 0.8，1366@100% = 1366 DIP → 0.71；</item>
+        /// <item>下限 0.667，避免小屏 + 高缩放下按钮小到点不中。</item>
+        /// </list>
+        /// WPF 以 DIP 布局，工具栏是固定 DIP 尺寸，真正决定会不会挤在一起的是「可用 DIP 宽度」，
+        /// 而不是显示比例本身——4K@200% 和 1080p@100% 的可用宽度都是 1920 DIP，都不需要缩。
         /// </summary>
         internal double GetToolbarDisplayFitFactor(double? dpiScaleOverride = null)
         {
-            var dpiScale = GetDisplayDpiScale(dpiScaleOverride);
-            if (dpiScale <= 1.0) return 1.0;
+            var available = GetToolbarAvailableWidth();
+            if (available <= 0) return 1.0;
 
-            var factor = 1.0 / dpiScale;
-            return factor < MinToolbarDisplayFitFactor ? MinToolbarDisplayFitFactor : factor;
+            var factor = available / ToolbarDesignWidth;
+            if (factor >= 1.0) return 1.0;
+            if (factor < MinToolbarDisplayFitFactor) factor = MinToolbarDisplayFitFactor;
+
+            return factor;
+        }
+
+        /// <summary>当前可用的 DIP 宽度（优先用画布宽度，取不到时退回窗口宽度）</summary>
+        private double GetToolbarAvailableWidth()
+        {
+            try
+            {
+                if (inkCanvas != null && inkCanvas.ActualWidth > 0) return inkCanvas.ActualWidth;
+                if (ActualWidth > 0) return ActualWidth;
+            }
+            catch
+            {
+            }
+
+            return 0;
         }
 
         /// <summary>
@@ -634,6 +659,9 @@ namespace Ink_Canvas
 
         /// <summary>上一次记录的显示比例缩放系数，仅用于避免重复写日志。</summary>
         private double _lastLoggedToolbarDisplayFactor = -1;
+
+        /// <summary>上一次应用工具栏缩放时的窗口宽度（DIP），用于多显示器/改分辨率后判断是否需要重算</summary>
+        private double _lastToolbarScaleWidth = -1;
 
         /// <summary>
         /// 按当前显示比例统一刷新所有工具栏（浮动工具栏、白板三栏、PPT 翻页栏）的缩放。
@@ -800,8 +828,7 @@ namespace Ink_Canvas
 
             // 条目显隐会改变工具栏整体宽度，布局完成后按屏幕可用空间重新校准缩放
             // （缩放无变化时内部会直接返回，不会重复触发定位动画）
-            Dispatcher.BeginInvoke(new Action(ApplyEffectiveFloatingBarScale),
-                System.Windows.Threading.DispatcherPriority.Loaded);
+            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, new Action(ApplyEffectiveFloatingBarScale));
         }
 
         private void UpdateToolbarDimensions(Orientation orientation)

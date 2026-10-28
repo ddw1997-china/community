@@ -110,7 +110,7 @@ namespace Ink_Canvas.Helpers
             {
                 if (isPressed) return;
                 isPressed = true;
-                _dispatcher.BeginInvoke(action, DispatcherPriority.Input);
+                _dispatcher.BeginInvoke(DispatcherPriority.Input, action);
             }
             else if (isKeyUp)
             {

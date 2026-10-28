@@ -78,7 +78,7 @@ namespace Ink_Canvas
                     OnSourceInitializedForClipboard(this, EventArgs.Empty);
                 else
                     SourceInitialized += OnSourceInitializedForClipboard;
-                Dispatcher.BeginInvoke(new Action(EnsureClipboardHookInstalled), DispatcherPriority.Loaded);
+                Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(EnsureClipboardHookInstalled));
             }
             catch (Exception ex)
             {
@@ -140,7 +140,7 @@ namespace Ink_Canvas
         {
             if (msg == WM_CLIPBOARDUPDATE)
             {
-                Dispatcher.BeginInvoke(new Action(() => ClipboardNotification.NotifyFromMessage()), DispatcherPriority.Background);
+                Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() => ClipboardNotification.NotifyFromMessage()));
                 handled = true;
             }
             return IntPtr.Zero;
@@ -289,7 +289,7 @@ namespace Ink_Canvas
                 {
                     image.Loaded -= loadedHandler;  // 一次性订阅，解除后释放 lambda 闭包
                     // 确保在UI线程中执行
-                    Dispatcher.BeginInvoke(new Action(() =>
+                    Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
                     {
                         // 先进行缩放居中处理
                         CenterAndScaleElement(image);
@@ -321,7 +321,7 @@ namespace Ink_Canvas
                             // 设置光标
                             elementForEvents.Cursor = Cursors.Hand;
                         }
-                    }), DispatcherPriority.Loaded);
+                    }));
                 };
                 image.Loaded += loadedHandler;
 

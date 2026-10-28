@@ -452,8 +452,7 @@ namespace Ink_Canvas.Windows
             }
             finally
             {
-                Dispatcher.BeginInvoke(new Action(() => _privacyDialogShown = false),
-                    System.Windows.Threading.DispatcherPriority.Background);
+                Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, new Action(() => _privacyDialogShown = false));
             }
         }
 

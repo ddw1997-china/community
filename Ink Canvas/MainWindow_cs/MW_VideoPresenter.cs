@@ -249,10 +249,10 @@ namespace Ink_Canvas
             // 会把文本设回 "CurrentWhiteboardIndex/WhiteboardTotalCount"。
             // 这里用 DispatcherPriority.Background 确保在 UpdatePageInfo 之后执行，
             // 最终页码文本一定是虚拟分页格式（0/0、0/1、1/1）。
-            Dispatcher.BeginInvoke(new Action(() =>
+            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, new Action(() =>
             {
                 ApplyBoothPageText(text);
-            }), System.Windows.Threading.DispatcherPriority.Background);
+            }));
         }
 
         /// <summary>把虚拟分页文本应用到所有页码 TextBlock（TextBlockWhiteBoardIndexInfo + board.pageInfo.*）。</summary>
@@ -296,10 +296,10 @@ namespace Ink_Canvas
 
             // 异步再覆盖一次：UpdateBoardToolbarState() 内部异步调 UpdatePageInfo() 会重置按钮 IsEnabled，
             // 这里用 DispatcherPriority.Background 确保在它之后执行
-            Dispatcher.BeginInvoke(new Action(() =>
+            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, new Action(() =>
             {
                 ApplyBoothPagingButtonsState(prevEnabled, nextEnabled);
-            }), System.Windows.Threading.DispatcherPriority.Background);
+            }));
         }
 
         private void ApplyBoothPagingButtonsState(bool prevEnabled, bool nextEnabled)

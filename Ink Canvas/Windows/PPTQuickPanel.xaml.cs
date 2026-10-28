@@ -153,10 +153,10 @@ namespace Ink_Canvas.Windows
 
             SubscribeToPPTEvents();
             SubscribeToInkCanvasChildrenChanges();
-            Dispatcher.BeginInvoke(new Action(() =>
+            Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
             {
                 UpdateVolumeDisplay();
-            }), DispatcherPriority.Loaded);
+            }));
         }
 
         private void SubscribeToInkCanvasChildrenChanges()
@@ -329,7 +329,7 @@ namespace Ink_Canvas.Windows
 
         private void OnPPTPresentationOpen(object presentation)
         {
-            Application.Current.Dispatcher.BeginInvoke(new Action(() =>
+            Application.Current.Dispatcher.BeginInvoke(DispatcherPriority.Normal, new Action(() =>
             {
                 try
                 {
@@ -340,12 +340,12 @@ namespace Ink_Canvas.Windows
                 {
                     LogHelper.WriteLogToFile($"处理PPT打开事件失败: {ex.Message}", LogHelper.LogType.Error);
                 }
-            }), DispatcherPriority.Normal);
+            }));
         }
 
         private void OnPPTSlideShowBegin(object window)
         {
-            Application.Current.Dispatcher.BeginInvoke(new Action(async () =>
+            Application.Current.Dispatcher.BeginInvoke(DispatcherPriority.Normal, new Action(async () =>
             {
                 try
                 {
@@ -383,12 +383,12 @@ namespace Ink_Canvas.Windows
                 {
                     LogHelper.WriteLogToFile($"处理PPT开始事件失败: {ex.Message}", LogHelper.LogType.Error);
                 }
-            }), DispatcherPriority.Normal);
+            }));
         }
 
         private void OnPPTSlideChanged(object window)
         {
-            Application.Current.Dispatcher.BeginInvoke(new Action(async () =>
+            Application.Current.Dispatcher.BeginInvoke(DispatcherPriority.Normal, new Action(async () =>
             {
                 try
                 {
@@ -434,12 +434,12 @@ namespace Ink_Canvas.Windows
                 {
                     LogHelper.WriteLogToFile($"处理PPT翻页事件失败: {ex.Message}", LogHelper.LogType.Error);
                 }
-            }), DispatcherPriority.Normal);
+            }));
         }
 
         private void OnPPTSlideShowEnd(object presentation)
         {
-            Application.Current.Dispatcher.BeginInvoke(new Action(() =>
+            Application.Current.Dispatcher.BeginInvoke(DispatcherPriority.Normal, new Action(() =>
             {
                 try
                 {
@@ -450,7 +450,7 @@ namespace Ink_Canvas.Windows
                 {
                     LogHelper.WriteLogToFile($"处理PPT结束事件失败: {ex.Message}", LogHelper.LogType.Error);
                 }
-            }), DispatcherPriority.Normal);
+            }));
         }
 
         private void UpdatePPTImagesVisibility(int currentSlide)
@@ -526,10 +526,10 @@ namespace Ink_Canvas.Windows
 
         private void SystemEvents_UserPreferenceChanged(object sender, UserPreferenceChangedEventArgs e)
         {
-            Application.Current.Dispatcher.BeginInvoke(new Action(() =>
+            Application.Current.Dispatcher.BeginInvoke(DispatcherPriority.Normal, new Action(() =>
             {
                 ApplyTheme();
-            }), DispatcherPriority.Normal);
+            }));
         }
 
         #region 音频控制
@@ -1317,7 +1317,7 @@ namespace Ink_Canvas.Windows
                     // 等待图片加载完成后再进行后续处理
                     element.Loaded += (s, args) =>
                     {
-                        Application.Current.Dispatcher.BeginInvoke(new Action(() =>
+                        Application.Current.Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
                         {
                             try
                             {
@@ -1342,7 +1342,7 @@ namespace Ink_Canvas.Windows
                             {
                                 LogHelper.WriteLogToFile($"图片加载后处理失败: {ex.Message}", LogHelper.LogType.Error);
                             }
-                        }), DispatcherPriority.Loaded);
+                        }));
                     };
 
                     // 提交历史记录

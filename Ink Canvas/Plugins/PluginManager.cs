@@ -1992,8 +1992,7 @@ namespace Ink_Canvas.Plugins
             {
                 if (Application.Current?.MainWindow is MainWindow mw)
                 {
-                    mw.Dispatcher.BeginInvoke(new Action(mw.RebuildBoardToolbar),
-                        System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                    mw.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle, new Action(mw.RebuildBoardToolbar));
                 }
             }
             catch (Exception ex)
@@ -2066,8 +2065,7 @@ namespace Ink_Canvas.Plugins
                 }
                 else if (Application.Current?.MainWindow is MainWindow mw)
                 {
-                    mw.Dispatcher.BeginInvoke(new Action(mw.RebuildBoardToolbar),
-                        System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                    mw.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle, new Action(mw.RebuildBoardToolbar));
                 }
             }
             else

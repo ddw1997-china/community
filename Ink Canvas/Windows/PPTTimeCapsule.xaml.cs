@@ -149,11 +149,11 @@ namespace Ink_Canvas.Windows
 
             try
             {
-                dispatcher.BeginInvoke(new Action(() =>
+                dispatcher.BeginInvoke(DispatcherPriority.Normal, new Action(() =>
                 {
                     if (isDisposed) return;
                     UpdateTimeDisplay();
-                }), DispatcherPriority.Normal);
+                }));
             }
             catch { }
         }
@@ -167,12 +167,12 @@ namespace Ink_Canvas.Windows
 
             try
             {
-                dispatcher.BeginInvoke(new Action(() =>
+                dispatcher.BeginInvoke(DispatcherPriority.Normal, new Action(() =>
                 {
                     if (isDisposed) return;
                     if (this.Visibility != Visibility.Visible) return;
                     UpdateCountdownDisplay();
-                }), DispatcherPriority.Normal);
+                }));
             }
             catch { }
         }
@@ -729,7 +729,7 @@ namespace Ink_Canvas.Windows
             // 确保在UI线程上执行
             if (!Dispatcher.CheckAccess())
             {
-                Dispatcher.BeginInvoke(new Action(() => OnTimerCompleted()), DispatcherPriority.Normal);
+                Dispatcher.BeginInvoke(DispatcherPriority.Normal, new Action(() => OnTimerCompleted()));
                 return;
             }
 
@@ -843,11 +843,11 @@ namespace Ink_Canvas.Windows
 
             try
             {
-                dispatcher.BeginInvoke(new Action(() =>
+                dispatcher.BeginInvoke(DispatcherPriority.Normal, new Action(() =>
                 {
                     if (isDisposed) return;
                     ApplyTheme();
-                }), DispatcherPriority.Normal);
+                }));
             }
             catch { }
         }

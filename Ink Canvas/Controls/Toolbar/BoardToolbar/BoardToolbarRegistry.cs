@@ -801,7 +801,7 @@ namespace Ink_Canvas.Controls.Toolbar.BoardToolbar
                             mw.CloseAllPopups();
                         }
                         AnimationsHelper.ShowPopupWithSlideAndFade(popup);
-                        popup.Dispatcher.BeginInvoke(new Action(() =>
+                        popup.Dispatcher.BeginInvoke(DispatcherPriority.Input, new Action(() =>
                         {
                             if (popup.Child is UIElement child)
                             {
@@ -809,7 +809,7 @@ namespace Ink_Canvas.Controls.Toolbar.BoardToolbar
                                 Keyboard.Focus(child);
                                 child.MoveFocus(new TraversalRequest(FocusNavigationDirection.First));
                             }
-                        }), DispatcherPriority.Input);
+                        }));
                     }
                     else
                     {

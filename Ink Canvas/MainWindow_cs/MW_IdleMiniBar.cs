@@ -87,11 +87,11 @@ namespace Ink_Canvas
             IdleMiniBar.Visibility = Visibility.Visible;
 
             // 布局完成后再定位（需要 ActualWidth/Height）
-            Dispatcher.BeginInvoke(new Action(() =>
+            Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
             {
                 IdleMiniBar.UpdateLayout();
                 PositionIdleMiniBar();
-            }), DispatcherPriority.Loaded);
+            }));
         }
 
         /// <summary>退出闲置迷你栏状态：隐藏迷你栏，恢复完整浮动栏。</summary>

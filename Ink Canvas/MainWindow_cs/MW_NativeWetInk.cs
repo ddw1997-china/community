@@ -501,12 +501,12 @@ namespace Ink_Canvas
                 {
                     _lastDispatcherProbeMs = nowMs;
                     var sw = System.Diagnostics.Stopwatch.StartNew();
-                    Dispatcher.BeginInvoke(new Action(() =>
+                    Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Send, new Action(() =>
                     {
                         sw.Stop();
                         Ink_Canvas.Ink.Native.NativeInkPerfProbe.RecordDispatcherDelay(
                             sw.Elapsed.TotalMilliseconds);
-                    }), System.Windows.Threading.DispatcherPriority.Send);
+                    }));
                 }
 
                 if (!ShouldAcceptPointerBatch(batch))
@@ -825,24 +825,24 @@ namespace Ink_Canvas
             if (Dispatcher.CheckAccess())
                 Apply();
             else
-                Dispatcher.BeginInvoke(Apply, DispatcherPriority.Send);
+                Dispatcher.BeginInvoke(DispatcherPriority.Send, new Action(Apply));
         }
 
         private void OnNativeWetInkDeviceLost()
         {
-            Dispatcher.BeginInvoke(new Action(() =>
+            Dispatcher.BeginInvoke(DispatcherPriority.Send, new Action(() =>
             {
                 DisableNativeWetInkAfterFailure(
                     new InvalidOperationException("Direct3D / DirectComposition device lost."));
-            }), DispatcherPriority.Send);
+            }));
         }
 
         private void OnNativeWetInkFatalError(Exception ex)
         {
-            Dispatcher.BeginInvoke(new Action(() =>
+            Dispatcher.BeginInvoke(DispatcherPriority.Send, new Action(() =>
             {
                 DisableNativeWetInkAfterFailure(ex);
-            }), DispatcherPriority.Send);
+            }));
         }
 
         private void DisableNativeWetInkAfterFailure(Exception ex)

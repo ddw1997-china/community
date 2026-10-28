@@ -528,14 +528,14 @@ namespace Ink_Canvas
                 if (Settings.Advanced.IsEnableAvoidFullScreenHelper)
                 {
                     AvoidFullScreenHelper.StartAvoidFullScreen(this);
-                    Dispatcher.BeginInvoke(new Action(() =>
+                    Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(() =>
                     {
                         if (isLoaded)
                         {
                             MoveWindow(new WindowInteropHelper(this).Handle, 0, 0,
                                 WinForms.Screen.PrimaryScreen.Bounds.Width, WinForms.Screen.PrimaryScreen.Bounds.Height, true);
                         }
-                    }), DispatcherPriority.ApplicationIdle);
+                    }));
                 }
                 if (Settings.Advanced.IsEnableEdgeGestureUtil)
                 {
@@ -609,18 +609,18 @@ namespace Ink_Canvas
 
             RefreshFloatingBarScreenFollowState();
 
-            Dispatcher.BeginInvoke(new Action(() =>
+            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle, new Action(() =>
             {
                 if (IsInPPTPresentationMode)
                     ViewboxFloatingBarMarginAnimation(60);
                 else
                     ViewboxFloatingBarMarginAnimation(100, true);
-            }), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+            }));
 
-            Dispatcher.BeginInvoke(new Action(() =>
+            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, new Action(() =>
             {
                 UpdateQuickColorPaletteIndicator(inkCanvas.DefaultDrawingAttributes.Color);
-            }), System.Windows.Threading.DispatcherPriority.Loaded);
+            }));
 
         }
 

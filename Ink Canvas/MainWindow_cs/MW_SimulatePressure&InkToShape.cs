@@ -436,7 +436,7 @@ namespace Ink_Canvas
                     LogHelper.WriteLogToFile("StrokeCollected: 墨迹渐隐管理器为空，无法添加墨迹", LogHelper.LogType.Error);
                 }
 
-                Dispatcher.BeginInvoke(new Action(() =>
+                Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
                 {
                     try
                     {
@@ -454,7 +454,7 @@ namespace Ink_Canvas
                     {
                         LogHelper.WriteLogToFile($"延迟移除墨迹时出错: {ex}", LogHelper.LogType.Error);
                     }
-                }), DispatcherPriority.Background);
+                }));
 
                 return;
             }
@@ -1014,7 +1014,7 @@ namespace Ink_Canvas
                         var strokeHw = strokeForHandwritingBeautify;
                         var wsTail = wasStraightened;
                         // ApplicationIdle：在更高优先级（布局/输入/本帧渲染）之后执行，减轻抬笔瞬间主线程“顶死”感。
-                        Dispatcher.BeginInvoke(new Action(async () =>
+                        Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(async () =>
                         {
                             try
                             {
@@ -1034,7 +1034,7 @@ namespace Ink_Canvas
                             {
                                 System.Diagnostics.Debug.WriteLine(ex);
                             }
-                        }), DispatcherPriority.ApplicationIdle);
+                        }));
                         return true;
                     }
 

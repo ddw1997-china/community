@@ -364,7 +364,7 @@ namespace Ink_Canvas
 
                     if (isPdf)
                     {
-                        Dispatcher.BeginInvoke(new Action(() => { _ = RestorePdfFromElementInfoAsync(info); }), DispatcherPriority.Loaded);
+                        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() => { _ = RestorePdfFromElementInfoAsync(info); }));
                     }
                     else if (isAudio || isVideo)
                     {

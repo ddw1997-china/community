@@ -137,8 +137,7 @@ namespace Ink_Canvas.Controls
 
             if (_isDragging)
             {
-                Dispatcher.BeginInvoke(new Action(() => { _isDragging = false; }),
-                    DispatcherPriority.Background);
+                Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() => { _isDragging = false; }));
             }
             else
             {

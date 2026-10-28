@@ -407,11 +407,11 @@ namespace Ink_Canvas
             existing.SecondaryButtonClick += secondaryHandler;
 
             // 下一帧聚焦
-            panel.Dispatcher.BeginInvoke(new Action(() =>
+            panel.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Input, new Action(() =>
             {
                 nameBox.Focus();
                 nameBox.SelectAll();
-            }), System.Windows.Threading.DispatcherPriority.Input);
+            }));
 
             return tcs.Task;
         }

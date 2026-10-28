@@ -1352,7 +1352,7 @@ namespace Ink_Canvas.Controls.Toolbar.FloatingToolbar
                             mw.CloseAllPopups();
                         }
                         AnimationsHelper.ShowPopupWithSlideAndFade(popup);
-                        popup.Dispatcher.BeginInvoke(new Action(() =>
+                        popup.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Input, new Action(() =>
                         {
                             if (popup.Child is UIElement child)
                             {
@@ -1360,7 +1360,7 @@ namespace Ink_Canvas.Controls.Toolbar.FloatingToolbar
                                 Keyboard.Focus(child);
                                 child.MoveFocus(new TraversalRequest(FocusNavigationDirection.First));
                             }
-                        }), System.Windows.Threading.DispatcherPriority.Input);
+                        }));
                     }
                 };
 

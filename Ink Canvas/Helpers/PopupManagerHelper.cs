@@ -107,12 +107,12 @@ namespace Ink_Canvas.Helpers
 
             FixPopupZOrder(popup);
 
-            Application.Current.Dispatcher.BeginInvoke(new Action(() =>
+            Application.Current.Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
             {
                 FixPopupZOrder(popup);
                 if (popup.Child is FrameworkElement child)
                     FixChildPopups(child);
-            }), DispatcherPriority.Loaded);
+            }));
         }
 
         private void OnPopupClosed(object sender, EventArgs e)
@@ -176,12 +176,12 @@ namespace Ink_Canvas.Helpers
 
             FixPopupZOrder(popup);
 
-            Application.Current.Dispatcher.BeginInvoke(new Action(() =>
+            Application.Current.Dispatcher.BeginInvoke(DispatcherPriority.Render, new Action(() =>
             {
                 FixPopupZOrder(popup);
                 if (popup.Child is FrameworkElement child)
                     FixChildPopups(child);
-            }), DispatcherPriority.Render);
+            }));
         }
 
         public void BringToFrontLight(Popup popup)

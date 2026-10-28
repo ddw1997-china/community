@@ -263,7 +263,7 @@ namespace Ink_Canvas.Windows.SettingsViews.Helpers
         {
             try
             {
-                Application.Current.Dispatcher.BeginInvoke(new Action(() =>
+                Application.Current.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, new Action(() =>
                 {
                     foreach (Window window in Application.Current.Windows)
                     {
@@ -273,7 +273,7 @@ namespace Ink_Canvas.Windows.SettingsViews.Helpers
                             break;
                         }
                     }
-                }), System.Windows.Threading.DispatcherPriority.Background);
+                }));
             }
             catch (Exception ex)
             {
@@ -353,10 +353,10 @@ namespace Ink_Canvas.Windows.SettingsViews.Helpers
 
                 if (isThemeRelated)
                 {
-                    Application.Current.Dispatcher.BeginInvoke(new Action(() =>
+                    Application.Current.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, new Action(() =>
                     {
                         NotifySettingsWindowThemeUpdate();
-                    }), System.Windows.Threading.DispatcherPriority.Background);
+                    }));
                 }
             }
             catch (Exception ex)

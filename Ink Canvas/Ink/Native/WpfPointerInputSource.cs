@@ -137,7 +137,7 @@ namespace Ink_Canvas.Ink.Native
             var capturedGeneration = generation;
             try
             {
-                _source.Dispatcher.BeginInvoke(new Action(() =>
+                _source.Dispatcher.BeginInvoke(DispatcherPriority.Input, new Action(() =>
                 {
                     if (_disposed)
                         return;
@@ -147,7 +147,7 @@ namespace Ink_Canvas.Ink.Native
                         DispatchCanceled(pointerId, inputKind);
                         _downGenerations.Remove(pointerId);
                     }
-                }), DispatcherPriority.Input);
+                }));
             }
             catch
             {

@@ -28,7 +28,7 @@ namespace Ink_Canvas
         {
             // 延迟到 Background 优先级：确保 HWND 已完全创建后再激活/置前，
             // 否则此时调用 Activate 可能抛 InvalidOperationException。
-            Dispatcher.BeginInvoke(new Action(() =>
+            Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
             {
                 try
                 {
@@ -48,7 +48,7 @@ namespace Ink_Canvas
                 {
                     LogHelper.WriteLogToFile($"渐近线确认窗口激活失败: {ex.Message}", LogHelper.LogType.Warning);
                 }
-            }), DispatcherPriority.Background);
+            }));
         }
 
         private void ButtonYes_Click(object sender, RoutedEventArgs e)

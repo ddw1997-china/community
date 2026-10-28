@@ -771,7 +771,7 @@ namespace Ink_Canvas
                     return;
                 }
 
-                Dispatcher.Invoke(() => DisposePPTManagers(isShutdown: true), DispatcherPriority.Send);
+                Dispatcher.Invoke(DispatcherPriority.Send, new Action(() => DisposePPTManagers(isShutdown: true)));
             }
             catch (TaskCanceledException ex)
             {
@@ -3443,7 +3443,7 @@ namespace Ink_Canvas
                 await Task.Delay(100);
                 await Application.Current.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.Background);
 
-                _ = Application.Current.Dispatcher.BeginInvoke(new Action(() =>
+                _ = Application.Current.Dispatcher.BeginInvoke(DispatcherPriority.Normal, new Action(() =>
                 {
                     try
                     {
@@ -3453,7 +3453,7 @@ namespace Ink_Canvas
                     {
                         LogHelper.WriteLogToFile($"结束放映时发生异常: {ex}", LogHelper.LogType.Error);
                     }
-                }), DispatcherPriority.Normal);
+                }));
 
                 await Task.Delay(150);
                 if (!isFloatingBarFolded)

@@ -535,12 +535,12 @@ namespace Ink_Canvas
                 {
                     image.Loaded -= loadedHandler;  // 一次性订阅，解除后释放 lambda 闭包
                     // 确保在UI线程中执行
-                    Dispatcher.BeginInvoke(new Action(() =>
+                    Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
                     {
                         CenterAndScaleScreenshot(image);
                         // 绑定事件处理器
                         BindScreenshotEvents(image);
-                    }), DispatcherPriority.Loaded);
+                    }));
                 };
                 image.Loaded += loadedHandler;
 
@@ -616,12 +616,12 @@ namespace Ink_Canvas
                 {
                     image.Loaded -= loadedHandler;  // 一次性订阅，解除后释放 lambda 闭包
                     // 确保在UI线程中执行
-                    Dispatcher.BeginInvoke(new Action(() =>
+                    Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
                     {
                         CenterAndScaleScreenshot(image);
                         // 绑定事件处理器
                         BindScreenshotEvents(image);
-                    }), DispatcherPriority.Loaded);
+                    }));
                 };
                 image.Loaded += loadedHandler;
 

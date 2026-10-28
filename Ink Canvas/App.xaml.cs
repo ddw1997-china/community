@@ -438,7 +438,7 @@ namespace Ink_Canvas
                 processDestroyHookCallback = OnWinEventMainWindowDestroyed;
 
                 // 等主窗口句柄可用后再开始监听
-                Dispatcher.BeginInvoke(new Action(BindMainWindowLifecycle), DispatcherPriority.ApplicationIdle);
+                Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(BindMainWindowLifecycle));
             }
             catch (Exception ex)
             {
@@ -1119,7 +1119,7 @@ namespace Ink_Canvas
                 // 强制刷新UI，确保启动画面显示。
                 // 注意：在 App 构造阶段同步调用 Dispatcher.Invoke 会让当前线程等待自身调度，
                 // 形成可见卡顿甚至死锁。此处直接返回，依靠 Splash 自身 Loaded 事件完成首帧渲染即可。
-                Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+                Dispatcher.CurrentDispatcher.Invoke(DispatcherPriority.ApplicationIdle, new Action(() => { }));
             }
 
             if (IsDefaultStartupMode)
@@ -1370,7 +1370,7 @@ namespace Ink_Canvas
             if (IsFastestStartupMode)
             {
                 _ = RunFastestStartupPostRenderTasksAsync(mainWindow);
-                _ = Dispatcher.BeginInvoke(new Action(() => _taskbar?.ForceCreate()), DispatcherPriority.ContextIdle);
+                _ = Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle, new Action(() => _taskbar?.ForceCreate()));
             }
             else if (IsDefaultStartupMode)
             {
@@ -1386,6 +1386,15 @@ namespace Ink_Canvas
                 WindowTopmostManager.Initialize(mainWindow, skipScan: true);
                 _ = Task.Run(() => Dispatcher.Invoke(() => _taskbar?.ForceCreate()));
             }
+
+            // 托盘图标存活守护：进程在运行却没有托盘图标是不可接受的状态，
+            // 这里开始周期性校验，图标丢失会重建，连续失败则主动退出。
+            StartTrayIconHealthMonitor();
+            _ = Task.Delay(3000).ContinueWith(_ => Dispatcher.Invoke(() =>
+            {
+                LogHelper.WriteLogToFile($"托盘图标 | 启动后图标状态: {(_taskbar?.IsCreated == true ? "已创建" : "未创建")}",
+                    _taskbar?.IsCreated == true ? LogHelper.LogType.Event : LogHelper.LogType.Warning);
+            }));
 
             // 处理启动时的URI参数
             string startupUriArg = e.Args.FirstOrDefault(a => a.StartsWith("icc:", StringComparison.OrdinalIgnoreCase));
@@ -2051,6 +2060,19 @@ namespace Ink_Canvas
                 }
                 catch (Exception innerEx) { System.Diagnostics.Debug.WriteLine(innerEx); }
             }
+
+            // 兜底强制退出：退出流程可能被非后台线程或原生调用卡住，
+            // 曾出现"托盘图标已消失、进程却一直留在任务管理器"的残留进程。
+            // 正常退出时进程会先结束，此计时器不会执行；只有卡住时才会在 4 秒后强制结束自身。
+            try
+            {
+                ThreadPool.QueueUserWorkItem(_ =>
+                {
+                    Thread.Sleep(4000);
+                    Environment.Exit(0);
+                });
+            }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex); }
         }
     }
 }

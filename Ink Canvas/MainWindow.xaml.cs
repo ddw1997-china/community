@@ -808,16 +808,16 @@ namespace Ink_Canvas
             // 应用无焦点模式设置
             ApplyNoFocusMode();
             // 应用窗口置顶设置
-            Dispatcher.BeginInvoke(new Action(() =>
+            Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(() =>
             {
                 ApplyAlwaysOnTop();
-            }), DispatcherPriority.ApplicationIdle);
+            }));
 
             // 添加窗口激活事件处理，确保置顶状态在窗口重新激活时得到保持
             Activated += Window_Activated;
             Deactivated += Window_Deactivated;
 
-            Dispatcher.BeginInvoke(new Action(CheckAndShowOobe), DispatcherPriority.Loaded);
+            Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(CheckAndShowOobe));
         }
 
         /// <summary>
@@ -1615,14 +1615,14 @@ namespace Ink_Canvas
                     Settings.InkToShape.IsInkToShapeEnabled,
                     ShapeRecognitionRouter.FromSettingsInt(Settings.InkToShape.ShapeRecognitionEngine)))
             {
-                Dispatcher.BeginInvoke(new Action(() =>
+                Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle, new Action(() =>
                 {
                     Task.Run(() =>
                     {
                         InkRecognizeHelper.WarmupShapeRecognition(
                             ShapeRecognitionRouter.FromSettingsInt(Settings.InkToShape.ShapeRecognitionEngine));
                     });
-                }), DispatcherPriority.ContextIdle);
+                }));
             }
 
             SystemEvents.DisplaySettingsChanged += SystemEventsOnDisplaySettingsChanged;
@@ -1644,7 +1644,7 @@ namespace Ink_Canvas
             if (currentMode == 0)
             {
                 // 延迟执行，确保UI已完全加载
-                Dispatcher.BeginInvoke(new Action(() =>
+                Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
                 {
                     // 重新加载自定义背景颜色
                     LoadCustomBackgroundColor();
@@ -1657,7 +1657,7 @@ namespace Ink_Canvas
 
                     // 确保背景颜色正确设置为黑板颜色
                     CheckColorTheme(true);
-                }), DispatcherPriority.Loaded);
+                }));
             }
 
             // 应用无焦点模式设置
@@ -1684,10 +1684,10 @@ namespace Ink_Canvas
             {
                 LogHelper.WriteLogToFile("检测到--board参数，自动切换到白板模式", LogHelper.LogType.Event);
                 // 延迟执行，确保UI已完全加载
-                Dispatcher.BeginInvoke(new Action(() =>
+                Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
                 {
                     SwitchToBoardMode();
-                }), DispatcherPriority.Loaded);
+                }));
             }
 
             // 检查是否通过--show参数启动，如果是则确保退出收纳模式并恢复浮动栏
@@ -1695,14 +1695,14 @@ namespace Ink_Canvas
             {
                 LogHelper.WriteLogToFile("检测到--show参数，退出收纳模式并恢复浮动栏", LogHelper.LogType.Event);
                 // 延迟执行，确保UI已完全加载
-                Dispatcher.BeginInvoke(new Action(async () =>
+                Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(async () =>
                 {
                     // 如果当前处于收纳模式，则展开浮动栏
                     if (isFloatingBarFolded)
                     {
                         await UnFoldFloatingBar(new object());
                     }
-                }), DispatcherPriority.Loaded);
+                }));
             }
 
             // WindowChrome hit testing is initialized only after the HWND exists.  The
@@ -1710,10 +1710,10 @@ namespace Ink_Canvas
             // transparent hit-through state, so the transparent window could consume input
             // until a tool/settings action called SetTransparentHitThrough().  Re-apply it
             // once all Loaded callbacks and startup mode changes have completed.
-            Dispatcher.BeginInvoke(new Action(() =>
+            Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(() =>
             {
                 ApplyTransparentHitTestForCurrentMode("startup-idle");
-            }), DispatcherPriority.ApplicationIdle);
+            }));
         }
 
 
@@ -1727,7 +1727,12 @@ namespace Ink_Canvas
 
         private void SystemEventsOnDisplaySettingsChanged(object sender, EventArgs e)
         {
+            // 分辨率/显示比例变化后必须重算工具栏缩放，不受实验性开关限制，
+            // 否则关掉开关时换分辨率会一直沿用旧系数（例如 1920 换到 1440 屏）。
+            ApplyAllToolbarDisplayScale();
+
             if (!Settings.Advanced.IsEnableResolutionChangeDetection) return;
+
             RefreshFloatingBarScaleForDisplayChange();
             HandleFloatingBarRecovery();
         }
@@ -1783,11 +1788,11 @@ namespace Ink_Canvas
                 {
                     var isFloatingBarOutsideScreen = false;
                     var isInPPTPresentationMode = false;
-                    Dispatcher.Invoke(() =>
+                    Dispatcher.Invoke(new Action(() =>
                     {
                         isFloatingBarOutsideScreen = IsOutsideOfScreenHelper.IsOutsideOfScreen(ViewboxFloatingBar);
                         isInPPTPresentationMode = IsInPPTPresentationMode;
-                    }, DispatcherPriority.Normal, TimeSpan.FromSeconds(5));
+                    }), DispatcherPriority.Normal, CancellationToken.None, TimeSpan.FromSeconds(5));
                     if (isFloatingBarOutsideScreen) dpiChangedDelayAction.DebounceAction(3000, null, () =>
                     {
                         if (!isFloatingBarFolded)
@@ -1887,7 +1892,7 @@ namespace Ink_Canvas
                         if (_isExitVerificationInProgress) return;
 
                         _isExitVerificationInProgress = true;
-                        await Dispatcher.BeginInvoke(new Action(async () =>
+                        await Dispatcher.BeginInvoke(DispatcherPriority.Normal, new Action(async () =>
                         {
                             try
                             {
@@ -1909,7 +1914,7 @@ namespace Ink_Canvas
                             {
                                 _isExitVerificationInProgress = false;
                             }
-                        }), DispatcherPriority.Normal);
+                        }));
                         return;
                     }
                 }
@@ -1975,6 +1980,15 @@ namespace Ink_Canvas
                 MoveWindow(new WindowInteropHelper(this).Handle, 0, 0,
                     Screen.PrimaryScreen.Bounds.Width,
                     Screen.PrimaryScreen.Bounds.Height, true);
+            }
+
+            // 窗口可用宽度变化（切换显示器、改分辨率、强制全屏）后重新计算工具栏缩放。
+            // 多显示器场景下两块屏的显示比例可能相同，此时不会触发 DpiChanged，
+            // 只能靠尺寸变化来发现「可用的 DIP 宽度变了」。
+            if (Math.Abs(e.NewSize.Width - _lastToolbarScaleWidth) > 1)
+            {
+                _lastToolbarScaleWidth = e.NewSize.Width;
+                Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, new Action(() => ApplyAllToolbarDisplayScale()));
             }
         }
 
@@ -2641,24 +2655,24 @@ namespace Ink_Canvas
 
             _ = TelemetryUploader.UploadTelemetryIfNeededAsync();
 
-            _ = Dispatcher.BeginInvoke(new Action(() =>
+            _ = Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(() =>
             {
                 ApplyAlwaysOnTop();
-            }), DispatcherPriority.ApplicationIdle);
+            }));
 
-            _ = Dispatcher.BeginInvoke(new Action(() =>
+            _ = Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(() =>
             {
                 LoadInkFadeSettings();
                 LoadBrushAutoRestoreSettings();
                 InitializeInkFadeManager();
-            }), DispatcherPriority.ApplicationIdle);
+            }));
 
-            _ = Dispatcher.BeginInvoke(new Action(() =>
+            _ = Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(() =>
             {
                 if (_sliderTouchSupportInitialized) return;
                 AddTouchSupportToSliders();
                 _sliderTouchSupportInitialized = true;
-            }), DispatcherPriority.ApplicationIdle);
+            }));
 
             try
             {
@@ -3221,7 +3235,7 @@ namespace Ink_Canvas
                     LogHelper.WriteLogToFile($"检测到命令行参数中的.icstk文件: {icstkFile}", LogHelper.LogType.Event);
 
                     // 延迟执行，确保UI已完全加载
-                    Dispatcher.BeginInvoke(new Action(() =>
+                    Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
                     {
                         try
                         {
@@ -3232,7 +3246,7 @@ namespace Ink_Canvas
                         {
                             LogHelper.WriteLogToFile($"打开命令行参数中的文件失败: {ex.Message}", LogHelper.LogType.Error);
                         }
-                    }), DispatcherPriority.Loaded);
+                    }));
                 }
             }
             catch (Exception ex)

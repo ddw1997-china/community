@@ -40,12 +40,12 @@ namespace Ink_Canvas
                 }
 
                 if (!isActive || !Settings.Advanced.IsNoFocusMode) return;
-                Dispatcher.BeginInvoke(new Action(() =>
+                Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Input, new Action(() =>
                 {
                     if (_pluginFocusInteractionOwners.Count == 0 || !IsVisible) return;
                     Activate();
                     Focus();
-                }), System.Windows.Threading.DispatcherPriority.Input);
+                }));
             });
         }
 

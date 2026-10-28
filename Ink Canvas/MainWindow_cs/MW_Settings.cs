@@ -1408,7 +1408,7 @@ namespace Ink_Canvas
             {
                 UpdateToolbarComponentVisibility();
 
-                Dispatcher.BeginInvoke(new Action(async () =>
+                Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(async () =>
                 {
                     try
                     {
@@ -1421,7 +1421,7 @@ namespace Ink_Canvas
                     {
                         LogHelper.WriteLogToFile($"重新计算高光位置失败: {ex.Message}", LogHelper.LogType.Error);
                     }
-                }), DispatcherPriority.Loaded);
+                }));
             }
             catch (Exception ex)
             {

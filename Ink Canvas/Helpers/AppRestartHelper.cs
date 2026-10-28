@@ -8,6 +8,67 @@ namespace Ink_Canvas.Helpers
 {
     public static class AppRestartHelper
     {
+        /// <summary>
+        /// 顺序重启：释放单实例互斥体后，交给一个隐藏的中转进程等待"当前进程完全退出"再启动新实例。
+        /// 不允许新旧实例并存：托盘图标在系统通知区是全局唯一的身份，两个实例同时注册时，
+        /// 先退出的那个会把自己的图标一起注销，导致仍在运行的实例变成"进程在跑、托盘没有图标"，
+        /// 用户再也无法操作程序。
+        /// </summary>
+        /// <param name="asAdmin">true 表示以管理员身份启动新实例（会触发 UAC）。</param>
+        /// <returns>中转进程是否已成功启动。</returns>
+        public static bool BeginSequentialRestart(bool asAdmin)
+        {
+            try
+            {
+                App.IsAppExitByUser = true;
+
+                // 必须先释放并销毁互斥体，否则新实例会被单实例检查拦下并直接退出
+                (Application.Current as App)?.ReleaseMutexForRestart();
+
+                int pid = Process.GetCurrentProcess().Id;
+                string exePath = Process.GetCurrentProcess().MainModule.FileName;
+
+                // -Timeout 后仍存活说明退出流程被卡住：强制结束，绝不让两个实例并存
+                string command =
+                    "Wait-Process -Id " + pid + " -Timeout 20 -ErrorAction SilentlyContinue; " +
+                    "if (Get-Process -Id " + pid + " -ErrorAction SilentlyContinue) { Stop-Process -Id " + pid + " -Force -ErrorAction SilentlyContinue }; " +
+                    "Start-Process -FilePath '" + exePath.Replace("'", "''") + "'" + (asAdmin ? " -Verb RunAs" : "");
+
+                var psi = new ProcessStartInfo("powershell.exe")
+                {
+                    Arguments = "-NoProfile -NonInteractive -WindowStyle Hidden -Command \"" + command + "\"",
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    WorkingDirectory = AppDomain.CurrentDomain.BaseDirectory
+                };
+
+                Process.Start(psi);
+                LogHelper.WriteLogToFile($"重启 | 已启动顺序重启中转进程，等待 PID {pid} 退出后启动新实例" + (asAdmin ? "（管理员）" : ""),
+                    LogHelper.LogType.Event);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                LogHelper.WriteLogToFile($"重启 | 启动顺序重启中转进程失败: {ex.Message}", LogHelper.LogType.Error);
+
+                // 中转进程启动失败时退化为立即启动，至少保证能重启
+                try
+                {
+                    string exePath = Process.GetCurrentProcess().MainModule.FileName;
+                    var psi = new ProcessStartInfo(exePath) { UseShellExecute = true };
+                    if (asAdmin) psi.Verb = "runas";
+                    Process.Start(psi);
+                    return true;
+                }
+                catch (Exception inner)
+                {
+                    LogHelper.WriteLogToFile($"重启 | 立即启动新实例也失败: {inner.Message}", LogHelper.LogType.Error);
+                    App.IsAppExitByUser = false;
+                    return false;
+                }
+            }
+        }
+
         public static bool IsRunningAsAdmin()
         {
             try
@@ -26,28 +87,15 @@ namespace Ink_Canvas.Helpers
         {
             try
             {
-                App.IsAppExitByUser = true;
-
-                (Application.Current as App)?.ReleaseMutexForRestart();
-
-                string exePath = Process.GetCurrentProcess().MainModule.FileName;
-
-                if (asAdmin)
+                // 当前已是管理员却要以普通权限重启：需要复制用户令牌，走专用链路
+                if (!asAdmin && IsRunningAsAdmin() && UIAccessHelper.RestartAsNormalUser())
                 {
-                    var psi = new ProcessStartInfo(exePath) { UseShellExecute = true, Verb = "runas" };
-                    Process.Start(psi);
+                    App.IsAppExitByUser = true;
+                    Application.Current.Shutdown();
+                    return;
                 }
-                else
-                {
-                    // 当前已是管理员时，直接通过用户令牌降权启动，避免经由 explorer 中转的延迟
-                    if (IsRunningAsAdmin() && UIAccessHelper.RestartAsNormalUser())
-                    {
-                        Application.Current.Shutdown();
-                        return;
-                    }
 
-                    Process.Start("explorer.exe", "\"" + exePath + "\"");
-                }
+                if (!BeginSequentialRestart(asAdmin)) return;
 
                 Application.Current.Shutdown();
             }

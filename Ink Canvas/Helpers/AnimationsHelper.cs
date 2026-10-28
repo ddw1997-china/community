@@ -24,7 +24,7 @@ namespace Ink_Canvas.Helpers
 
             try
             {
-                Application.Current.Dispatcher.BeginInvoke(new Action(() =>
+                Application.Current.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Render, new Action(() =>
                 {
                     try
                     {
@@ -53,7 +53,7 @@ namespace Ink_Canvas.Helpers
                     {
                         System.Diagnostics.Debug.WriteLine($"[PopupZOrder] ForceRefreshPopupPosition failed: {ex.Message}");
                     }
-                }), System.Windows.Threading.DispatcherPriority.Render);
+                }));
             }
             catch (Exception ex)
             {
@@ -94,16 +94,13 @@ namespace Ink_Canvas.Helpers
                 };
 
                 // 立即执行第一次
-                Application.Current.Dispatcher.BeginInvoke(bringToTopAction,
-                    System.Windows.Threading.DispatcherPriority.Render);
+                Application.Current.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Render, new Action(bringToTopAction));
 
                 // 延迟 50ms 后再次执行（确保在其他窗口操作之后）
-                Application.Current.Dispatcher.BeginInvoke(bringToTopAction,
-                    System.Windows.Threading.DispatcherPriority.Normal);
+                Application.Current.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Normal, new Action(bringToTopAction));
 
                 // 延迟 100ms 后第三次执行（最终确认）
-                Application.Current.Dispatcher.BeginInvoke(bringToTopAction,
-                    System.Windows.Threading.DispatcherPriority.Background);
+                Application.Current.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, new Action(bringToTopAction));
             }
             catch (Exception ex)
             {
@@ -121,7 +118,7 @@ namespace Ink_Canvas.Helpers
             {
                 if (popup?.Child == null) return;
 
-                Application.Current.Dispatcher.BeginInvoke(new Action(() =>
+                Application.Current.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Render, new Action(() =>
                 {
                     try
                     {
@@ -138,7 +135,7 @@ namespace Ink_Canvas.Helpers
                     {
                         System.Diagnostics.Debug.WriteLine($"[PopupZOrder] BringPopupToFrontLight failed: {ex.Message}");
                     }
-                }), System.Windows.Threading.DispatcherPriority.Render);
+                }));
             }
             catch (Exception ex)
             {

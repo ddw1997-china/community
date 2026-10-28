@@ -2181,7 +2181,7 @@ namespace Ink_Canvas
         /// </summary>
         private void RefreshFloatingBarAutoFitScaleAfterLayout()
         {
-            Dispatcher.BeginInvoke(new Action(() =>
+            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, new Action(() =>
             {
                 try
                 {
@@ -2197,7 +2197,7 @@ namespace Ink_Canvas
                 {
                     LogHelper.WriteLogToFile($"浮动工具栏自适应定位失败: {ex.Message}", LogHelper.LogType.Warning);
                 }
-            }), System.Windows.Threading.DispatcherPriority.Loaded);
+            }));
         }
 
         /// <summary>
@@ -3914,12 +3914,12 @@ namespace Ink_Canvas
                 {
                     // 设置为画板模式，允许全屏操作
                     AvoidFullScreenHelper.SetBoardMode(true);
-                    Dispatcher.BeginInvoke(new Action(() =>
+                    Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(() =>
                     {
                         MainWindow.MoveWindow(new WindowInteropHelper(this).Handle, 0, 0,
                             System.Windows.Forms.Screen.PrimaryScreen.Bounds.Width,
                             System.Windows.Forms.Screen.PrimaryScreen.Bounds.Height, true);
-                    }), DispatcherPriority.ApplicationIdle);
+                    }));
 
                     isFullScreenApplied = true; // 标记已应用全屏处理
                 }
@@ -4811,7 +4811,9 @@ namespace Ink_Canvas
                         MessageBoxButton.OKCancel, MessageBoxImage.Question) == MessageBoxResult.Cancel) return;
             }
 
-            Process.Start(System.Windows.Forms.Application.ExecutablePath, "-m");
+            // 顺序重启：旧实例完全退出后才启动新实例，避免两个实例并存互相注销托盘图标
+            if (!AppRestartHelper.BeginSequentialRestart(false)) return;
+
             _forceCloseFromExitOrRestartButton = true;
             _exitApplicationRequested = true;
             App.IsAppExitByUser = true;
@@ -4964,14 +4966,14 @@ namespace Ink_Canvas
                 // 恢复为非画板模式，重新启用全屏限制
                 AvoidFullScreenHelper.SetBoardMode(false);
 
-                Dispatcher.BeginInvoke(new Action(() =>
+                Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(() =>
                 {
                     // 退出批注模式，恢复到工作区域大小
                     var workingArea = System.Windows.Forms.Screen.PrimaryScreen.WorkingArea;
                     MainWindow.MoveWindow(new WindowInteropHelper(this).Handle,
                         workingArea.Left, workingArea.Top,
                         workingArea.Width, workingArea.Height, true);
-                }), DispatcherPriority.ApplicationIdle);
+                }));
 
                 isFullScreenApplied = false; // 标记全屏处理已还原
             }
@@ -5072,14 +5074,14 @@ namespace Ink_Canvas
                             // 恢复为非画板模式，重新启用全屏限制
                             AvoidFullScreenHelper.SetBoardMode(false);
 
-                            Dispatcher.BeginInvoke(new Action(() =>
+                            Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(() =>
                             {
                                 // 退出白板模式，恢复到工作区域大小
                                 var workingArea = System.Windows.Forms.Screen.PrimaryScreen.WorkingArea;
                                 MainWindow.MoveWindow(new WindowInteropHelper(this).Handle,
                                     workingArea.Left, workingArea.Top,
                                     workingArea.Width, workingArea.Height, true);
-                            }), DispatcherPriority.ApplicationIdle);
+                            }));
 
                             isFullScreenApplied = false; // 标记全屏处理已还原
                         }
@@ -5147,12 +5149,12 @@ namespace Ink_Canvas
                         {
                             // 设置为画板模式，允许全屏操作
                             AvoidFullScreenHelper.SetBoardMode(true);
-                            Dispatcher.BeginInvoke(new Action(() =>
+                            Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(() =>
                             {
                                 MainWindow.MoveWindow(new WindowInteropHelper(this).Handle, 0, 0,
                                     System.Windows.Forms.Screen.PrimaryScreen.Bounds.Width,
                                     System.Windows.Forms.Screen.PrimaryScreen.Bounds.Height, true);
-                            }), DispatcherPriority.ApplicationIdle);
+                            }));
 
                             isFullScreenApplied = true; // 标记已应用全屏处理
                         }
@@ -5249,12 +5251,12 @@ namespace Ink_Canvas
                 {
                     // 设置为画板模式，允许全屏操作
                     AvoidFullScreenHelper.SetBoardMode(true);
-                    Dispatcher.BeginInvoke(new Action(() =>
+                    Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(() =>
                     {
                         MainWindow.MoveWindow(new WindowInteropHelper(this).Handle, 0, 0,
                             System.Windows.Forms.Screen.PrimaryScreen.Bounds.Width,
                             System.Windows.Forms.Screen.PrimaryScreen.Bounds.Height, true);
-                    }), DispatcherPriority.ApplicationIdle);
+                    }));
 
                     isFullScreenApplied = true; // 标记已应用全屏处理
                 }
@@ -5775,11 +5777,11 @@ namespace Ink_Canvas
             _pendingHighlightMode = mode;
             _highlightLayoutRetryCount = 0;
             int version = ++_highlightPositionVersion;
-            Dispatcher.BeginInvoke(new Action(() =>
+            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, new Action(() =>
             {
                 if (_highlightPositionVersion != version) return;
                 AnimateFloatingBarHighlightTo(mode);
-            }), System.Windows.Threading.DispatcherPriority.Loaded);
+            }));
         }
 
         private void ApplyFloatingBarIconHighlightImmediate(string mode)
@@ -6174,10 +6176,10 @@ namespace Ink_Canvas
                 storyboard.Begin(indicatorBar, true);
                 storyboard.Pause(indicatorBar);
                 storyboard.SeekAlignedToLastTick(indicatorBar, TimeSpan.Zero, TimeSeekOrigin.BeginTime);
-                Dispatcher.BeginInvoke(() =>
+                Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, () =>
                 {
                     storyboard.Resume(indicatorBar);
-                }, System.Windows.Threading.DispatcherPriority.Loaded);
+                });
             }
             catch (Exception ex)
             {
@@ -6305,11 +6307,11 @@ namespace Ink_Canvas
 
             _highlightLayoutRetryCount++;
             int version = ++_highlightPositionVersion;
-            Dispatcher.BeginInvoke(new Action(() =>
+            Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle, new Action(() =>
             {
                 if (_highlightPositionVersion != version) return;
                 AnimateFloatingBarHighlightTo(mode);
-            }), DispatcherPriority.ContextIdle);
+            }));
         }
 
         private void HideAllSelectionHighlights()

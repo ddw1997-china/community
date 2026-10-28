@@ -1670,7 +1670,7 @@ namespace Ink_Canvas
                         }
                         else if (string.Equals(info.Type, "Pdf", StringComparison.OrdinalIgnoreCase) && File.Exists(info.SourcePath))
                         {
-                            Dispatcher.BeginInvoke(new Action(() => { _ = RestorePdfFromElementInfoAsync(info); }), DispatcherPriority.Loaded);
+                            Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() => { _ = RestorePdfFromElementInfoAsync(info); }));
                         }
                         else if (string.Equals(info.Type, "Media", StringComparison.OrdinalIgnoreCase) && File.Exists(info.SourcePath))
                         {
@@ -1842,7 +1842,7 @@ namespace Ink_Canvas
                     }
                     else if (string.Equals(info.Type, "Pdf", StringComparison.OrdinalIgnoreCase) && File.Exists(info.SourcePath))
                     {
-                        Dispatcher.BeginInvoke(new Action(() => { _ = RestorePdfFromElementInfoAsync(info); }), DispatcherPriority.Loaded);
+                        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() => { _ = RestorePdfFromElementInfoAsync(info); }));
                     }
                     else if (string.Equals(info.Type, "Media", StringComparison.OrdinalIgnoreCase) && File.Exists(info.SourcePath))
                     {

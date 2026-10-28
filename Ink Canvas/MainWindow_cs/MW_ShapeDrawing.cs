@@ -3094,7 +3094,7 @@ namespace Ink_Canvas
             try
             {
                 // 使用Dispatcher.BeginInvoke确保UI更新在UI线程上执行
-                Dispatcher.BeginInvoke(new Action(() =>
+                Dispatcher.BeginInvoke(DispatcherPriority.Render, new Action(() =>
                 {
                     try
                     {
@@ -3119,7 +3119,7 @@ namespace Ink_Canvas
                         lastTempStroke = newStroke;
                         try { inkCanvas.Strokes.Add(newStroke); } catch (Exception innerEx) { System.Diagnostics.Debug.WriteLine(innerEx); }
                     }
-                }), DispatcherPriority.Render);
+                }));
             }
             catch (Exception ex)
             {
@@ -3144,7 +3144,7 @@ namespace Ink_Canvas
             try
             {
                 // 使用Dispatcher.BeginInvoke确保UI更新在UI线程上执行
-                Dispatcher.BeginInvoke(new Action(() =>
+                Dispatcher.BeginInvoke(DispatcherPriority.Render, new Action(() =>
                 {
                     try
                     {
@@ -3178,7 +3178,7 @@ namespace Ink_Canvas
                         lastTempStrokeCollection = newStrokeCollection;
                         try { inkCanvas.Strokes.Add(newStrokeCollection); } catch (Exception innerEx) { System.Diagnostics.Debug.WriteLine(innerEx); }
                     }
-                }), DispatcherPriority.Render);
+                }));
             }
             catch (Exception ex)
             {
@@ -4565,7 +4565,7 @@ namespace Ink_Canvas
                                     // 延迟到当前触摸/鼠标抬起事件处理完成后再弹窗，并改用自建对话框：
                                     // 自建窗口可 Topmost + 强制前台 + 聚焦按钮，解决白板/触控下
                                     // “点一次关不掉、需多次点击”的问题（iNKORE MessageBox 无法控制这些）。
-                                    this.Dispatcher.BeginInvoke(new Action(() =>
+                                    this.Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
                                     {
                                         try
                                         {
@@ -4577,7 +4577,7 @@ namespace Ink_Canvas
                                             if (confirm.RemoveRequested) RemoveAsymptotesByTag(asymptoteTag);
                                         }
                                         catch { }
-                                    }), DispatcherPriority.Background);
+                                    }));
                                     break;
                             }
                         }

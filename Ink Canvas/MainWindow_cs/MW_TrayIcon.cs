@@ -209,7 +209,7 @@ namespace Ink_Canvas
                     if (_popupHwnd != IntPtr.Zero && hwnd != _popupHwnd)
                     {
                         // 点击到了弹窗（Popup 窗口）之外：异步关闭菜单，避免在钩子回调中直接操作 UI。
-                        Current.Dispatcher.BeginInvoke(new Action(CloseTrayContextMenu), DispatcherPriority.Normal);
+                        Current.Dispatcher.BeginInvoke(DispatcherPriority.Normal, new Action(CloseTrayContextMenu));
                     }
                 }
             }
@@ -509,9 +509,8 @@ namespace Ink_Canvas
         /// 处理重启应用程序托盘菜单项的点击事件，包括以下步骤：
         /// 1. 获取主窗口实例
         /// 2. 如果主窗口已加载：
-        ///    - 设置IsAppExitByUser为true，表示用户主动退出
-        ///    - 尝试启动应用程序的新实例，带延迟参数
-        ///    - 捕获并记录启动新实例时可能出现的异常
+        ///    - 由中转进程安排"本进程退出后再启动新实例"，避免新旧实例并存
+        ///    - 中转进程未能启动时保持当前实例继续运行
         ///    - 关闭当前应用程序实例
         /// </remarks>
         private void RestartAppTrayIconMenuItem_Clicked(object sender, RoutedEventArgs e)
@@ -519,22 +518,15 @@ namespace Ink_Canvas
             var mainWin = (MainWindow)Current.MainWindow;
             if (mainWin != null && mainWin.IsLoaded)
             {
-                IsAppExitByUser = true;
-
-                try
+                // 顺序重启：中转进程会等本进程完全退出后再启动新实例。
+                // 不能让新旧实例并存——两个实例会争用同一份托盘图标身份，
+                // 先退出的实例会把仍在运行的实例的托盘图标一起注销，
+                // 留下"进程还在跑、托盘却没有图标"的状态。
+                if (!AppRestartHelper.BeginSequentialRestart(false))
                 {
-                    // 启动新实例
-                    string exePath = Process.GetCurrentProcess().MainModule.FileName;
-                    ProcessStartInfo startInfo = new ProcessStartInfo();
-                    startInfo.FileName = exePath;
-                    startInfo.UseShellExecute = true;
-
-                    // 启动进程但不等待
-                    Process.Start(new ProcessStartInfo(exePath, "-delay 2000") { UseShellExecute = true });
-                }
-                catch (Exception ex)
-                {
-                    LogHelper.NewLog($"重启程序时出错: {ex.Message}");
+                    // 重启未能发起，保持当前实例继续运行
+                    IsAppExitByUser = false;
+                    return;
                 }
 
                 // 退出当前实例
@@ -783,6 +775,100 @@ namespace Ink_Canvas
                 }
             }
         }
+
+        #region 托盘图标存活守护
+
+        private DispatcherTimer _trayIconHealthTimer;
+        private int _trayIconHealthFailureCount;
+
+        /// <summary>
+        /// 启动托盘图标存活守护。
+        /// 托盘图标是本程序唯一的常驻入口：一旦出现"进程还在运行、托盘却没有图标"的状态，
+        /// 用户既看不到窗口也点不到菜单，只能去任务管理器强制结束，这是绝对不允许的。
+        /// 守护会周期性检查图标是否真的创建成功，失败则重建；连续失败则主动退出进程。
+        /// </summary>
+        internal void StartTrayIconHealthMonitor()
+        {
+            if (_trayIconHealthTimer != null)
+            {
+                _trayIconHealthTimer.Start();
+                return;
+            }
+
+            _trayIconHealthTimer = new DispatcherTimer(DispatcherPriority.Background)
+            {
+                Interval = TimeSpan.FromSeconds(10)
+            };
+            _trayIconHealthTimer.Tick += TrayIconHealthTimer_OnTick;
+            _trayIconHealthTimer.Start();
+        }
+
+        private void TrayIconHealthTimer_OnTick(object sender, EventArgs e)
+        {
+            EnsureTrayIconAlive();
+        }
+
+        /// <summary>
+        /// 确保托盘图标处于"已创建"状态。
+        /// </summary>
+        /// <returns>图标是否健康（无需处理或已恢复）。</returns>
+        internal bool EnsureTrayIconAlive()
+        {
+            try
+            {
+                var appearance = Ink_Canvas.MainWindow.Settings?.Appearance;
+                if (appearance == null || !appearance.EnableTrayIcon)
+                {
+                    // 用户在设置里明确关闭了托盘图标，不做干预
+                    _trayIconHealthFailureCount = 0;
+                    return true;
+                }
+
+                if (!(FindResource("TaskbarTrayIcon") is TaskbarIcon icon) || icon.IsDisposed)
+                {
+                    _trayIconHealthFailureCount = 0;
+                    return true;
+                }
+
+                if (icon.IsCreated)
+                {
+                    _trayIconHealthFailureCount = 0;
+                    return true;
+                }
+
+                // 图标已被注销（被其他实例或资源管理器回收、或创建过程失败）：立即重建
+                icon.Visibility = Visibility.Visible;
+                icon.ForceCreate();
+
+                if (icon.IsCreated)
+                {
+                    LogHelper.WriteLogToFile("托盘图标 | 检测到托盘图标丢失，已自动重建", LogHelper.LogType.Warning);
+                    _trayIconHealthFailureCount = 0;
+                    return true;
+                }
+
+                _trayIconHealthFailureCount++;
+                LogHelper.WriteLogToFile($"托盘图标 | 重建失败（第 {_trayIconHealthFailureCount} 次）", LogHelper.LogType.Warning);
+
+                if (_trayIconHealthFailureCount >= 3)
+                {
+                    LogHelper.WriteLogToFile("托盘图标 | 连续重建失败，为避免留下无托盘图标的常驻进程，程序将主动退出", LogHelper.LogType.Error);
+                    _trayIconHealthTimer?.Stop();
+                    _trayIconHealthFailureCount = 0;
+                    IsAppExitByUser = true;
+                    Shutdown();
+                }
+
+                return false;
+            }
+            catch (Exception ex)
+            {
+                LogHelper.WriteLogToFile($"托盘图标 | 存活检查异常: {ex.Message}", LogHelper.LogType.Warning);
+                return true;
+            }
+        }
+
+        #endregion
 
         #region 插件托盘服务（ITrayService 宿主支持）
 
