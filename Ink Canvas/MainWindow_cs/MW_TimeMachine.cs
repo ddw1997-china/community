@@ -851,6 +851,7 @@ namespace Ink_Canvas
             if ((StrokeManipulationHistory.Count == count || sender == null)
                 && dec.Count == 0
                 && !_isStrokeRotationOverlayActive
+                && !_arcHandleDragging
                 && !_geometryLineHandleDragging)
             {
                 CommitPendingStrokeManipulationHistory();

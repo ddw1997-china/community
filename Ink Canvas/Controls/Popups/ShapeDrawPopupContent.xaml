@@ -52,6 +52,25 @@ mc:Ignorable="d">
                     <controls:GeometryButton x:Name="BoardImageDrawCylinder" IconSource="{DynamicResource GeoIconCylinder}" Label="{x:Static props:GeometryStrings.DrawCylinder}" />
                     <controls:GeometryButton x:Name="BoardImageDrawCone" IconSource="{DynamicResource GeoIconCone}" Label="{x:Static props:GeometryStrings.DrawCone}" />
                     <controls:GeometryButton x:Name="BoardImageDrawPerpendicularBisector" IconSource="{DynamicResource DrawShapeImageSource.PerpendicularBisector}" Label="{x:Static props:GeometryStrings.DrawPerpendicularBisector}" />
+                    <!-- 画圆弧紧跟在「中垂线」右侧：按下定圆心，拖动定半径 -->
+                    <controls:GeometryButton x:Name="BoardImageDrawArc" IconSource="{DynamicResource DrawShapeImageSource.Arc}" Label="{x:Static props:GeometryStrings.DrawArc}" />
+                    <!-- 油漆桶紧跟在「画圆弧」右侧：点击闭合笔迹区域内部填充；
+                         右下角独立的 15×15 ▶ 按钮切换填充色（与油漆桶各自独立占位，触摸屏上不会互相误触） -->
+                    <Grid Width="64" Height="60">
+                        <controls:GeometryButton x:Name="BoardImageDrawBucket"
+                                                 HorizontalAlignment="Left" VerticalAlignment="Top"
+                                                 IconSource="{DynamicResource DrawShapeImageSource.Bucket}"
+                                                 Label="{x:Static props:GeometryStrings.DrawBucket}" />
+                        <ToggleButton x:Name="BucketColorToggle"
+                                      Width="15" Height="15"
+                                      HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                                      Margin="0,0,1,6"
+                                      Background="Transparent" BorderThickness="0" Padding="0"
+                                      Focusable="False"
+                                      ToolTip="{x:Static props:GeometryStrings.FillColor}">
+                            <Path Data="M1,1 L1,13 L12,7 Z" Fill="{DynamicResource FloatingBarForegroundBrush}" />
+                        </ToggleButton>
+                    </Grid>
                     <ikw:SimpleStackPanel x:Name="CircleCenterRow" Orientation="Horizontal" Height="38" Spacing="8"
                                           
                                           VerticalAlignment="Center">

@@ -275,6 +275,9 @@ namespace Ink_Canvas
             content.DrawCylinderBtn.ButtonMouseUp += GeometryButton_Click;
             content.DrawConeBtn.ButtonMouseUp += GeometryButton_Click;
             content.DrawPerpendicularBisectorBtn.ButtonMouseUp += GeometryButton_Click;
+            content.DrawArcBtn.ButtonMouseUp += GeometryButton_Click;
+            content.DrawBucketBtn.ButtonMouseUp += GeometryButton_Click;
+            WireUpPaintBucketColorPicker(content);
             content.DrawCoordinate1Btn.ButtonMouseUp += GeometryButton_Click;
             content.DrawCoordinate2Btn.ButtonMouseUp += GeometryButton_Click;
             content.DrawCoordinate3Btn.ButtonMouseUp += GeometryButton_Click;
@@ -445,6 +448,9 @@ namespace Ink_Canvas
             content.DrawCylinderBtn.ButtonMouseUp += GeometryButton_Click;
             content.DrawConeBtn.ButtonMouseUp += GeometryButton_Click;
             content.DrawPerpendicularBisectorBtn.ButtonMouseUp += GeometryButton_Click;
+            content.DrawArcBtn.ButtonMouseUp += GeometryButton_Click;
+            content.DrawBucketBtn.ButtonMouseUp += GeometryButton_Click;
+            WireUpPaintBucketColorPicker(content);
             content.DrawCoordinate1Btn.ButtonMouseUp += GeometryButton_Click;
             content.DrawCoordinate2Btn.ButtonMouseUp += GeometryButton_Click;
             content.DrawCoordinate3Btn.ButtonMouseUp += GeometryButton_Click;

@@ -108,6 +108,18 @@
   <data name="DrawPerpendicularBisector" xml:space="preserve">
     <value>左右对称</value>
   </data>
+  <data name="DrawArc" xml:space="preserve">
+    <value>画圆弧</value>
+  </data>
+  <data name="DrawBucket" xml:space="preserve">
+    <value>油漆桶</value>
+  </data>
+  <data name="FillColor" xml:space="preserve">
+    <value>填充色</value>
+  </data>
+  <data name="FillColorCustom" xml:space="preserve">
+    <value>自訂填充色</value>
+  </data>
 <data name="DrawCompass" xml:space="preserve">
     <value>圆规成精</value>
   </data>

@@ -90,8 +90,9 @@ namespace Ink_Canvas
                     _popupManager?.BringToFront(BoardBorderDrawShape);
                 }
 
-                // 打开面板时刷新按钮选中状态
+                // 打开面板时刷新按钮选中状态与油漆桶图标配色（主题切换后前景色会变）
                 UpdateAllGeometryButtonsCheckedState();
+                UpdatePaintBucketIconColors();
             }
         }
 
@@ -354,6 +355,8 @@ namespace Ink_Canvas
             if (drawingShapeMode == 21) CancelPerpendicularDrawing();
             if (drawingShapeMode == 22) CancelAngleBisectorDrawing();
             if (drawingShapeMode == 26) CancelPerpendicularBisector();
+            if (drawingShapeMode == AxisFlipShapeMode) CancelAxisFlip();
+            ClearArcHandleHighlight();
             forceEraser = false;
             drawingShapeMode = 0;
             isLongPressSelected = false;
@@ -749,6 +752,8 @@ namespace Ink_Canvas
                 list.Add(content.DrawCylinderBtn);
                 list.Add(content.DrawConeBtn);
                 list.Add(content.DrawPerpendicularBisectorBtn);
+                list.Add(content.DrawArcBtn);
+                list.Add(content.DrawBucketBtn);
                 list.Add(content.DrawCoordinate1Btn);
                 list.Add(content.DrawCoordinate2Btn);
                 list.Add(content.DrawCoordinate3Btn);
@@ -783,6 +788,8 @@ namespace Ink_Canvas
                 list.Add(boardContent.DrawCylinderBtn);
                 list.Add(boardContent.DrawConeBtn);
                 list.Add(boardContent.DrawPerpendicularBisectorBtn);
+                list.Add(boardContent.DrawArcBtn);
+                list.Add(boardContent.DrawBucketBtn);
                 list.Add(boardContent.DrawCoordinate1Btn);
                 list.Add(boardContent.DrawCoordinate2Btn);
                 list.Add(boardContent.DrawCoordinate3Btn);
@@ -835,6 +842,8 @@ namespace Ink_Canvas
             if (btn == content?.DrawHyperbolaBtn || btn == boardContent?.DrawHyperbolaBtn) return 24;
             if (btn == content?.DrawBezierBtn || btn == boardContent?.DrawBezierBtn) return 25;
             if (btn == content?.DrawPerpendicularBisectorBtn || btn == boardContent?.DrawPerpendicularBisectorBtn) return 26;
+            if (btn == content?.DrawArcBtn || btn == boardContent?.DrawArcBtn) return 27;
+            if (btn == content?.DrawBucketBtn || btn == boardContent?.DrawBucketBtn) return PaintBucketShapeMode;
             // 圆规/三角板不占用绘制模式，由 IsCompassButton / IsTriangleRulerButton 单独处理（返回 0 = 非绘制模式按钮）
 
             return 0;
@@ -862,6 +871,8 @@ namespace Ink_Canvas
             if (drawingShapeMode == 21) CancelPerpendicularDrawing();
             if (drawingShapeMode == 22) CancelAngleBisectorDrawing();
             if (drawingShapeMode == 26) CancelPerpendicularBisector();
+            if (drawingShapeMode == AxisFlipShapeMode) CancelAxisFlip();
+            ClearArcHandleHighlight();
             forceEraser = false;
             drawingShapeMode = 0;
             inkCanvas.EditingMode = InkCanvasEditingMode.Ink;
@@ -2803,6 +2814,60 @@ namespace Ink_Canvas
                         inkCanvas.Strokes.Add(strokes);
                         break;
                     }
+                case 27:
+                    // 画圆弧：按下处为圆心，拖动距离为半径；弧以拖动方向为中心、默认张角 90°，
+                    // 因此拖动时能直接看到半径不断变化的圆弧。抬笔后由两个端点手柄改弧长（半径不变）。
+                    _currentCommitType = CommitReason.ShapeDrawing;
+                    {
+                        // 本次手势已收尾后又补来一帧（触摸抬起时的鼠标提升事件）时直接丢弃，
+                        // 否则会在已完成的圆弧旁边再落一条
+                        if (_arcAwaitNewGesture) return;
+
+                        var arcRadius = GetDistance(iniP, endP);
+                        // 半径过小（单击或手抖）不生成，避免落下退化的圆弧
+                        if (arcRadius < 6) return;
+
+                        var dragAngle = Math.Atan2(endP.Y - iniP.Y, endP.X - iniP.X);
+                        var halfSweep = Math.PI / 4; // 默认张角 90°
+                        pointList = GenerateArcGeometry(iniP, arcRadius,
+                            dragAngle - halfSweep, dragAngle + halfSweep, true);
+                        if (pointList.Count < 3) return;
+
+                        point = new StylusPointCollection(pointList);
+                        // 与垂线/平行线等几何工具一致：荧光笔/激光笔下恢复最近使用的画笔颜色、宽度与透明度
+                        stroke = new Stroke(point)
+                        {
+                            DrawingAttributes = CreatePerpendicularDrawingAttributes()
+                        };
+                        try
+                        {
+                            inkCanvas.Strokes.Remove(lastTempStroke);
+                        }
+                        catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex); }
+
+                        lastTempStroke = stroke;
+                        inkCanvas.Strokes.Add(stroke);
+
+                        // 拖动阶段同时显示半径（圆心 → 指针）；抬笔时移除，只保留弧线
+                        RemoveArcRadiusGuide();
+                        _arcRadiusGuideStroke = CreateArcRadiusGuide(iniP, endP);
+                        if (_arcRadiusGuideStroke != null) inkCanvas.Strokes.Add(_arcRadiusGuideStroke);
+                        break;
+                    }
+                case 28:
+                    // 沿轴翻转：拖动阶段只显示一条对称轴线（荧光笔辅助线），松手时按该轴镜像选中的墨迹
+                    if (GetDistance(iniP, endP) < AxisFlipMinLength) return;
+                    RemoveAxisFlipGuide();
+                    _axisFlipGuideStroke = GenerateLineStroke(iniP, endP);
+                    _axisFlipGuideStroke.DrawingAttributes = CreatePerpendicularGuideDrawingAttributes();
+                    inkCanvas.Strokes.Add(_axisFlipGuideStroke);
+                    // 记录终点：触摸抬笔时合成的鼠标事件拿不到触摸位置
+                    _axisFlipAxisEnd = endP;
+                    _axisFlipAxisEndValid = true;
+                    break;
+                case PaintBucketShapeMode:
+                    // 油漆桶是单击工具：拖动不产生任何预览
+                    return;
                 case 6:
                     _currentCommitType = CommitReason.ShapeDrawing;
                     newIniP = iniP;
@@ -3585,16 +3650,46 @@ namespace Ink_Canvas
         private DrawingAttributes CreatePerpendicularGuideDrawingAttributes()
         {
             var attributes = inkCanvas.DefaultDrawingAttributes.Clone();
-            attributes.IsHighlighter = true;
-            attributes.StylusTip = StylusTip.Rectangle;
+
+            // 辅助线完全按荧光笔的设置绘制：粗细取荧光笔宽度，颜色取荧光笔当前
+            // 选中的颜色与透明度，用户在笔面板里调整荧光笔时辅助线同步变化。
             var width = Settings.Canvas.HighlighterWidth;
             if (width <= 0) width = 20;
+
+            var alpha = (byte)Math.Max(0, Math.Min(255, Settings.Canvas.HighlighterAlpha));
+            attributes.Color = GetHighlighterGuideColor(alpha);
+            attributes.StylusTip = StylusTip.Rectangle;
             attributes.Width = width / 2;
             attributes.Height = width;
-            attributes.Color = Color.FromArgb(150, 255, 0, 0);
+            attributes.IsHighlighter = true;
             attributes.IgnorePressure = true;
             attributes.FitToCurve = false;
             return attributes;
+        }
+
+        /// <summary>
+        /// 按荧光笔当前选中的颜色（<see cref="highlighterColor"/>）生成辅助线颜色。
+        /// 取色表与 CheckColorTheme 中 penType == 1 的分支保持一致；未知索引时退回
+        /// 当前画笔颜色的 RGB。
+        /// </summary>
+        private Color GetHighlighterGuideColor(byte alpha)
+        {
+            switch (highlighterColor)
+            {
+                case 100: return Color.FromArgb(alpha, 0, 0, 0);
+                case 101: return Color.FromArgb(alpha, 250, 250, 250);
+                case 102: return Color.FromArgb(alpha, 239, 68, 68);
+                case 103: return Color.FromArgb(alpha, 253, 224, 71);
+                case 104: return Color.FromArgb(alpha, 74, 222, 128);
+                case 105: return Color.FromArgb(alpha, 113, 113, 122);
+                case 106: return Color.FromArgb(alpha, 59, 130, 246);
+                case 107: return Color.FromArgb(alpha, 168, 85, 247);
+                case 108: return Color.FromArgb(alpha, 45, 212, 191);
+                case 109: return Color.FromArgb(alpha, 249, 115, 22);
+            }
+
+            var current = inkCanvas.DefaultDrawingAttributes.Color;
+            return Color.FromArgb(alpha, current.R, current.G, current.B);
         }
 
         /// <summary>
@@ -4155,6 +4250,14 @@ namespace Ink_Canvas
                 return;
             }
 
+            // 油漆桶：单击（抬起）时按落点填充，按下不做任何事
+            if (drawingShapeMode == PaintBucketShapeMode && e.ChangedButton == MouseButton.Left)
+            {
+                _paintBucketTapPointValid = false;
+                e.Handled = true;
+                return;
+            }
+
             // 鼠标按下开始新的一笔，清掉上一次触摸落点
             if (drawingShapeMode == 17) _parallelUpPoint = null;
             if (drawingShapeMode == 21) _perpendicularUpPoint = null;
@@ -4162,6 +4265,18 @@ namespace Ink_Canvas
             // 中垂线 / 中点：新的一次按下，允许重新绘制（上一次手势的收尾锁定到此解除）
             if (drawingShapeMode == 26) _perpendicularBisectorAwaitNewGesture = false;
             if (drawingShapeMode == 15) _midpointAwaitNewGesture = false;
+            // 画圆弧：新的一笔开始，收起上一次圆弧的端点手柄并解除收尾锁定
+            if (drawingShapeMode == 27)
+            {
+                _arcAwaitNewGesture = false;
+                ClearArcHandleHighlight();
+            }
+            // 沿轴翻转：新的一次按下清掉上一帧的轴线
+            if (drawingShapeMode == AxisFlipShapeMode)
+            {
+                RemoveAxisFlipGuide();
+                _axisFlipAxisEndValid = false;
+            }
 
             if (e.ChangedButton == MouseButton.Left && inkCanvas.EditingMode == InkCanvasEditingMode.EraseByStroke)
             {
@@ -4226,6 +4341,14 @@ namespace Ink_Canvas
                 if (Settings.Canvas.IsShowCursor)
                     SetCursorBasedOnEditingMode(inkCanvas);
                 return;
+            }
+
+            // 橡皮擦：填充是画布子元素（矢量路径），InkCanvas 原生擦除不会处理，这里单独命中检测
+            if ((inkCanvas.EditingMode == InkCanvasEditingMode.EraseByStroke
+                 || inkCanvas.EditingMode == InkCanvasEditingMode.EraseByPoint)
+                && e.LeftButton == MouseButtonState.Pressed)
+            {
+                ErasePaintFillElementsAt(e.GetPosition(inkCanvas));
             }
 
             if (inkCanvas.EditingMode == InkCanvasEditingMode.EraseByStroke
@@ -4301,6 +4424,8 @@ namespace Ink_Canvas
         {
             if (drawingShapeMode == 26) CompletePerpendicularBisectorNow();
             if (drawingShapeMode == 15) CompleteMidpointNow();
+            if (drawingShapeMode == 27) RemoveArcRadiusGuide();
+            if (drawingShapeMode == AxisFlipShapeMode) CancelAxisFlip();
         }
 
 
@@ -4321,6 +4446,23 @@ namespace Ink_Canvas
                 e.Handled = true;
                 return;
             }
+            // 油漆桶：抬起即视为一次单击，按落点填充闭合区域
+            if (drawingShapeMode == PaintBucketShapeMode)
+            {
+                inkCanvas.ReleaseMouseCapture();
+                ViewboxFloatingBar.IsHitTestVisible = true;
+                BlackboardUIGridForInkReplay.IsHitTestVisible = true;
+                isMouseDown = false;
+
+                var fillPoint = _paintBucketTapPointValid ? _paintBucketTapPoint : e.GetPosition(inkCanvas);
+                _paintBucketTapPointValid = false;
+                if (e.ChangedButton == MouseButton.Left)
+                    TryFillRegionAt(fillPoint);
+
+                e.Handled = true;
+                return;
+            }
+
             // 视频展台特殊模式：结束鼠标拖动
             if (_isBoothMouseDragging)
             {
@@ -4408,9 +4550,19 @@ namespace Ink_Canvas
             }
 
             HandleEraserOperationEnded();
+
+            // 沿轴翻转：抬手即按拖出的轴线镜像选中的墨迹（原图保留、轴线消失）。
+            // 必须在 ReleaseMouseCapture 之前完成：释放捕获会同步触发 inkCanvas_LostMouseCapture，
+            // 那里调用 CancelAxisFlip 把 drawingShapeMode 复位成 0，之后再判断就永远进不来。
+            if (drawingShapeMode == AxisFlipShapeMode)
+                CompleteAxisFlip(_axisFlipAxisEndValid ? _axisFlipAxisEnd : e.GetPosition(inkCanvas));
+
             inkCanvas.ReleaseMouseCapture();
             ViewboxFloatingBar.IsHitTestVisible = true;
             BlackboardUIGridForInkReplay.IsHitTestVisible = true;
+
+            // 画圆弧：抬笔后只保留弧线，半径提示线移除
+            if (drawingShapeMode == 27) RemoveArcRadiusGuide();
 
             if (drawingShapeMode == 5)
             {
@@ -4436,7 +4588,7 @@ namespace Ink_Canvas
 
             if (drawingShapeMode != 9 && drawingShapeMode != 0 && drawingShapeMode != 24 && drawingShapeMode != 25
                 && drawingShapeMode != 21 && drawingShapeMode != 26 && drawingShapeMode != 17
-                && drawingShapeMode != 15)
+                && drawingShapeMode != 15 && drawingShapeMode != 27)
             {
                 if (isLongPressSelected) { }
                 else
@@ -4674,6 +4826,13 @@ namespace Ink_Canvas
                     RegisterGeometryLine(collection, GeometryLineKind.Perpendicular);
                 else if (completedShapeMode == 22 && collection != null)
                     RegisterGeometryLine(collection, GeometryLineKind.AngleBisector);
+                // 画圆弧：登记圆弧笔画，选中或刚画完时可拖动两个端点改变弧长（半径不变）
+                else if (completedShapeMode == 27 && collection != null)
+                {
+                    RegisterArc(collection);
+                    // 收尾锁定：等下一次落笔再允许新建圆弧
+                    _arcAwaitNewGesture = true;
+                }
             }
 
             if (completedShapeMode == 1 && lastTempStroke != null &&
@@ -5410,6 +5569,9 @@ namespace Ink_Canvas
         {
             if (GeometryLineHandleCanvas == null) return;
 
+            // 圆弧端点手柄优先：端点沿同一圆周移动，只改变弧长、不改变半径
+            if (TryUpdateArcHandles()) return;
+
             var record = _geometryLineHandleDragging ? _geometryLineHandleRecord : FindSelectedGeometryLine();
             if (!TryGetGeometryLinePoints(record, out var start, out var end))
             {
@@ -5438,7 +5600,9 @@ namespace Ink_Canvas
         {
             if (GeometryLineHandleCanvas == null) return;
             GeometryLineHandleCanvas.Visibility = Visibility.Collapsed;
+            _arcHandlesActive = false;
             if (!_geometryLineHandleDragging) _geometryLineHandleRecord = null;
+            if (!_arcHandleDragging) _arcHandleRecord = null;
         }
 
         private static void PositionGeometryLineHandle(FrameworkElement handle, Point canvasPoint)
@@ -5467,6 +5631,13 @@ namespace Ink_Canvas
                 return;
             }
 
+            // 圆弧的两个端点：拖动时只改变弧长，半径保持不变
+            if (_arcHandlesActive && TryBeginArcHandleDrag(sender))
+            {
+                e.Handled = true;
+                return;
+            }
+
             var record = _geometryLineHandleRecord ?? FindSelectedGeometryLine();
             if (!TryGetGeometryLinePoints(record, out _, out _)) return;
 
@@ -5481,6 +5652,12 @@ namespace Ink_Canvas
 
         private void GeometryLineHandle_MouseMove(object sender, MouseEventArgs e)
         {
+            if (_arcHandleDragging)
+            {
+                MoveArcHandle(sender, e);
+                return;
+            }
+
             if (!_geometryLineHandleDragging) return;
             if (!(sender is UIElement element) || !element.IsMouseCaptured) return;
 
@@ -5533,6 +5710,13 @@ namespace Ink_Canvas
 
         private void GeometryLineHandle_MouseUp(object sender, MouseButtonEventArgs e)
         {
+            if (_arcHandleDragging)
+            {
+                FinishArcHandleDrag(sender);
+                e.Handled = true;
+                return;
+            }
+
             if (!_geometryLineHandleDragging) return;
             FinishGeometryLineHandleDrag(sender);
             e.Handled = true;
@@ -5540,6 +5724,12 @@ namespace Ink_Canvas
 
         private void GeometryLineHandle_LostMouseCapture(object sender, MouseEventArgs e)
         {
+            if (_arcHandleDragging)
+            {
+                FinishArcHandleDrag(sender);
+                return;
+            }
+
             if (!_geometryLineHandleDragging) return;
             FinishGeometryLineHandleDrag(sender);
         }
@@ -5553,6 +5743,301 @@ namespace Ink_Canvas
             // 这里一次性提交，保证一次拖动只产生一条撤销记录
             CommitPendingStrokeManipulationHistory();
 
+            UpdateGeometryLineHandles();
+            try
+            {
+                UpdateSelectionDisplay();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine(ex);
+            }
+        }
+
+        #endregion
+
+        #region 画圆弧（模式 27）
+
+        /// <summary>
+        /// 用圆弧工具画出的圆弧。圆心/半径/起止角一律从笔画本身反算，
+        /// 因此整组被移动/旋转/缩放后，端点手柄依然贴着圆弧两端。
+        /// </summary>
+        private sealed class ArcStrokeRecord
+        {
+            public Stroke MainStroke;
+
+            /// <summary>弧的生成方向：true 表示角度递增（屏幕坐标下视觉为顺时针）。</summary>
+            public bool Clockwise = true;
+        }
+
+        private const double ArcMinSweepDegrees = 5;
+        private const double ArcMaxSweepDegrees = 355;
+        private const double ArcMinRadius = 4;
+
+        private readonly List<ArcStrokeRecord> _arcStrokes = new List<ArcStrokeRecord>();
+        private ArcStrokeRecord _arcHandleRecord;
+        /// <summary>本次手势已收尾（触摸抬起后可能补来一帧移动，用它挡住重复生成）。</summary>
+        private bool _arcAwaitNewGesture;
+        private bool _arcHandlesActive;
+        private bool _arcHandleDragging;
+        private bool _arcHandleAtStart;
+
+        /// <summary>
+        /// 生成圆弧采样点。角度单位为弧度；<paramref name="clockwise"/> 为 true 时角度由 startAngle 递增到 endAngle。
+        /// </summary>
+        private static List<Point> GenerateArcGeometry(Point center, double radius, double startAngle, double endAngle, bool clockwise)
+        {
+            var points = new List<Point>();
+            if (radius < ArcMinRadius) return points;
+
+            var sweep = clockwise ? endAngle - startAngle : startAngle - endAngle;
+            sweep = NormalizeRadians(sweep);
+            if (sweep < 0.01) return points;
+            if (!clockwise) sweep = -sweep;
+
+            // 每段不超过 3°，保证圆弧足够平滑
+            var segments = Math.Max(4, (int)Math.Ceiling(Math.Abs(sweep) / (Math.PI / 60)));
+            for (var i = 0; i <= segments; i++)
+            {
+                var angle = startAngle + sweep * i / segments;
+                points.Add(new Point(center.X + radius * Math.Cos(angle), center.Y + radius * Math.Sin(angle)));
+            }
+
+            return points;
+        }
+
+        /// <summary>把角度规整到 [0, 2π)。</summary>
+        private static double NormalizeRadians(double radians)
+        {
+            var twoPi = Math.PI * 2;
+            radians %= twoPi;
+            if (radians < 0) radians += twoPi;
+            return radians;
+        }
+
+        /// <summary>从圆弧笔画反算圆心、半径与起止角。</summary>
+        private static bool TryGetArcGeometry(Stroke stroke, out Point center, out double radius,
+            out double startAngle, out double endAngle)
+        {
+            center = default;
+            radius = 0;
+            startAngle = 0;
+            endAngle = 0;
+            if (stroke == null) return false;
+
+            var points = stroke.StylusPoints;
+            if (points == null || points.Count < 3) return false;
+
+            var first = points[0].ToPoint();
+            var middle = points[points.Count / 2].ToPoint();
+            var last = points[points.Count - 1].ToPoint();
+            if (!TryGetCircumcenter(first, middle, last, out center)) return false;
+
+            radius = (first - center).Length;
+            if (radius < ArcMinRadius) return false;
+
+            startAngle = Math.Atan2(first.Y - center.Y, first.X - center.X);
+            endAngle = Math.Atan2(last.Y - center.Y, last.X - center.X);
+            return true;
+        }
+
+        /// <summary>三点外接圆圆心（三点共线时返回 false）。</summary>
+        private static bool TryGetCircumcenter(Point a, Point b, Point c, out Point center)
+        {
+            center = default;
+            var d = 2 * (a.X * (b.Y - c.Y) + b.X * (c.Y - a.Y) + c.X * (a.Y - b.Y));
+            if (Math.Abs(d) < 1e-6) return false;
+
+            var a2 = a.X * a.X + a.Y * a.Y;
+            var b2 = b.X * b.X + b.Y * b.Y;
+            var c2 = c.X * c.X + c.Y * c.Y;
+            center = new Point(
+                (a2 * (b.Y - c.Y) + b2 * (c.Y - a.Y) + c2 * (a.Y - b.Y)) / d,
+                (a2 * (c.X - b.X) + b2 * (a.X - c.X) + c2 * (b.X - a.X)) / d);
+            return true;
+        }
+
+        /// <summary>绘制完成后登记圆弧笔画，并立刻显示两个端点手柄。</summary>
+        private void RegisterArc(StrokeCollection strokes)
+        {
+            if (strokes == null || strokes.Count == 0 || inkCanvas == null) return;
+
+            var mainStroke = strokes[0];
+            if (mainStroke == null) return;
+            if (!inkCanvas.Strokes.Contains(mainStroke)) return;
+            if (!TryGetArcGeometry(mainStroke, out _, out _, out _, out _)) return;
+
+            foreach (var existing in _arcStrokes)
+            {
+                if (ReferenceEquals(existing.MainStroke, mainStroke)) return;
+            }
+
+            var record = new ArcStrokeRecord { MainStroke = mainStroke };
+            _arcStrokes.Add(record);
+            if (_arcStrokes.Count > 64)
+                _arcStrokes.RemoveRange(0, _arcStrokes.Count - 64);
+
+            // 端点手柄只在圆弧被选中时显示（选中后由 UpdateSelectionDisplay → UpdateGeometryLineHandles 刷新）
+        }
+
+        /// <summary>找出「当前选中墨迹中包含圆弧」的记录。</summary>
+        private ArcStrokeRecord FindSelectedArc()
+        {
+            if (inkCanvas == null || _arcStrokes.Count == 0) return null;
+
+            var selected = inkCanvas.GetSelectedStrokes();
+            if (selected == null || selected.Count == 0) return null;
+
+            for (var i = _arcStrokes.Count - 1; i >= 0; i--)
+            {
+                var record = _arcStrokes[i];
+                if (record?.MainStroke != null && selected.Contains(record.MainStroke)) return record;
+            }
+
+            return null;
+        }
+
+        /// <summary>把两个端点手柄摆到圆弧两端；没有可显示的圆弧时返回 false。</summary>
+        private bool TryUpdateArcHandles()
+        {
+            if (GeometryLineHandleCanvas == null) return false;
+
+            // 只有被选中的圆弧（或正在拖动手柄）才显示端点
+            var record = _arcHandleDragging ? _arcHandleRecord : FindSelectedArc();
+
+            if (record?.MainStroke == null || inkCanvas == null || !inkCanvas.Strokes.Contains(record.MainStroke) ||
+                !TryGetArcGeometry(record.MainStroke, out var center, out var radius, out var startAngle, out var endAngle))
+            {
+                if (!_arcHandleDragging) _arcHandlesActive = false;
+
+                return false;
+            }
+
+            _arcHandleRecord = record;
+            _arcHandlesActive = true;
+
+            PositionGeometryLineHandle(GeometryLineHandleStart,
+                new Point(center.X + radius * Math.Cos(startAngle), center.Y + radius * Math.Sin(startAngle)));
+            PositionGeometryLineHandle(GeometryLineHandleEnd,
+                new Point(center.X + radius * Math.Cos(endAngle), center.Y + radius * Math.Sin(endAngle)));
+            GeometryLineHandleStart.Visibility = Visibility.Visible;
+            GeometryLineHandleEnd.Visibility = Visibility.Visible;
+            GeometryLineHandleCanvas.Visibility = Visibility.Visible;
+            return true;
+        }
+
+        /// <summary>拖动阶段显示的半径提示线（只存在于预览帧，抬笔后移除）。</summary>
+        private Stroke _arcRadiusGuideStroke;
+
+        /// <summary>移除半径提示线。</summary>
+        private void RemoveArcRadiusGuide()
+        {
+            var guide = _arcRadiusGuideStroke;
+            _arcRadiusGuideStroke = null;
+            if (guide == null || inkCanvas == null) return;
+
+            try
+            {
+                if (inkCanvas.Strokes.Contains(guide)) inkCanvas.Strokes.Remove(guide);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine(ex);
+            }
+        }
+
+        /// <summary>生成半径提示线：圆心 → 圆周（红色荧光辅助线，属于预览而不进入正式墨迹）。</summary>
+        private Stroke CreateArcRadiusGuide(Point center, Point edge)
+        {
+            if (inkCanvas == null) return null;
+
+            // 与垂线第一步的基准辅助线同款：固定红色荧光笔属性，
+            // 不跟随当前荧光笔/激光笔的颜色、宽度与透明度
+            var attributes = CreatePerpendicularGuideDrawingAttributes();
+
+            return new Stroke(new StylusPointCollection
+            {
+                new StylusPoint(center.X, center.Y),
+                new StylusPoint((center.X + edge.X) / 2, (center.Y + edge.Y) / 2),
+                new StylusPoint(edge.X, edge.Y)
+            })
+            {
+                DrawingAttributes = attributes
+            };
+        }
+
+        /// <summary>收起圆弧端点手柄（选中态由 UpdateGeometryLineHandles 重新决定）。</summary>
+        private void ClearArcHandleHighlight()
+        {
+            RemoveArcRadiusGuide();
+            if (!_arcHandlesActive || _arcHandleDragging) return;
+            _arcHandlesActive = false;
+            _arcHandleRecord = null;
+            HideGeometryLineHandles();
+        }
+
+        private bool TryBeginArcHandleDrag(object sender)
+        {
+            var record = _arcHandleRecord;
+            if (record?.MainStroke == null) return false;
+            if (!TryGetArcGeometry(record.MainStroke, out _, out _, out _, out _)) return false;
+
+            _arcHandleRecord = record;
+            _arcHandleAtStart = ReferenceEquals(sender, GeometryLineHandleStart);
+            _arcHandleDragging = true;
+            if (sender is UIElement element) element.CaptureMouse();
+            return true;
+        }
+
+        private void MoveArcHandle(object sender, MouseEventArgs e)
+        {
+            if (!(sender is UIElement element) || !element.IsMouseCaptured) return;
+
+            var record = _arcHandleRecord;
+            if (record?.MainStroke == null) return;
+            if (!TryGetArcGeometry(record.MainStroke, out var center, out var radius,
+                    out var startAngle, out var endAngle)) return;
+
+            var position = e.GetPosition(GeometryLineHandleCanvas);
+            var pointerAngle = Math.Atan2(position.Y - center.Y, position.X - center.X);
+
+            var newStart = _arcHandleAtStart ? pointerAngle : startAngle;
+            var newEnd = _arcHandleAtStart ? endAngle : pointerAngle;
+
+            // 方向沿用当前弧，张角限制在 [5°, 355°]，避免拖成一条直线或整圆
+            var clockwise = record.Clockwise;
+            var sweep = NormalizeRadians(clockwise ? newEnd - newStart : newStart - newEnd);
+            var minSweep = ArcMinSweepDegrees * Math.PI / 180;
+            var maxSweep = ArcMaxSweepDegrees * Math.PI / 180;
+            if (sweep < minSweep) sweep = minSweep;
+            if (sweep > maxSweep) sweep = maxSweep;
+
+            var points = GenerateArcGeometry(center, radius, newStart,
+                clockwise ? newStart + sweep : newStart - sweep, clockwise);
+            if (points.Count < 3) return;
+
+            record.MainStroke.StylusPoints = new StylusPointCollection(points);
+            UpdateGeometryLineHandles();
+
+            try
+            {
+                UpdateSelectionDisplay();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine(ex);
+            }
+
+            e.Handled = true;
+        }
+
+        private void FinishArcHandleDrag(object sender)
+        {
+            _arcHandleDragging = false;
+            if (sender is UIElement element && element.IsMouseCaptured) element.ReleaseMouseCapture();
+
+            // 一次拖动只产生一条撤销记录
+            CommitPendingStrokeManipulationHistory();
             UpdateGeometryLineHandles();
             try
             {

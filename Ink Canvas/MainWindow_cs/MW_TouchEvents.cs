@@ -1234,6 +1234,12 @@ namespace Ink_Canvas
                     // 中垂线 / 中点：新的一次落笔，允许重新绘制（上一次手势的收尾锁定到此解除）
                     if (drawingShapeMode == 26) _perpendicularBisectorAwaitNewGesture = false;
                     if (drawingShapeMode == 15) _midpointAwaitNewGesture = false;
+                    // 画圆弧：新的一笔开始，收起上一次圆弧的端点手柄并解除收尾锁定
+                    if (drawingShapeMode == 27)
+                    {
+                        _arcAwaitNewGesture = false;
+                        ClearArcHandleHighlight();
+                    }
 
                     isTouchDown = true;
                     ViewboxFloatingBar.IsHitTestVisible = false;
@@ -1341,6 +1347,13 @@ namespace Ink_Canvas
             // 不能把收尾依赖放在后面，否则荧光笔线段会残留到下一次点击）
             if (drawingShapeMode == 26) CompletePerpendicularBisectorNow();
             if (drawingShapeMode == 15) CompleteMidpointNow();
+
+            // 油漆桶：记录手写笔抬笔位置（合成的鼠标事件拿不到触摸/手写笔坐标）
+            if (drawingShapeMode == PaintBucketShapeMode)
+            {
+                _paintBucketTapPoint = e.GetPosition(inkCanvas);
+                _paintBucketTapPointValid = true;
+            }
 
             if (IsTouchStylusDevice(e.StylusDevice))
                 return;
@@ -2388,6 +2401,13 @@ namespace Ink_Canvas
                 ViewboxFloatingBar.IsHitTestVisible = true;
                 BlackboardUIGridForInkReplay.IsHitTestVisible = true;
 
+                // 油漆桶：记录触摸抬笔位置（合成的鼠标事件拿不到触摸坐标）
+                if (drawingShapeMode == PaintBucketShapeMode)
+                {
+                    _paintBucketTapPoint = e.GetTouchPoint(inkCanvas).Position;
+                    _paintBucketTapPointValid = true;
+                }
+
                 if (drawingShapeMode == 24 || drawingShapeMode == 25 || drawingShapeMode == 21 || drawingShapeMode == 22
                     || drawingShapeMode == 17)
                 {
@@ -2787,6 +2807,11 @@ namespace Ink_Canvas
                     else if (child is CanvasMediaControl mediaControl)
                     {
                         ApplyMatrixTransformToCanvasMediaControl(mediaControl, matrix);
+                    }
+                    else if (IsPaintBucketFillElement(child))
+                    {
+                        // 油漆桶生成的矢量填充路径：与笔迹同步缩放/漫游
+                        ApplyMatrixTransformToPaintFill((System.Windows.Shapes.Path)child, matrix);
                     }
                 }
             }

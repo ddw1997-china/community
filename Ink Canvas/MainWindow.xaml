@@ -643,11 +643,9 @@
                                 Height="40">
                             <ikw:SimpleStackPanel VerticalAlignment="Center" Margin="0,-10">
                                 <ikw:SimpleStackPanel Orientation="Horizontal">
+                                    <!-- 沿轴翻转：点击后拖出一条轴线，按该轴镜像选中的墨迹（原图保留） -->
                                     <Image MouseDown="Border_MouseDown" MouseUp="ImageFlipHorizontal_MouseUp"
                                            Source="{DynamicResource StrokeSelectionFlipHorizontalIcon}"
-                                           RenderOptions.BitmapScalingMode="HighQuality" Height="30" Width="30" />
-                                    <Image MouseDown="Border_MouseDown" MouseUp="ImageFlipVertical_MouseUp"
-                                           Source="{DynamicResource StrokeSelectionFlipVerticalIcon}"
                                            RenderOptions.BitmapScalingMode="HighQuality" Height="30" Width="30" />
                                 </ikw:SimpleStackPanel>
                                 <TextBlock Text="{x:Static props:MainWindowStrings.Main_ContextFlip}" FontSize="10" HorizontalAlignment="Center"

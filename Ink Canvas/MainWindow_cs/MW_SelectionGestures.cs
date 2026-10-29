@@ -421,93 +421,213 @@ namespace Ink_Canvas
         }
 
         /// <summary>
-        /// 处理水平翻转鼠标释放事件
+        /// 选中对象工具栏的「水平翻转」：进入沿轴翻转状态，随后在画布上拖出一条对称轴，
+        /// 松手时按该轴镜像选中的墨迹（原图保留、轴线消失）。
         /// </summary>
-        /// <param name="sender">事件发送者</param>
-        /// <param name="e">鼠标按钮事件参数</param>
-        /// <remarks>
-        /// 只有当鼠标按下和释放的是同一个对象时才处理
-        /// 对选中的墨迹应用水平翻转变换
-        /// 如果有 DrawingAttributesHistory，则提交历史记录
-        /// </remarks>
         private void ImageFlipHorizontal_MouseUp(object sender, MouseButtonEventArgs e)
         {
             if (TryBlockFrozenPageMutation("翻转墨迹")) return;
             if (lastBorderMouseDownObject != sender) return;
 
-            var m = new Matrix();
+            BeginAxisFlip();
+        }
 
-            // Find center of element and then transform to get current location of center
-            var fe = e.Source as FrameworkElement;
-            var center = new Point(fe.ActualWidth / 2, fe.ActualHeight / 2);
-            center = new Point(inkCanvas.GetSelectionBounds().Left + inkCanvas.GetSelectionBounds().Width / 2,
-                inkCanvas.GetSelectionBounds().Top + inkCanvas.GetSelectionBounds().Height / 2);
-            center = m.Transform(center); // 转换为矩阵缩放和旋转的中心点
+        #region 沿轴翻转（选中对象工具栏）
 
-            // Update matrix to reflect translation/rotation
-            m.ScaleAt(-1, 1, center.X, center.Y); // 缩放
+        /// <summary>沿轴翻转占用的绘制模式号（不占用图形面板的 1~27）。</summary>
+        private const int AxisFlipShapeMode = 28;
 
-            var targetStrokes = inkCanvas.GetSelectedStrokes();
-            foreach (var stroke in targetStrokes) stroke.Transform(m, false);
+        /// <summary>轴线太短（单击或手抖）视为放弃，不生成镜像副本。</summary>
+        private const double AxisFlipMinLength = 10;
 
-            if (DrawingAttributesHistory.Count > 0)
+        /// <summary>等待画对称轴的源墨迹。原图保留，最终只新增一份镜像副本。</summary>
+        private List<Stroke> _axisFlipSourceStrokes;
+
+        /// <summary>拖动阶段显示的对称轴（荧光笔辅助线，只属于预览，结束时移除）。</summary>
+        private Stroke _axisFlipGuideStroke;
+
+        /// <summary>轴线终点（取最后一次拖动位置，触摸路径下不能用鼠标位置代替）。</summary>
+        private Point _axisFlipAxisEnd;
+        private bool _axisFlipAxisEndValid;
+
+        /// <summary>进入沿轴翻转状态：等待用户拖出一条对称轴。</summary>
+        private void BeginAxisFlip()
+        {
+            if (inkCanvas == null) return;
+
+            var selected = inkCanvas.GetSelectedStrokes();
+            if (selected == null || selected.Count == 0) return;
+
+            _axisFlipSourceStrokes = new List<Stroke>();
+            foreach (var stroke in selected)
             {
-                //var collecion = new StrokeCollection();
-                //foreach (var item in DrawingAttributesHistory)
-                //{
-                //    collecion.Add(item.Key);
-                //}
-                timeMachine.CommitStrokeDrawingAttributesHistory(DrawingAttributesHistory);
-                DrawingAttributesHistory = new Dictionary<Stroke, Tuple<DrawingAttributes, DrawingAttributes>>();
-                foreach (var item in DrawingAttributesHistoryFlag)
-                {
-                    item.Value.Clear();
-                }
+                if (stroke != null) _axisFlipSourceStrokes.Add(stroke);
             }
 
-            //updateBorderStrokeSelectionControlLocation();
+            if (_axisFlipSourceStrokes.Count == 0)
+            {
+                _axisFlipSourceStrokes = null;
+                return;
+            }
+
+            RemoveAxisFlipGuide();
+            _axisFlipAxisEndValid = false;
+
+            forceEraser = false;
+            drawingShapeMode = AxisFlipShapeMode;
+            drawMultiStepShapeCurrentStep = 0;
+            inkCanvas.EditingMode = InkCanvasEditingMode.None;
+            inkCanvas.IsManipulationEnabled = true;
+
+            // 不能直接调用 CancelSingleFingerDragMode()：它会把 GridInkCanvasSelectionCover 收起，
+            // 而选中对象工具栏（BorderStrokeSelectionControl）的可见性绑在这个覆盖层上，
+            // 一收起工具窗口就跟着消失了。这里只做单指拖拽相关的收尾，
+            // 覆盖层保持显示（工具栏常驻），但翻转期间设为不参与命中测试，
+            // 保证拖对称轴的手势仍然落在 inkCanvas 上。
+            if (ToggleSwitchDrawShapeBorderAutoHide.IsOn) CollapseBorderDrawShape();
+            if (isSingleFingerDragMode) ToggleFingerDragMode(null, null);
+            isLongPressSelected = true;
+
+            SetAxisFlipSelectionChromePinned(true);
         }
 
         /// <summary>
-        /// 处理垂直翻转鼠标释放事件
+        /// 沿轴翻转期间固定/恢复「选中对象工具栏」。
+        /// 工具栏可见性绑定在 GridInkCanvasSelectionCover 上，所以翻转时让覆盖层保持可见，
+        /// 仅关闭其命中测试（覆盖层是铺满画布的透明层，可命中会拦截拖轴手势）。
         /// </summary>
-        /// <param name="sender">事件发送者</param>
-        /// <param name="e">鼠标按钮事件参数</param>
-        /// <remarks>
-        /// 只有当鼠标按下和释放的是同一个对象时才处理
-        /// 对选中的墨迹应用垂直翻转变换
-        /// 如果有 DrawingAttributesHistory，则提交历史记录
-        /// </remarks>
-        private void ImageFlipVertical_MouseUp(object sender, MouseButtonEventArgs e)
+        private void SetAxisFlipSelectionChromePinned(bool pinned)
         {
-            if (TryBlockFrozenPageMutation("翻转墨迹")) return;
-            if (lastBorderMouseDownObject != sender) return;
+            if (GridInkCanvasSelectionCover == null) return;
 
-            var m = new Matrix();
-
-            // Find center of element and then transform to get current location of center
-            var fe = e.Source as FrameworkElement;
-            var center = new Point(fe.ActualWidth / 2, fe.ActualHeight / 2);
-            center = new Point(inkCanvas.GetSelectionBounds().Left + inkCanvas.GetSelectionBounds().Width / 2,
-                inkCanvas.GetSelectionBounds().Top + inkCanvas.GetSelectionBounds().Height / 2);
-            center = m.Transform(center); // 转换为矩阵缩放和旋转的中心点
-
-            // Update matrix to reflect translation/rotation
-            m.ScaleAt(1, -1, center.X, center.Y); // 缩放
-
-            var targetStrokes = inkCanvas.GetSelectedStrokes();
-            foreach (var stroke in targetStrokes) stroke.Transform(m, false);
-
-            if (DrawingAttributesHistory.Count > 0)
+            if (pinned)
             {
-                timeMachine.CommitStrokeDrawingAttributesHistory(DrawingAttributesHistory);
-                DrawingAttributesHistory = new Dictionary<Stroke, Tuple<DrawingAttributes, DrawingAttributes>>();
-                foreach (var item in DrawingAttributesHistoryFlag)
-                {
-                    item.Value.Clear();
-                }
+                GridInkCanvasSelectionCover.IsHitTestVisible = false;
+                // 显示选择框与工具栏，但保持原位不重新定位（用户可能刚拖动过工具栏）
+                RefreshStrokeSelectionChrome();
+            }
+            else
+            {
+                GridInkCanvasSelectionCover.IsHitTestVisible = true;
             }
         }
+
+        /// <summary>移除拖动阶段的对称轴。</summary>
+        private void RemoveAxisFlipGuide()
+        {
+            var guide = _axisFlipGuideStroke;
+            _axisFlipGuideStroke = null;
+            if (guide == null || inkCanvas == null) return;
+
+            try
+            {
+                if (inkCanvas.Strokes.Contains(guide)) inkCanvas.Strokes.Remove(guide);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine(ex);
+            }
+        }
+
+        /// <summary>
+        /// 按轴线的无限延长线镜像选中的墨迹：原图不动，另加一份镜像副本；
+        /// 轴线只用于预览，结束后移除；随后回到选择模式并保持原选中。
+        /// </summary>
+        private void CompleteAxisFlip(Point axisEnd)
+        {
+            var source = _axisFlipSourceStrokes;
+            _axisFlipSourceStrokes = null;
+
+            RemoveAxisFlipGuide();
+
+            var axis = axisEnd - iniP;
+            if (source != null && source.Count > 0 && axis.Length >= AxisFlipMinLength)
+            {
+                axis.Normalize();
+                var matrix = CreateAxisReflectionMatrix(iniP, axis);
+
+                var mirrored = new StrokeCollection();
+                foreach (var stroke in source)
+                {
+                    if (stroke == null) continue;
+                    var clone = stroke.Clone();
+                    clone.Transform(matrix, false);
+                    mirrored.Add(clone);
+                }
+
+                if (mirrored.Count > 0 && inkCanvas != null)
+                {
+                    inkCanvas.Strokes.Add(mirrored);
+                    timeMachine.CommitStrokeUserInputHistory(mirrored);
+                }
+            }
+
+            ExitAxisFlipMode(source);
+        }
+
+        /// <summary>放弃沿轴翻转：移除轴线并回到选择模式（原有选中保持不变）。</summary>
+        private void CancelAxisFlip()
+        {
+            _axisFlipSourceStrokes = null;
+            RemoveAxisFlipGuide();
+            ExitAxisFlipMode(null);
+        }
+
+        /// <summary>退出沿轴翻转状态：回到选择模式，并尽量恢复原来的选中。</summary>
+        private void ExitAxisFlipMode(List<Stroke> source)
+        {
+            if (drawingShapeMode != AxisFlipShapeMode) return;
+
+            drawingShapeMode = 0;
+            isLongPressSelected = false;
+            // 恢复覆盖层的命中测试（翻转期间为让工具窗口常驻而被临时关闭）
+            SetAxisFlipSelectionChromePinned(false);
+            if (inkCanvas == null) return;
+
+            inkCanvas.EditingMode = InkCanvasEditingMode.Select;
+
+            if (source == null || source.Count == 0) return;
+
+            var selection = new StrokeCollection();
+            foreach (var stroke in source)
+            {
+                if (stroke != null && inkCanvas.Strokes.Contains(stroke)) selection.Add(stroke);
+            }
+
+            if (selection.Count == 0)
+            {
+                // 源墨迹已被删除：没有选中内容，收起覆盖层与工具窗口，避免留下空工具栏
+                GridInkCanvasSelectionCover.Visibility = Visibility.Collapsed;
+                HideSelectionDisplay();
+                return;
+            }
+
+            try
+            {
+                inkCanvas.Select(selection);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine(ex);
+            }
+        }
+
+        /// <summary>构造「关于过 pointOnAxis、方向 unitDirection 的直线」的反射矩阵。</summary>
+        private static Matrix CreateAxisReflectionMatrix(Point pointOnAxis, Vector unitDirection)
+        {
+            var ux = unitDirection.X;
+            var uy = unitDirection.Y;
+            var m11 = ux * ux - uy * uy;
+            var m12 = 2 * ux * uy;
+            var m22 = uy * uy - ux * ux;
+
+            return new Matrix(
+                m11, m12, m12, m22,
+                pointOnAxis.X - (m11 * pointOnAxis.X + m12 * pointOnAxis.Y),
+                pointOnAxis.Y - (m12 * pointOnAxis.X + m22 * pointOnAxis.Y));
+        }
+
+        #endregion
 
         // ... existing code ...
         /// <summary>

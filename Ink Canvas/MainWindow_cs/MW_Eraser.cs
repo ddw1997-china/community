@@ -236,6 +236,8 @@ namespace Ink_Canvas
             if (!isUsingGeometryEraser) return;
 
             EraseSecAgentSceneElementsAt(pt);
+            // 油漆桶填充是画布子元素（矢量路径），原生橡皮擦只处理 inkCanvas.Strokes，需要单独擦除
+            ErasePaintFillElementsAt(pt);
 
             if (isUsingStrokesEraser)
             {

@@ -1632,9 +1632,9 @@ namespace Ink_Canvas
                     RenderTransform = image.RenderTransform?.Clone()
                 };
 
-                // 设置位置，稍微偏移以避免重叠
-                InkCanvas.SetLeft(clonedImage, InkCanvas.GetLeft(image) + 20);
-                InkCanvas.SetTop(clonedImage, InkCanvas.GetTop(image) + 20);
+                // 位置与源图片完全一致（不做偏移），复制后与源对象重合
+                InkCanvas.SetLeft(clonedImage, InkCanvas.GetLeft(image));
+                InkCanvas.SetTop(clonedImage, InkCanvas.GetTop(image));
 
                 // 设置图片属性，避免被InkCanvas选择系统处理
                 clonedImage.IsHitTestVisible = true;
@@ -1682,9 +1682,9 @@ namespace Ink_Canvas
                     RenderTransform = image.RenderTransform?.Clone()
                 };
 
-                // 设置位置，稍微偏移以避免重叠
-                InkCanvas.SetLeft(clonedImage, InkCanvas.GetLeft(image) + 20);
-                InkCanvas.SetTop(clonedImage, InkCanvas.GetTop(image) + 20);
+                // 位置与源图片完全一致（不做偏移）
+                InkCanvas.SetLeft(clonedImage, InkCanvas.GetLeft(image));
+                InkCanvas.SetTop(clonedImage, InkCanvas.GetTop(image));
 
                 // 创建新页面
                 BtnWhiteBoardAdd_Click(null, null);
@@ -2675,11 +2675,11 @@ namespace Ink_Canvas
                 clonedImage.Stretch = originalImage.Stretch;
                 clonedImage.StretchDirection = originalImage.StretchDirection;
 
-                // 复制位置（在新页面中居中显示）
+                // 复制位置：与源图片完全一致，不做偏移
                 double left = InkCanvas.GetLeft(originalImage);
                 double top = InkCanvas.GetTop(originalImage);
-                InkCanvas.SetLeft(clonedImage, left + 20); // 稍微偏移位置
-                InkCanvas.SetTop(clonedImage, top + 20);
+                InkCanvas.SetLeft(clonedImage, left);
+                InkCanvas.SetTop(clonedImage, top);
 
                 // 复制变换
                 if (originalImage.RenderTransform is TransformGroup originalTransformGroup)
@@ -2711,19 +2711,8 @@ namespace Ink_Canvas
 
             try
             {
-                // 创建墨迹集合的副本
+                // 创建墨迹集合的副本（点位原样保留，与源墨迹完全重合）
                 var clonedStrokes = strokes.Clone();
-
-                // 为每个墨迹添加位置偏移以避免重叠
-                foreach (var stroke in clonedStrokes)
-                {
-                    var offsetPoints = new StylusPointCollection();
-                    foreach (var point in stroke.StylusPoints)
-                    {
-                        offsetPoints.Add(new StylusPoint(point.X + 20, point.Y + 20, point.PressureFactor));
-                    }
-                    stroke.StylusPoints = offsetPoints;
-                }
 
                 // 添加到画布
                 inkCanvas.Strokes.Add(clonedStrokes);
@@ -2752,19 +2741,8 @@ namespace Ink_Canvas
 
             try
             {
-                // 创建墨迹集合的副本
+                // 创建墨迹集合的副本（点位原样保留，与源墨迹完全重合）
                 var clonedStrokes = strokes.Clone();
-
-                // 为每个墨迹添加位置偏移以避免重叠
-                foreach (var stroke in clonedStrokes)
-                {
-                    var offsetPoints = new StylusPointCollection();
-                    foreach (var point in stroke.StylusPoints)
-                    {
-                        offsetPoints.Add(new StylusPoint(point.X + 20, point.Y + 20, point.PressureFactor));
-                    }
-                    stroke.StylusPoints = offsetPoints;
-                }
 
                 // 创建新页面
                 BtnWhiteBoardAdd_Click(null, null);

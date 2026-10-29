@@ -193,7 +193,7 @@
     <value>恢复笔粗细</value>
   </data>
   <data name="Canvas_ShowCircleCenter" xml:space="preserve">
-    <value>绘制圆时显示圆心位置</value>
+    <value>显示圆心</value>
   </data>
   <data name="Canvas_ParabolaSingleStroke" xml:space="preserve">
     <value>抛物线一笔绘制</value>

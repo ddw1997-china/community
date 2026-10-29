@@ -90,6 +90,14 @@ namespace Ink_Canvas.Properties
 
         public static string DrawPerpendicularBisector => ResourceManager.GetString(nameof(DrawPerpendicularBisector), _resourceCulture);
 
+        public static string DrawArc => ResourceManager.GetString(nameof(DrawArc), _resourceCulture);
+
+        public static string DrawBucket => ResourceManager.GetString(nameof(DrawBucket), _resourceCulture);
+
+        public static string FillColor => ResourceManager.GetString(nameof(FillColor), _resourceCulture);
+
+        public static string FillColorCustom => ResourceManager.GetString(nameof(FillColorCustom), _resourceCulture);
+
         public static string DrawSquare => ResourceManager.GetString(nameof(DrawSquare), _resourceCulture);
 
         public static string DrawTriangleRuler => ResourceManager.GetString(nameof(DrawTriangleRuler), _resourceCulture);

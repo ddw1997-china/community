@@ -1,5 +1,8 @@
 using iNKORE.UI.WPF.Modern.Controls;
+using System.Collections.Generic;
+using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 
 namespace Ink_Canvas.Controls
 {
@@ -20,6 +23,8 @@ namespace Ink_Canvas.Controls
         public GeometryButton DrawCylinderBtn => BoardImageDrawCylinder;
         public GeometryButton DrawConeBtn => BoardImageDrawCone;
         public GeometryButton DrawPerpendicularBisectorBtn => BoardImageDrawPerpendicularBisector;
+        public GeometryButton DrawArcBtn => BoardImageDrawArc;
+        public GeometryButton DrawBucketBtn => BoardImageDrawBucket;
         public GeometryButton DrawCompassBtn => BoardImageDrawCompass;
         public GeometryButton DrawTriangleRulerBtn => BoardImageDrawTriangleRuler;
         public GeometryButton DrawTriangleRuler2Btn => BoardImageDrawTriangleRuler2;
@@ -38,6 +43,9 @@ namespace Ink_Canvas.Controls
         public GeometryButton DrawParabola2Btn => ImageDrawParabola2;
 
         public ToggleSwitch ShowCircleCenterToggle => ToggleSwitchShowCircleCenter;
+
+        /// <summary>油漆桶右下角的▲按钮：点击弹出与「选中对象工具栏」一致的快捷调色盘。</summary>
+        public ToggleButton BucketColorToggleButton => BucketColorToggle;
 
         public ToggleSwitch ParabolaSingleStrokeToggle => ToggleSwitchParabolaSingleStroke;
 

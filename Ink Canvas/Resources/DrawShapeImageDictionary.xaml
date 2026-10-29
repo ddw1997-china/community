@@ -365,6 +365,81 @@
             </DrawingGroup>
         </DrawingImage.Drawing>
     </DrawingImage>
+    <!-- 画圆弧工具图标：圆心 + 半径 + 两个端点 + 四分之一圆弧 -->
+    <DrawingImage x:Key="DrawShapeImageSource.Arc">
+        <DrawingImage.Drawing>
+            <DrawingGroup ClipGeometry="M0,0 V750 H750 V0 H0 Z">
+                <GeometryDrawing>
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="{DynamicResource FloatBarForeground}" Thickness="50" StartLineCap="Round" EndLineCap="Round" LineJoin="Round" />
+                    </GeometryDrawing.Pen>
+                    <GeometryDrawing.Geometry>
+                        <PathGeometry Figures="M200,220 A400,400 0 0 1 600,620" />
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+                <GeometryDrawing>
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="{DynamicResource FloatBarForeground}" Thickness="26" StartLineCap="Round" EndLineCap="Round" LineJoin="Round" />
+                    </GeometryDrawing.Pen>
+                    <GeometryDrawing.Geometry>
+                        <LineGeometry StartPoint="200,620" EndPoint="200,262" />
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+                <GeometryDrawing Brush="{DynamicResource FloatBarForeground}">
+                    <GeometryDrawing.Geometry>
+                        <EllipseGeometry RadiusX="40" RadiusY="40" Center="200,620" />
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+                <GeometryDrawing Brush="{DynamicResource FloatBarForeground}">
+                    <GeometryDrawing.Geometry>
+                        <EllipseGeometry RadiusX="34" RadiusY="34" Center="200,220" />
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+                <GeometryDrawing Brush="{DynamicResource FloatBarForeground}">
+                    <GeometryDrawing.Geometry>
+                        <EllipseGeometry RadiusX="34" RadiusY="34" Center="600,620" />
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+            </DrawingGroup>
+        </DrawingImage.Drawing>
+    </DrawingImage>
+    <!-- 油漆桶工具图标：桶身 + 提手 + 桶内颜料 + 一滴颜料 -->
+    <DrawingImage x:Key="DrawShapeImageSource.Bucket">
+        <DrawingImage.Drawing>
+            <DrawingGroup ClipGeometry="M0,0 V750 H750 V0 H0 Z">
+                <!-- 桶身外轮廓 -->
+                <GeometryDrawing>
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="{DynamicResource FloatBarForeground}" Thickness="42" StartLineCap="Round" EndLineCap="Round" LineJoin="Round" />
+                    </GeometryDrawing.Pen>
+                    <GeometryDrawing.Geometry>
+                        <PathGeometry Figures="M165,275 L585,275 L515,655 Q508,695 468,695 L282,695 Q242,695 235,655 Z" />
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+                <!-- 桶内颜料 -->
+                <GeometryDrawing Brush="{DynamicResource FloatBarForeground}">
+                    <GeometryDrawing.Geometry>
+                        <PathGeometry Figures="M196,430 L554,430 L515,655 Q508,695 468,695 L282,695 Q242,695 235,655 Z" />
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+                <!-- 提手 -->
+                <GeometryDrawing>
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="{DynamicResource FloatBarForeground}" Thickness="38" StartLineCap="Round" EndLineCap="Round" LineJoin="Round" />
+                    </GeometryDrawing.Pen>
+                    <GeometryDrawing.Geometry>
+                        <PathGeometry Figures="M228,275 A147,147 0 0 1 522,275" />
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+                <!-- 滴落的颜料 -->
+                <GeometryDrawing Brush="{DynamicResource FloatBarForeground}">
+                    <GeometryDrawing.Geometry>
+                        <PathGeometry Figures="M640,120 C652,168 690,205 690,248 A50,50 0 0 1 590,248 C590,205 628,168 640,120 Z" />
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+            </DrawingGroup>
+        </DrawingImage.Drawing>
+    </DrawingImage>
     <!-- 角平分线工具图标（用于取代原「抛物线（焦点）」）：角 + 角平分线 + 等角弧 -->
     <DrawingImage x:Key="DrawShapeImageSource.AngleBisector">
         <DrawingImage.Drawing>
