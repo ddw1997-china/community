@@ -595,7 +595,9 @@ jobs:
 
   release:
     needs: [prepare, build, sign]
-    if: success()
+    # 发版以本地手工构建的包和手写说明为准：CI 只做构建校验，
+    # 不再创建 Release / 上传资产 / 覆盖说明。
+    if: false
     runs-on: ubuntu-slim
     permissions:
       contents: write
