@@ -724,7 +724,10 @@ jobs:
 
   post_release:
     needs: [prepare, release]
-    if: success() && github.event.inputs.draft != 'true'
+    # fork 仓库不在上游 octo-sts 信任策略（InkCanvasForClass/community-beta、
+    # InkCanvasForClass/downloads 的 repo-sync 身份）中，换取 token 必然失败，
+    # 这些同步步骤对 fork 无意义，整条 job 直接跳过。
+    if: false
     runs-on: ubuntu-slim
     permissions:
       id-token: write
