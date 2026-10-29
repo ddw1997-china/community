@@ -8,6 +8,10 @@
     <Nullable>disable</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <!-- 单文件发布时 SDK 会隐式注入 Microsoft.NET.ILLink.Tasks（单文件分析器），
+         导致 packages.lock.json 与 CI 的普通锁定模式还原不一致（NU1004）。
+         本程序发布时 PublishTrimmed=false，不需要 ILLink，关闭该分析器以保持锁定文件与还原配置无关。 -->
+    <EnableSingleFileAnalyzer>false</EnableSingleFileAnalyzer>
     <ProjectTypeGuids>{60dc8134-eba5-43b8-bcc9-bb4bc16c2548};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
     <IsWebBootstrapper>false</IsWebBootstrapper>
