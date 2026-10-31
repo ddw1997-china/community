@@ -658,6 +658,17 @@ namespace Ink_Canvas
         /// </summary>
         private void Window_PreviewMouseDown(object sender, MouseButtonEventArgs e)
         {
+            if (drawingShapeMode == AxisFlipShapeMode)
+            {
+                // 沿轴翻转：拖轴阶段画布的 MouseDown 会被 InkCanvas 内层吃掉（不冒泡到 inkCanvas_MouseDown），
+                // 导致 iniP/isMouseDown 不更新：轴线不出现、松手时按旧起点镜像（副本位置错）。
+                // 这里在窗口预览阶段（必定先于内层命中）接管，保证起点就是本次按下的位置。
+                if (e.ChangedButton == MouseButton.Left
+                    && IsDescendantOf(e.OriginalSource as DependencyObject, inkCanvas))
+                {
+                    BeginAxisFlipDragAt(e.GetPosition(inkCanvas));
+                }
+            }
             HandleSelectedSecAgentSceneMouseDown(e);
             HandleAutoCollapseOnMouseDown(e);
         }

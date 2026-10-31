@@ -3291,6 +3291,9 @@ namespace Ink_Canvas
                 // 执行模式切换
                 inkCanvas.EditingMode = newMode;
 
+                // 油漆桶填充块只选择模式下可命中，其余模式保持穿透（不挡书写与擦除）
+                UpdatePaintFillHitTest();
+
                 // 根据模式确定是否为鼠标模式（无工具模式）
                 bool isMouseMode = newMode == InkCanvasEditingMode.None;
 

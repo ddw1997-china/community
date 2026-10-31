@@ -2,6 +2,7 @@ using Ink_Canvas.Controls;
 using Ink_Canvas.Helpers;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -28,6 +29,12 @@ namespace Ink_Canvas
 
         /// <summary>轮廓简化容差（采样像素），把像素阶梯边简化成折线。</summary>
         private const double PaintBucketContourTolerance = 1.2;
+
+        /// <summary>
+        /// 填充轮廓的外扩像素数（采样像素）：抵消边界掩码 1 像素膨胀造成的缩进，
+        /// 让填充色贴住笔迹内沿，不再出现白缝。调大可进一步压掉缝隙，过大会压到笔迹上。
+        /// </summary>
+        private const int PaintBucketContourOutset = 1;
 
         /// <summary>填充元素的名字前缀：用于缩放/漫游时识别并同步变换。</summary>
         private const string PaintBucketFillElementPrefix = "paintfill_";
@@ -200,6 +207,28 @@ namespace Ink_Canvas
                 return;
             }
 
+            // 轮廓外扩：判定边界时把笔迹掩码向外膨胀了 1 像素（防手绘毛缝漏色），
+            // 填充轮廓因此比笔迹内沿缩进约 1 像素，再叠加简化容差就是肉眼看到的白缝。
+            // 这里把区域掩码向外扩同样的像素数把它抵消掉；外扩后压在笔迹内沿下方，不易察觉。
+            DilateRegionMask(region, width, height, PaintBucketContourOutset);
+
+            // 外扩会改变区域包围盒，重新统计（它是 Path 布局原点与坐标换算的基准）
+            minX = width - 1;
+            minY = height - 1;
+            maxX = 0;
+            maxY = 0;
+            for (int y = 0; y < height; y++)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    if (!region[y * width + x]) continue;
+                    if (x < minX) minX = x;
+                    if (x > maxX) maxX = x;
+                    if (y < minY) minY = y;
+                    if (y > maxY) maxY = y;
+                }
+            }
+
             // 区域边界 → 矢量路径；以区域左上角为 Path 的布局原点
             var contours = TraceRegionContours(region, width, height);
             if (contours.Count == 0)
@@ -261,6 +290,10 @@ namespace Ink_Canvas
             InkCanvas.SetTop(fillPath, sampleBounds.Y + minY / scale);
 
             inkCanvas.Children.Add(fillPath);
+            // 选择模式下可选中填充块：绑定与图片一致的元素事件（拖动、滚轮缩放、触摸），
+            // 随后按当前工具模式收敛命中测试，非选择模式下保持穿透以免挡住书写与擦除
+            BindElementEvents(fillPath);
+            UpdatePaintFillHitTest();
             timeMachine.CommitElementInsertHistory(fillPath);
 
             PaintBucketTrace($"填充完成：环数={contours.Count} 图形数={geometry.Figures.Count} " +
@@ -362,6 +395,37 @@ namespace Ink_Canvas
             }
 
             return contours;
+        }
+
+        /// <summary>
+        /// 把区域掩码向外扩指定像素（4 邻域逐轮膨胀）。用于抵消判定边界时对笔迹掩码的膨胀，
+        /// 让填充轮廓贴住笔迹内沿。
+        /// </summary>
+        private static void DilateRegionMask(bool[] region, int width, int height, int pixels)
+        {
+            if (region == null || pixels <= 0) return;
+
+            var previous = new bool[region.Length];
+            for (int pass = 0; pass < pixels; pass++)
+            {
+                Array.Copy(region, previous, region.Length);
+                for (int y = 0; y < height; y++)
+                {
+                    for (int x = 0; x < width; x++)
+                    {
+                        int index = y * width + x;
+                        if (previous[index]) continue;
+
+                        if ((x > 0 && previous[index - 1])
+                            || (x < width - 1 && previous[index + 1])
+                            || (y > 0 && previous[index - width])
+                            || (y < height - 1 && previous[index + width]))
+                        {
+                            region[index] = true;
+                        }
+                    }
+                }
+            }
         }
 
         /// <summary>把像素角点坐标换算成 Path 元素内的坐标（相对区域左上角）。</summary>
@@ -572,6 +636,11 @@ namespace Ink_Canvas
 
             SetPaintBucketFillColor(color);
 
+            // 选完色块即视为开始使用填充：若填充工具当前没有被选中，顺手把它选中，
+            // 省去「先选色再点一次填充按钮」的重复操作。
+            if (drawingShapeMode != PaintBucketShapeMode)
+                EnterShapeDrawingMode(PaintBucketShapeMode);
+
             if (_paintBucketColorPopup != null) _paintBucketColorPopup.IsOpen = false;
             SetPaintBucketColorToggleState(false);
         }
@@ -758,6 +827,613 @@ namespace Ink_Canvas
                    && path.Name.StartsWith(PaintBucketFillElementPrefix, StringComparison.Ordinal);
         }
 
+        /// <summary>
+        /// 在选择覆盖层上做填充块命中测试（按 z 序从上往下）。覆盖层铺满画布且位于
+        /// inkCanvas 之上，填充块本身又是穿透的，所以必须在这里手动判定点击落在哪块填充上。
+        /// </summary>
+        private System.Windows.Shapes.Path FindPaintBucketFillAtCanvasPoint(Point canvasPoint)
+        {
+            if (inkCanvas == null) return null;
+
+            for (int i = inkCanvas.Children.Count - 1; i >= 0; i--)
+            {
+                if (inkCanvas.Children[i] is not System.Windows.Shapes.Path path) continue;
+                if (!IsPaintBucketFillElement(path)) continue;
+                if (PaintFillContainsCanvasPoint(path, canvasPoint)) return path;
+            }
+
+            return null;
+        }
+
+        /// <summary>画布坐标点是否落在填充路径内部（考虑元素偏移与渲染变换）。</summary>
+        private static bool PaintFillContainsCanvasPoint(System.Windows.Shapes.Path path, Point canvasPoint)
+        {
+            var geometry = path.Data;
+            if (geometry == null) return false;
+
+            var offsetX = InkCanvas.GetLeft(path);
+            var offsetY = InkCanvas.GetTop(path);
+            if (double.IsNaN(offsetX)) offsetX = 0;
+            if (double.IsNaN(offsetY)) offsetY = 0;
+
+            var local = new Point(canvasPoint.X - offsetX, canvasPoint.Y - offsetY);
+
+            if (path.RenderTransform is Transform transform)
+            {
+                var matrix = transform.Value;
+                if (!matrix.HasInverse) return false;
+                matrix.Invert();
+                local = matrix.Transform(local);
+            }
+
+            try
+            {
+                return geometry.FillContains(local);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// 按当前工具模式刷新填充块的命中测试：只有选择模式下允许命中（于是能被选中、
+        /// 拖动与缩放），其余模式下保持穿透，否则填充块会挡住其覆盖范围内的书写与擦除。
+        /// </summary>
+        private void UpdatePaintFillHitTest()
+        {
+            if (inkCanvas == null) return;
+
+            var hitTestable = inkCanvas.EditingMode == InkCanvasEditingMode.Select;
+            foreach (UIElement child in inkCanvas.Children)
+            {
+                if (child is FrameworkElement element && IsPaintBucketFillElement(element))
+                    element.IsHitTestVisible = hitTestable;
+            }
+        }
+
+        #region 填充块多选（与笔迹套索联动）
+
+        /// <summary>当前一起被选中的填充块（套索多选或单点选中都汇总到这里）。</summary>
+        private readonly List<FrameworkElement> _selectedPaintFills = new List<FrameworkElement>();
+
+        /// <summary>选中态描边（填充块本身没有边框，选中时临时加一圈细线作反馈）。</summary>
+        private static readonly Brush PaintFillSelectionStroke = CreatePaintFillSelectionStroke();
+
+        private static Brush CreatePaintFillSelectionStroke()
+        {
+            var brush = new SolidColorBrush(Color.FromRgb(0x1E, 0x88, 0xE5));
+            brush.Freeze();
+            return brush;
+        }
+
+        /// <summary>当前选中的填充块集合（空表示没有填充块参与选中）。</summary>
+        internal IReadOnlyList<FrameworkElement> GetSelectedPaintFills()
+        {
+            // 撤销 / 切页等操作可能已把元素从画布移除，这里顺手剔除失效引用
+            if (_selectedPaintFills.Count > 0 && inkCanvas != null)
+                _selectedPaintFills.RemoveAll(fill => fill == null || !inkCanvas.Children.Contains(fill));
+
+            return _selectedPaintFills;
+        }
+
+        /// <summary>是否有填充块参与当前选中。</summary>
+        private bool HasPaintFillSelection => _selectedPaintFills.Count > 0;
+
+        /// <summary>切换填充块的选中描边。</summary>
+        private static void SetPaintFillSelectionVisual(FrameworkElement fill, bool selected)
+        {
+            if (fill is not System.Windows.Shapes.Path path) return;
+            if (selected)
+            {
+                path.Stroke = PaintFillSelectionStroke;
+                path.StrokeThickness = 1.5;
+            }
+            else
+            {
+                path.Stroke = null;
+                path.StrokeThickness = 0;
+            }
+        }
+
+        /// <summary>把一块填充加入选中集合（重复加入会被忽略）。</summary>
+        internal void AddPaintFillToSelection(FrameworkElement fill)
+        {
+            if (fill == null || !IsPaintBucketFillElement(fill)) return;
+            if (_selectedPaintFills.Contains(fill)) return;
+
+            _selectedPaintFills.Add(fill);
+            SetPaintFillSelectionVisual(fill, true);
+        }
+
+        /// <summary>清空填充块选中集合（并撤掉选中描边）。</summary>
+        internal void ClearPaintFillSelection()
+        {
+            foreach (var fill in _selectedPaintFills) SetPaintFillSelectionVisual(fill, false);
+            _selectedPaintFills.Clear();
+        }
+
+        /// <summary>只选中这一块填充（点选路径）。</summary>
+        internal void SelectSinglePaintFill(FrameworkElement fill)
+        {
+            ClearPaintFillSelection();
+            AddPaintFillToSelection(fill);
+        }
+
+        /// <summary>填充块在画布坐标系下的包围盒（考虑布局偏移与渲染变换）。</summary>
+        private Rect GetPaintFillCanvasBounds(FrameworkElement fill)
+        {
+            if (fill is not System.Windows.Shapes.Path path || path.Data == null) return Rect.Empty;
+
+            try
+            {
+                var local = path.Data.Bounds;
+                if (local.IsEmpty) return Rect.Empty;
+                return path.TransformToAncestor(inkCanvas).TransformBounds(local);
+            }
+            catch
+            {
+                return GetElementActualBounds(fill);
+            }
+        }
+
+        /// <summary>按位移平移一块填充（改布局偏移，保留已有渲染变换）。</summary>
+        private void MovePaintFillByDelta(FrameworkElement fill, Vector delta)
+        {
+            if (fill == null) return;
+
+            var left = InkCanvas.GetLeft(fill);
+            var top = InkCanvas.GetTop(fill);
+            if (double.IsNaN(left)) left = 0;
+            if (double.IsNaN(top)) top = 0;
+
+            InkCanvas.SetLeft(fill, left + delta.X);
+            InkCanvas.SetTop(fill, top + delta.Y);
+        }
+
+        /// <summary>选中填充块的合并包围盒。</summary>
+        private Rect GetPaintFillSelectionBounds()
+        {
+            var bounds = Rect.Empty;
+            foreach (var fill in _selectedPaintFills)
+            {
+                var fillBounds = GetPaintFillCanvasBounds(fill);
+                if (fillBounds.IsEmpty) continue;
+                bounds.Union(fillBounds);
+            }
+            return bounds;
+        }
+
+        /// <summary>
+        /// 套索/框选后同步填充块选中：把与当前墨迹选区相交的填充块也纳入选中集合。
+        /// 纯点选填充块的路径不走这里（由 <see cref="SelectSinglePaintFill"/> 维护）。
+        /// </summary>
+        internal void SyncPaintFillSelectionFromStrokeSelection()
+        {
+            if (inkCanvas == null) return;
+
+            var strokes = inkCanvas.GetSelectedStrokes();
+            if (strokes == null || strokes.Count == 0)
+            {
+                ClearPaintFillSelection();
+                return;
+            }
+
+            var selectionBounds = inkCanvas.GetSelectionBounds();
+            if (selectionBounds.IsEmpty)
+            {
+                ClearPaintFillSelection();
+                return;
+            }
+
+            ClearPaintFillSelection();
+            foreach (var child in inkCanvas.Children.OfType<FrameworkElement>())
+            {
+                if (!IsPaintBucketFillElement(child)) continue;
+                var fillBounds = GetPaintFillCanvasBounds(child);
+                if (fillBounds.IsEmpty) continue;
+                if (!fillBounds.IntersectsWith(selectionBounds)) continue;
+                AddPaintFillToSelection(child);
+            }
+
+            if (_selectedPaintFills.Count > 0) RefreshPaintFillSelectionChrome();
+        }
+
+        /// <summary>多选时刷新选中框与工具栏位置：只保留一套工具栏，摆在合并包围盒下方。</summary>
+        private void RefreshPaintFillSelectionChrome()
+        {
+            if (GridInkCanvasSelectionCover == null) return;
+
+            SetStrokeSelectionBarPaintFillMode(true);
+            GridInkCanvasSelectionCover.Visibility = Visibility.Visible;
+
+            var strokeCount = inkCanvas.GetSelectedStrokes().Count;
+
+            // 单块填充且没有笔迹：沿用元素那套「四角缩放 + 旋转」手柄
+            if (_selectedPaintFills.Count == 1 && strokeCount == 0)
+            {
+                ShowImageResizeHandles(_selectedPaintFills[0]);
+                UpdateStrokeSelectionBarLocationForPaintFill(_selectedPaintFills[0]);
+                return;
+            }
+
+            // 多选（或与笔迹混合）：用笔迹那套「选区框 + 旋转手柄」表达整体选区，
+            // 否则多选时既没有框也没有旋转手柄，用户无法旋转
+            var bounds = GetPaintFillSelectionBounds();
+            if (strokeCount > 0)
+            {
+                var strokeBounds = inkCanvas.GetSelectionBounds();
+                if (!strokeBounds.IsEmpty)
+                    bounds = bounds.IsEmpty ? strokeBounds : Rect.Union(bounds, strokeBounds);
+            }
+
+            if (bounds.IsEmpty) return;
+
+            const double expandOffset = 8;
+            SelectionRectangle.Visibility = Visibility.Visible;
+            SelectionRectangle.Margin = new Thickness(bounds.Left - expandOffset, bounds.Top - expandOffset, 0, 0);
+            SelectionRectangle.Width = bounds.Width + expandOffset * 2;
+            SelectionRectangle.Height = bounds.Height + expandOffset * 2;
+
+            ShowStrokeRotationHandle(bounds);
+            UpdateStrokeSelectionBarLocationForBounds(bounds);
+        }
+
+        #endregion
+
+        #region 填充块复用「选中对象工具栏」
+
+        /// <summary>
+        /// 选中对象工具栏上的按钮对填充块与笔迹一视同仁，全部保持可用：
+        /// 每个按钮的 handler 内部通过 IsPaintBucketFillElement 分流到元素操作
+        /// （克隆、克隆到新白板、插入白板、沿轴翻转、旋转、透明度/颜色、删除）。
+        /// 这里负责在切换选中对象类型时把可能残留的置灰状态还原。
+        /// </summary>
+        private void SetStrokeSelectionBarPaintFillMode(bool paintFillMode)
+        {
+            var buttons = new FrameworkElement[]
+            {
+                BorderStrokeSelectionCloneToNewBoard,
+                BorderStrokeSelectionInsertToWhiteboard,
+                BorderStrokeSelectionFlip,
+                BorderStrokeSelectionPenWidth,
+                BorderStrokeSelectionColor
+            };
+
+            foreach (var element in buttons)
+            {
+                if (element == null) continue;
+                element.IsEnabled = true;
+                element.Opacity = 1.0;
+            }
+        }
+
+        /// <summary>
+        /// 选中填充块时显示「选中对象工具栏」（与笔迹同一套），只隐藏选择框与缩放手柄
+        /// （填充块没有选中笔迹，无需墨迹选区框）。
+        /// </summary>
+        private void ShowStrokeSelectionBarForPaintFill(FrameworkElement fill)
+        {
+            if (fill == null || GridInkCanvasSelectionCover == null) return;
+
+            SetStrokeSelectionBarPaintFillMode(true);
+
+            // 填充块没有墨迹选区，隐藏墨迹选择框，但保留元素那套缩放/旋转控制手柄
+            SelectionRectangle.Visibility = Visibility.Collapsed;
+            SelectionHandlesCanvas.Visibility = Visibility.Collapsed;
+            HideCoordinateAxisHandles();
+            HideGeometryLineHandles();
+            ShowImageResizeHandles(fill);
+
+            GridInkCanvasSelectionCover.Visibility = Visibility.Visible;
+            UpdateStrokeSelectionBarLocationForPaintFill(fill);
+        }
+
+        /// <summary>取消填充块选中时恢复按钮可用性并收起工具栏。</summary>
+        private void HideStrokeSelectionBarForPaintFill()
+        {
+            SetStrokeSelectionBarPaintFillMode(false);
+            if (GridInkCanvasSelectionCover != null)
+                GridInkCanvasSelectionCover.Visibility = Visibility.Collapsed;
+        }
+
+        /// <summary>把选中对象工具栏摆到填充块下方（下方放不下时摆到上方）。</summary>
+        private void UpdateStrokeSelectionBarLocationForPaintFill(FrameworkElement fill)
+        {
+            if (fill == null) return;
+            UpdateStrokeSelectionBarLocationForBounds(GetElementActualBounds(fill));
+        }
+
+        /// <summary>把选中对象工具栏摆到给定包围盒下方（下方放不下时摆到上方）。</summary>
+        private void UpdateStrokeSelectionBarLocationForBounds(Rect bounds)
+        {
+            if (BorderStrokeSelectionControl == null || bounds.IsEmpty) return;
+
+            var borderLeft = (bounds.Left + bounds.Right - BorderStrokeSelectionControlWidth) / 2;
+            var borderTop = bounds.Bottom + 10;
+
+            if (double.IsNaN(borderLeft)) borderLeft = 0;
+            if (double.IsNaN(borderTop)) borderTop = 0;
+            if (borderLeft < 0) borderLeft = 0;
+            if (borderTop < 0) borderTop = 0;
+            if (Width - borderLeft < BorderStrokeSelectionControlWidth)
+                borderLeft = Math.Max(0, Width - BorderStrokeSelectionControlWidth);
+            if (Height - borderTop < BorderStrokeSelectionControlHeight)
+                borderTop = Math.Max(10, bounds.Top - BorderStrokeSelectionControlHeight - 10);
+
+            BorderStrokeSelectionControl.Margin = new Thickness(borderLeft, borderTop, 0, 0);
+        }
+
+        /// <summary>删除当前选中的全部填充块（写入元素删除历史，可撤销）。</summary>
+        private void DeleteSelectedPaintFill()
+        {
+            if (inkCanvas == null) return;
+            var targets = GetSelectedPaintFills().ToList();
+            if (targets.Count == 0) return;
+            if (TryBlockFrozenPageMutation("删除填充")) return;
+
+            currentSelectedElement = null;
+            HideStrokeSelectionBarForPaintFill();
+            HideImageResizeHandles();
+            ClearPaintFillSelection();
+
+            int removed = 0;
+            foreach (var fill in targets)
+            {
+                try
+                {
+                    if (inkCanvas.Children.Contains(fill)) inkCanvas.Children.Remove(fill);
+                    timeMachine.CommitElementRemoveHistory(fill);
+                    removed++;
+                }
+                catch (Exception ex)
+                {
+                    LogHelper.WriteLogToFile($"[油漆桶] 删除填充失败: {ex.Message}", LogHelper.LogType.Error);
+                }
+            }
+
+            PaintBucketTrace($"已删除 {removed} 块填充");
+        }
+
+        /// <summary>
+        /// 按给定角度旋转当前选中的全部填充块（与笔迹旋转按钮同一入口）。
+        /// pivotCanvas 为旋转中心，必须与笔迹用同一个点，否则填充块只会在原地自转、不会绕着选区转。
+        /// </summary>
+        private void RotateSelectedPaintFill(double angleDegrees, Point? pivotCanvas = null)
+        {
+            var targets = GetSelectedPaintFills().ToList();
+            if (targets.Count == 0) return;
+            if (TryBlockFrozenPageMutation("旋转填充")) return;
+
+            foreach (var fill in targets) ApplyRotateTransform(fill, angleDegrees, pivotCanvas);
+
+            if (targets.Count == 1) UpdateStrokeSelectionBarLocationForPaintFill(targets[0]);
+            else UpdateStrokeSelectionBarLocationForBounds(GetPaintFillSelectionBounds());
+        }
+
+        /// <summary>克隆当前选中的填充块（偏移 16px，写入元素插入历史，可撤销）。</summary>
+        private void CloneSelectedPaintFill()
+        {
+            if (inkCanvas == null) return;
+            var targets = GetSelectedPaintFills().ToList();
+            if (targets.Count == 0) return;
+            if (TryBlockFrozenPageMutation("克隆填充")) return;
+
+            try
+            {
+                for (int i = 0; i < targets.Count; i++)
+                {
+                    // 多选时逐块错开，避免副本彼此完全重叠
+                    var offset = 16 * (i + 1);
+                    PlacePaintFillClone(CreatePaintFillClone((System.Windows.Shapes.Path)targets[i], offset, offset));
+                }
+                PaintBucketTrace($"已克隆 {targets.Count} 块填充");
+            }
+            catch (Exception ex)
+            {
+                LogHelper.WriteLogToFile($"[油漆桶] 克隆填充失败: {ex.Message}", LogHelper.LogType.Error);
+            }
+        }
+
+        /// <summary>复制一块填充（不加入画布），offset 为画布坐标偏移。</summary>
+        private System.Windows.Shapes.Path CreatePaintFillClone(System.Windows.Shapes.Path source, double offsetX, double offsetY)
+        {
+            var clone = new System.Windows.Shapes.Path
+            {
+                Data = source.Data,
+                Fill = source.Fill == null ? null : (Brush)source.Fill.Clone(),
+                Stretch = Stretch.None,
+                IsHitTestVisible = false,
+                Focusable = false,
+                Name = PaintBucketFillElementPrefix + DateTime.Now.ToString("yyyyMMdd_HHmmss_fff")
+            };
+
+            // 复制源元素的渲染变换，副本的位置、缩放与旋转才能和源保持一致
+            if (source.RenderTransform is TransformGroup sourceTransformGroup)
+            {
+                clone.RenderTransform = (TransformGroup)sourceTransformGroup.Clone();
+            }
+            else
+            {
+                var transformGroup = new TransformGroup();
+                transformGroup.Children.Add(new ScaleTransform(1, 1));
+                transformGroup.Children.Add(new TranslateTransform(0, 0));
+                transformGroup.Children.Add(new RotateTransform(0));
+                clone.RenderTransform = transformGroup;
+            }
+
+            var left = InkCanvas.GetLeft(source);
+            var top = InkCanvas.GetTop(source);
+            if (double.IsNaN(left)) left = 0;
+            if (double.IsNaN(top)) top = 0;
+            InkCanvas.SetLeft(clone, left + offsetX);
+            InkCanvas.SetTop(clone, top + offsetY);
+
+            return clone;
+        }
+
+        /// <summary>把填充副本加入当前画布：绑定事件、按模式收敛命中测试、写入撤销历史。</summary>
+        private void PlacePaintFillClone(System.Windows.Shapes.Path clone)
+        {
+            if (clone == null || inkCanvas == null) return;
+
+            inkCanvas.Children.Add(clone);
+            BindElementEvents(clone);
+            UpdatePaintFillHitTest();
+            timeMachine.CommitElementInsertHistory(clone);
+        }
+
+        /// <summary>克隆到新白板页（先新建页，再把副本放到新页画布上）。</summary>
+        private void CloneSelectedPaintFillToNewBoard(bool includeStrokes = false)
+        {
+            var targets = GetSelectedPaintFills().ToList();
+            var strokes = includeStrokes && inkCanvas != null ? inkCanvas.GetSelectedStrokes().Clone() : null;
+            if (targets.Count == 0 && (strokes == null || strokes.Count == 0)) return;
+            if (TryBlockFrozenPageMutation("克隆填充到新页面")) return;
+
+            try
+            {
+                BtnWhiteBoardAdd_Click(null, null);
+                foreach (var fill in targets)
+                    PlacePaintFillClone(CreatePaintFillClone((System.Windows.Shapes.Path)fill, 0, 0));
+
+                // 混合选中：同时选中的笔迹也复制到同一个新页面
+                if (strokes != null && strokes.Count > 0)
+                {
+                    inkCanvas.Strokes.Add(strokes);
+                    timeMachine.CommitStrokeUserInputHistory(strokes);
+                }
+
+                PaintBucketTrace($"已克隆 {targets.Count} 块填充（+{strokes?.Count ?? 0} 笔迹）到新页面");
+            }
+            catch (Exception ex)
+            {
+                LogHelper.WriteLogToFile($"[油漆桶] 克隆填充到新页面失败: {ex.Message}", LogHelper.LogType.Error);
+            }
+        }
+
+        /// <summary>把填充块插入常规白板（必要时先切到白板模式）。</summary>
+        private void InsertSelectedPaintFillToWhiteboard(bool includeStrokes = false)
+        {
+            var targets = GetSelectedPaintFills().ToList();
+            var strokes = includeStrokes && inkCanvas != null ? inkCanvas.GetSelectedStrokes().Clone() : null;
+            if (targets.Count == 0 && (strokes == null || strokes.Count == 0)) return;
+            if (TryBlockFrozenPageMutation("插入填充到白板")) return;
+
+            try
+            {
+                var clones = targets.Select(fill => CreatePaintFillClone((System.Windows.Shapes.Path)fill, 0, 0)).ToList();
+
+                if (currentMode != 1)
+                {
+                    ImageBlackboard_MouseUp(null, null);
+                }
+
+                foreach (var clone in clones) PlacePaintFillClone(clone);
+
+                // 混合选中：同时选中的笔迹也插入白板
+                if (strokes != null && strokes.Count > 0)
+                {
+                    inkCanvas.Select(new System.Windows.Ink.StrokeCollection());
+                    inkCanvas.Strokes.Add(strokes);
+                    timeMachine.CommitStrokeUserInputHistory(strokes);
+                }
+
+                PaintBucketTrace($"已把 {targets.Count} 块填充（+{strokes?.Count ?? 0} 笔迹）插入白板");
+            }
+            catch (Exception ex)
+            {
+                LogHelper.WriteLogToFile($"[油漆桶] 插入填充到白板失败: {ex.Message}", LogHelper.LogType.Error);
+            }
+        }
+
+        /// <summary>把快捷调色盘的颜色应用到全部选中的填充块（保留各自原有不透明度）。</summary>
+        private void ApplyColorToSelectedPaintFill(Color color)
+        {
+            var targets = GetSelectedPaintFills().ToList();
+            if (targets.Count == 0) return;
+            if (TryBlockFrozenPageMutation("修改填充颜色")) return;
+
+            foreach (var fill in targets.OfType<System.Windows.Shapes.Path>())
+            {
+                var alpha = (fill.Fill as SolidColorBrush)?.Color.A ?? PaintBucketFillAlpha;
+                fill.Fill = new SolidColorBrush(Color.FromArgb(alpha, color.R, color.G, color.B));
+            }
+        }
+
+        /// <summary>当前选中填充块的颜色（多选时取第一块，供快捷调色盘回显勾选状态）。</summary>
+        private Color? GetSelectedPaintFillColor()
+        {
+            var fill = GetSelectedPaintFills().FirstOrDefault() as System.Windows.Shapes.Path;
+            if (fill == null) return null;
+            return (fill.Fill as SolidColorBrush)?.Color;
+        }
+
+        /// <summary>
+        /// 选中栏的「粗细」按钮对填充块的映射：纯色块没有笔宽概念，改为调整填充不透明度。
+        /// reset 为 true 时恢复默认半透明。
+        /// </summary>
+        private void ChangeSelectedPaintFillOpacity(double multiplier, bool reset)
+        {
+            var targets = GetSelectedPaintFills().OfType<System.Windows.Shapes.Path>().ToList();
+            if (targets.Count == 0) return;
+            if (TryBlockFrozenPageMutation("修改填充透明度")) return;
+
+            foreach (var fill in targets)
+            {
+                if (fill.Fill is not SolidColorBrush brush) continue;
+
+                byte alpha = reset
+                    ? PaintBucketFillAlpha
+                    : (byte)Math.Max(20, Math.Min(255, Math.Round(brush.Color.A * multiplier)));
+
+                fill.Fill = new SolidColorBrush(Color.FromArgb(alpha, brush.Color.R, brush.Color.G, brush.Color.B));
+            }
+        }
+
+        /// <summary>沿给定轴线镜像一块填充，生成副本（原图保留，写入撤销历史）。</summary>
+        private void MirrorPaintFillElement(System.Windows.Shapes.Path source, Point axisPoint, Vector axisDirection)
+        {
+            if (source == null || inkCanvas == null) return;
+
+            try
+            {
+                var matrix = CreateAxisReflectionMatrix(axisPoint, axisDirection);
+                var clone = CreatePaintFillClone(source, 0, 0);
+
+                var left = InkCanvas.GetLeft(clone);
+                var top = InkCanvas.GetTop(clone);
+                if (double.IsNaN(left)) left = 0;
+                if (double.IsNaN(top)) top = 0;
+
+                // 镜像矩阵按画布坐标计算，而元素先走自身 RenderTransform、再由布局偏移搬到画布上，
+                // 所以整条链必须是：源变换 → 平移(left,top) → 镜像 → 平移(-left,-top)，
+                // 这样“局部坐标 → 画布坐标 → 镜像 → 回到局部坐标”。
+                // 用 TransformGroup 的子项顺序表达，避免再手写矩阵乘法：
+                // 早先的两端平移方向写反（先 T(-l,-t) 再 T(l,t)），等价于以 (-l,-t) 为原点镜像，
+                // 副本被整体推到画布外约 1460px（看起来像「没生成」）。
+                var baseTransform = clone.RenderTransform;
+                var mirrorChain = new TransformGroup();
+                if (baseTransform != null) mirrorChain.Children.Add(baseTransform);
+                mirrorChain.Children.Add(new TranslateTransform(left, top));
+                mirrorChain.Children.Add(new MatrixTransform(matrix));
+                mirrorChain.Children.Add(new TranslateTransform(-left, -top));
+                clone.RenderTransform = mirrorChain;
+
+                PlacePaintFillClone(clone);
+                PaintBucketTrace("已沿轴镜像一块填充");
+            }
+            catch (Exception ex)
+            {
+                LogHelper.WriteLogToFile($"[油漆桶] 沿轴镜像填充失败: {ex.Message}", LogHelper.LogType.Error);
+            }
+        }
+
+        /// <summary>填充块默认不透明度对应的 alpha（与创建填充时一致）。</summary>
+        private static byte PaintBucketFillAlpha => (byte)Math.Round(255 * PaintBucketFillOpacity);
+
+        #endregion
+
         /// <summary>对填充路径应用与笔迹一致的矩阵变换（双指缩放 / 画布漫游）。</summary>
         private static void ApplyMatrixTransformToPaintFill(System.Windows.Shapes.Path path, Matrix matrix)
         {
@@ -765,6 +1441,17 @@ namespace Ink_Canvas
             {
                 transformGroup = new TransformGroup();
                 path.RenderTransform = transformGroup;
+            }
+
+            // 双指缩放/漫游会逐帧调用这里。原来每帧追加一个 MatrixTransform，变换子项会无限增长
+            // （一次缩放几百帧就是几百个矩阵），渲染越来越慢；这里直接把增量合并进末尾那个矩阵。
+            if (transformGroup.Children.Count > 0
+                && transformGroup.Children[transformGroup.Children.Count - 1] is MatrixTransform last)
+            {
+                var merged = last.Matrix;
+                merged *= matrix;
+                last.Matrix = merged;
+                return;
             }
 
             transformGroup.Children.Add(new MatrixTransform(matrix));

@@ -639,7 +639,8 @@
                         </Border>
                         <Border Width="1" Height="45" BorderBrush="{DynamicResource FloatingBarForegroundBrush}"
                                 Background="{DynamicResource FloatingBarForegroundBrush}" />
-                        <Border CornerRadius="{Binding ElementName=BorderStrokeSelectionControl, Path=CornerRadius}"
+                        <Border x:Name="BorderStrokeSelectionFlip"
+                                CornerRadius="{Binding ElementName=BorderStrokeSelectionControl, Path=CornerRadius}"
                                 Height="40">
                             <ikw:SimpleStackPanel VerticalAlignment="Center" Margin="0,-10">
                                 <ikw:SimpleStackPanel Orientation="Horizontal">
@@ -654,7 +655,8 @@
                         </Border>
                         <Border Width="1" Height="45" BorderBrush="{DynamicResource FloatingBarForegroundBrush}"
                                 Background="{DynamicResource FloatingBarForegroundBrush}" />
-                        <Border CornerRadius="{Binding ElementName=BorderStrokeSelectionControl, Path=CornerRadius}"
+                        <Border x:Name="BorderStrokeSelectionPenWidth"
+                                CornerRadius="{Binding ElementName=BorderStrokeSelectionControl, Path=CornerRadius}"
                                 Height="40">
                             <ikw:SimpleStackPanel VerticalAlignment="Center" Spacing="5" Margin="0,-10">
                                 <ikw:SimpleStackPanel Orientation="Horizontal" Spacing="5">

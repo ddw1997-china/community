@@ -60,6 +60,15 @@ namespace Ink_Canvas.Controls
         private const double MinSpreadDeg = 8;
         private const double MaxSpreadDeg = 150;
 
+        // 整体缩放（+ / - 按钮）：只缩放圆规本体，按钮与半径文字保持原尺寸
+        private const double MinScale = 0.5;
+        private const double MaxScale = 2.0;
+        private const double ScaleStep = 0.1;
+
+        // 悬浮工具条：与圆规本体解耦，固定在屏幕上（不随圆规缩放/旋转移动）
+        private const double BarMargin = 8;        // 距画布边缘的最小留白
+        private const double BarEdgeGap = 16;      // 自动摆放时与圆规本体的间距
+
         // 线稿造型参数
         private const double HeadRadius = 35;       // 圆规头（大圆）半径
         private const double HeadHoleRadius = 8;    // 圆规头中心圆孔半径
@@ -112,6 +121,26 @@ namespace Ink_Canvas.Controls
         private readonly TextBlock _angleText = CreateAngleText();
         private readonly Button _drawBtn = CreateSmallButton();
         private readonly Button _closeBtn = CreateSmallButton();
+        private readonly Button _zoomInBtn = CreateSmallButton();
+        private readonly Button _zoomOutBtn = CreateSmallButton();
+
+        /// <summary>圆规本体所在图层：整体缩放只作用于它，按钮/文字保持原尺寸</summary>
+        private readonly WpfCanvas _visualHost = new WpfCanvas { Background = null };
+
+        /// <summary>圆规本体缩放变换，锚点固定为针脚（圆心），缩放时圆心不动、半径按比例变化</summary>
+        private readonly ScaleTransform _visualScale = new ScaleTransform(1, 1);
+
+        /// <summary>当前整体缩放系数</summary>
+        private double _scale = 1.0;
+
+        // 悬浮工具条（拖动移动 / + / − / ✕）：独立于圆规本体，不随缩放与旋转变化
+        private readonly Border _buttonBar;
+        private Border _buttonBarGrip;
+        private bool _buttonBarPositioned;
+        private bool _buttonBarDragging;
+        private Point _buttonBarDragStartPoint;
+        private double _buttonBarDragStartLeft;
+        private double _buttonBarDragStartTop;
 
         public CompassTool()
         {
@@ -138,22 +167,267 @@ namespace Ink_Canvas.Controls
             _closeBtn.Content = "✕";
             _closeBtn.Click += (s, e) => { CloseRequested?.Invoke(this, EventArgs.Empty); e.Handled = true; };
 
-            Children.Add(_guideCircle);
-            Children.Add(_pivotLegBar);
-            Children.Add(_pivotNeedleTip);
-            Children.Add(_pencilLegBar);
-            Children.Add(_pivotLegHitZone);
-            Children.Add(_pencilLegHitZone);
-            Children.Add(_headOuter);
-            Children.Add(_headHole);
-            Children.Add(_gripNeck);
-            Children.Add(_grip);
-            Children.Add(_gripHitZone);
-            Children.Add(_pencilBody);
-            Children.Add(_pencilTipZone);
+            _zoomInBtn.Content = "+";
+            _zoomOutBtn.Content = "−";
+            _zoomInBtn.ToolTip = "整体放大";
+            _zoomOutBtn.ToolTip = "整体缩小";
+            _zoomInBtn.Click += (s, e) => { ChangeScale(ScaleStep); e.Handled = true; };
+            _zoomOutBtn.Click += (s, e) => { ChangeScale(-ScaleStep); e.Handled = true; };
+
+            // 四个按钮统一收进悬浮工具条：尺寸一致、位置固定，不随圆规缩放与旋转移动
+            ConfigureBarButton(_zoomOutBtn, 40);
+            ConfigureBarButton(_zoomInBtn, 40);
+            ConfigureBarButton(_drawBtn, 76);
+            ConfigureBarButton(_closeBtn, 40);
+            _buttonBar = CreateButtonBar(out _buttonBarGrip);
+            AttachButtonBarDrag(_buttonBarGrip);
+
+            // 圆规本体放进独立图层，缩放只影响它（工具条与半径文字不跟着放大缩小）
+            _visualHost.RenderTransform = _visualScale;
+            _visualHost.Children.Add(_guideCircle);
+            _visualHost.Children.Add(_pivotLegBar);
+            _visualHost.Children.Add(_pivotNeedleTip);
+            _visualHost.Children.Add(_pencilLegBar);
+            _visualHost.Children.Add(_pivotLegHitZone);
+            _visualHost.Children.Add(_pencilLegHitZone);
+            _visualHost.Children.Add(_headOuter);
+            _visualHost.Children.Add(_headHole);
+            _visualHost.Children.Add(_gripNeck);
+            _visualHost.Children.Add(_grip);
+            _visualHost.Children.Add(_gripHitZone);
+            _visualHost.Children.Add(_pencilBody);
+            _visualHost.Children.Add(_pencilTipZone);
+
+            Children.Add(_visualHost);
             Children.Add(_angleText);
-            Children.Add(_drawBtn);
-            Children.Add(_closeBtn);
+            Children.Add(_buttonBar);
+            Panel.SetZIndex(_buttonBar, 10);
+        }
+
+        #region 悬浮工具条
+
+        /// <summary>统一样式：工具条内的按钮固定尺寸，不随圆规整体缩放变化</summary>
+        private static void ConfigureBarButton(Button button, double width)
+        {
+            button.Width = width;
+            button.Height = 30;
+            button.FontSize = 15;
+            button.Padding = new Thickness(2, 0, 2, 0);
+            button.Margin = new Thickness(2, 0, 2, 0);
+            button.VerticalAlignment = VerticalAlignment.Center;
+            button.Focusable = false;
+        }
+
+        /// <summary>创建悬浮工具条：拖动手柄 + 缩小 / 放大 / 移动画线 / 关闭</summary>
+        private Border CreateButtonBar(out Border grip)
+        {
+            grip = CreateButtonBarGrip();
+
+            var panel = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            panel.Children.Add(grip);
+            panel.Children.Add(_zoomOutBtn);
+            panel.Children.Add(_zoomInBtn);
+            panel.Children.Add(_drawBtn);
+            panel.Children.Add(_closeBtn);
+
+            return new Border
+            {
+                CornerRadius = new CornerRadius(5),
+                BorderThickness = new Thickness(1),
+                Background = ResolveBarBrush("FloatingBarBackgroundBrush", Brushes.White),
+                BorderBrush = ResolveBarBrush("FloatingBarBorderBrush", new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88))),
+                Padding = new Thickness(4, 4, 4, 4),
+                Child = panel,
+                Visibility = Visibility.Visible
+            };
+        }
+
+        /// <summary>取主题画刷，缺失时回退到默认色（控件可能在没有资源的宿主里被创建）</summary>
+        private Brush ResolveBarBrush(string resourceKey, Brush fallback)
+        {
+            try
+            {
+                if (TryFindResource(resourceKey) is Brush brush) return brush;
+            }
+            catch
+            {
+                // 忽略资源查找失败
+            }
+            return fallback;
+        }
+
+        /// <summary>拖动手柄：两列三点，与选中工具栏一致的手感</summary>
+        private Border CreateButtonBarGrip()
+        {
+            var dots = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            var dotBrush = new SolidColorBrush(Color.FromRgb(0x78, 0x78, 0x78));
+            for (int col = 0; col < 2; col++)
+            {
+                var column = new StackPanel
+                {
+                    Orientation = Orientation.Vertical,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(col == 0 ? 0 : 3, 0, 0, 0)
+                };
+                for (int row = 0; row < 3; row++)
+                {
+                    column.Children.Add(new Ellipse
+                    {
+                        Width = 3,
+                        Height = 3,
+                        Margin = new Thickness(0, 1, 0, 1),
+                        Fill = dotBrush
+                    });
+                }
+                dots.Children.Add(column);
+            }
+
+            return new Border
+            {
+                Width = 26,
+                Height = 30,
+                Background = Brushes.Transparent,
+                Cursor = Cursors.SizeAll,
+                ToolTip = "拖动工具条",
+                Child = dots
+            };
+        }
+
+        /// <summary>工具条拖动（鼠标 + 触摸），并限制在画布范围内</summary>
+        private void AttachButtonBarDrag(FrameworkElement grip)
+        {
+            if (grip == null) return;
+
+            grip.MouseLeftButtonDown += (s, e) =>
+            {
+                if (_buttonBarDragging) return;
+                BeginButtonBarDrag(e.GetPosition(this));
+                grip.CaptureMouse();
+                e.Handled = true;
+            };
+            grip.MouseMove += (s, e) =>
+            {
+                if (!_buttonBarDragging || !grip.IsMouseCaptured) return;
+                DragButtonBarTo(e.GetPosition(this));
+                e.Handled = true;
+            };
+            grip.MouseLeftButtonUp += (s, e) =>
+            {
+                if (!_buttonBarDragging) return;
+                _buttonBarDragging = false;
+                grip.ReleaseMouseCapture();
+                e.Handled = true;
+            };
+            grip.LostMouseCapture += (s, e) => _buttonBarDragging = false;
+
+            grip.TouchDown += (s, e) =>
+            {
+                if (_buttonBarDragging) return;
+                BeginButtonBarDrag(e.GetTouchPoint(this).Position);
+                grip.CaptureTouch(e.TouchDevice);
+                e.Handled = true;
+            };
+            grip.TouchMove += (s, e) =>
+            {
+                if (!_buttonBarDragging || !grip.AreAnyTouchesCaptured) return;
+                DragButtonBarTo(e.GetTouchPoint(this).Position);
+                e.Handled = true;
+            };
+            grip.TouchUp += (s, e) =>
+            {
+                if (!_buttonBarDragging) return;
+                _buttonBarDragging = false;
+                grip.ReleaseTouchCapture(e.TouchDevice);
+                e.Handled = true;
+            };
+            grip.LostTouchCapture += (s, e) => _buttonBarDragging = false;
+        }
+
+        private void BeginButtonBarDrag(Point position)
+        {
+            _buttonBarDragging = true;
+            _buttonBarDragStartPoint = position;
+            _buttonBarDragStartLeft = WpfCanvas.GetLeft(_buttonBar);
+            _buttonBarDragStartTop = WpfCanvas.GetTop(_buttonBar);
+            if (double.IsNaN(_buttonBarDragStartLeft)) _buttonBarDragStartLeft = 0;
+            if (double.IsNaN(_buttonBarDragStartTop)) _buttonBarDragStartTop = 0;
+        }
+
+        private void DragButtonBarTo(Point position)
+        {
+            var delta = position - _buttonBarDragStartPoint;
+            var size = GetButtonBarSize();
+            SetCanvas(_buttonBar,
+                ClampToCanvas(_buttonBarDragStartLeft + delta.X, size.Width, ActualWidth),
+                ClampToCanvas(_buttonBarDragStartTop + delta.Y, size.Height, ActualHeight));
+        }
+
+        private Size GetButtonBarSize()
+        {
+            if (_buttonBar == null) return new Size(260, 40);
+
+            double width = _buttonBar.ActualWidth > 0 ? _buttonBar.ActualWidth : _buttonBar.DesiredSize.Width;
+            double height = _buttonBar.ActualHeight > 0 ? _buttonBar.ActualHeight : _buttonBar.DesiredSize.Height;
+            if (width <= 0 || double.IsNaN(width)) width = 260;
+            if (height <= 0 || double.IsNaN(height)) height = 40;
+            return new Size(width, height);
+        }
+
+        private static double ClampToCanvas(double value, double elementSize, double canvasSize)
+        {
+            if (canvasSize <= 0) canvasSize = 1920;
+            var max = Math.Max(BarMargin, canvasSize - elementSize - BarMargin);
+            if (double.IsNaN(value) || value < BarMargin) return BarMargin;
+            return Math.Min(value, max);
+        }
+
+        /// <summary>首次显示时把工具条摆到圆规上方；之后保留用户拖动的位置</summary>
+        private void PositionButtonBarIfNeeded()
+        {
+            if (_buttonBarPositioned || _buttonBar == null) return;
+
+            _buttonBar.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            var size = GetButtonBarSize();
+
+            var hingeRoot = ToRoot(Hinge);
+            var left = hingeRoot.X - size.Width / 2;
+            var top = hingeRoot.Y - (HeadRadius + GripNeckHeight + GripHeight) * _scale - size.Height - BarEdgeGap;
+
+            SetCanvas(_buttonBar,
+                ClampToCanvas(left, size.Width, ActualWidth),
+                ClampToCanvas(top, size.Height, ActualHeight));
+            _buttonBarPositioned = true;
+        }
+
+        #endregion
+
+        /// <summary>当前整体缩放系数（1.0 = 原始尺寸）</summary>
+        public double Scale => _scale;
+
+        /// <summary>整体放大/缩小一档：锚点为针脚，圆心不动、半径按比例变化</summary>
+        private void ChangeScale(double delta)
+        {
+            var next = Math.Max(MinScale, Math.Min(MaxScale, _scale + delta));
+            if (Math.Abs(next - _scale) < 0.0001) return;
+
+            _scale = next;
+            UpdateVisual();
+        }
+
+        /// <summary>把圆规本体（未缩放的本地坐标）换算到本控件的根坐标</summary>
+        private Point ToRoot(Point local)
+        {
+            return new Point(
+                _needle.X + (local.X - _needle.X) * _scale,
+                _needle.Y + (local.Y - _needle.Y) * _scale);
         }
 
         #region 几何
@@ -216,6 +490,8 @@ namespace Ink_Canvas.Controls
             // 角平分线指向正下方(270°)，手柄即朝向正上方，两脚关于竖直轴对称（铅笔脚在左）
             _phiDeg = 270 + _spreadDeg / 2;
             _strokeNeedsNew = true;
+            // 每次打开都重新把工具条摆到圆规上方（避免上次拖到屏幕边缘后这次看不见）
+            _buttonBarPositioned = false;
             SetDrawMode(false);
             UpdateVisual();
         }
@@ -249,6 +525,18 @@ namespace Ink_Canvas.Controls
             var t = PencilTip;
             var r = CompassRadius;
 
+            // 整体缩放：锚点跟随针脚，针脚在屏幕上始终不动
+            _visualScale.ScaleX = _scale;
+            _visualScale.ScaleY = _scale;
+            _visualScale.CenterX = _needle.X;
+            _visualScale.CenterY = _needle.Y;
+
+            // 本体图层需要有实际尺寸，否则超出范围的部件（缩放后外扩）可能收不到鼠标/触摸
+            double hostWidth = ActualWidth > 0 ? ActualWidth : 4000;
+            double hostHeight = ActualHeight > 0 ? ActualHeight : 4000;
+            if (!hostWidth.Equals(_visualHost.Width)) _visualHost.Width = hostWidth;
+            if (!hostHeight.Equals(_visualHost.Height)) _visualHost.Height = hostHeight;
+
             // 移动热区：沿两条腿铺设，覆盖铰接→脚端（脚端略外扩）
             SetLegHitZone(_pivotLegHitZone, h, _needle);
             SetLegHitZone(_pencilLegHitZone, h, t);
@@ -266,7 +554,6 @@ namespace Ink_Canvas.Controls
             double bisectorDeg = _phiDeg - _spreadDeg / 2;
             var bisector = Unit(bisectorDeg);                       // 指向两脚之间
             var handleDir = new Point(-bisector.X, -bisector.Y);    // 手柄朝外
-            var handlePerp = new Point(-handleDir.Y, handleDir.X);  // 手柄的垂直方向
             double gripAngle = Math.Atan2(-handleDir.X, handleDir.Y) * 180 / Math.PI;
 
             // 细颈：从圆规头边缘向外接手柄
@@ -290,14 +577,12 @@ namespace Ink_Canvas.Controls
                 Math.Atan2(t.Y - h.Y, t.X - h.X) * 180 / Math.PI - PencilTiltDeg;
             SetCenter(_pencilTipZone, t);
 
-            _angleText.Text = string.Format(CultureInfo.InvariantCulture, "r={0:F0}", r);
-            // 半径文本放在两脚正中间（两脚连线的中点，正好落在张角平分线上）
-            SetCenter(_angleText, new Point((_needle.X + t.X) / 2, (_needle.Y + t.Y) / 2));
+            // 半径文本显示实际（画布）半径，并放在两脚正中间（张角平分线上）
+            _angleText.Text = string.Format(CultureInfo.InvariantCulture, "r={0:F0}", r * _scale);
+            SetCenter(_angleText, ToRoot(new Point((_needle.X + t.X) / 2, (_needle.Y + t.Y) / 2)));
 
-            // 落笔/关闭按钮：沿手柄方向外移并分列两侧，与圆规本体（含手柄）拉开距离
-            var basePt = new Point(h.X + handleDir.X * 120, h.Y + handleDir.Y * 120);
-            SetCenter(_drawBtn, new Point(basePt.X + handlePerp.X * 52, basePt.Y + handlePerp.Y * 52));
-            SetCenter(_closeBtn, new Point(basePt.X - handlePerp.X * 52, basePt.Y - handlePerp.Y * 52));
+            // 工具条独立于圆规本体：只在首次显示时摆到圆规上方，之后保留用户拖动的位置
+            PositionButtonBarIfNeeded();
 
             _guideCircle.Width = _guideCircle.Height = r * 2;
             SetCanvas(_guideCircle, _needle.X - r, _needle.Y - r);
@@ -310,14 +595,15 @@ namespace Ink_Canvas.Controls
             el.MouseLeftButtonDown += (s, e) =>
             {
                 if (_drag != DragKind.None) return;
-                BeginDrag(kind, e.GetPosition(this));
+                // 取圆规本体图层坐标（未缩放），整体缩放后点位计算仍然一致
+                BeginDrag(kind, e.GetPosition(_visualHost));
                 el.CaptureMouse();
                 e.Handled = true;
             };
             el.MouseMove += (s, e) =>
             {
                 if (_drag != kind || !el.IsMouseCaptured) return;
-                HandleMove(e.GetPosition(this));
+                HandleMove(e.GetPosition(_visualHost));
                 e.Handled = true;
             };
             el.MouseLeftButtonUp += (s, e) =>
@@ -333,14 +619,14 @@ namespace Ink_Canvas.Controls
             el.TouchDown += (s, e) =>
             {
                 if (_drag != DragKind.None) return;
-                BeginDrag(kind, e.GetTouchPoint(this).Position);
+                BeginDrag(kind, e.GetTouchPoint(_visualHost).Position);
                 el.CaptureTouch(e.TouchDevice);
                 e.Handled = true;
             };
             el.TouchMove += (s, e) =>
             {
                 if (_drag != kind || !el.AreAnyTouchesCaptured) return;
-                HandleMove(e.GetTouchPoint(this).Position);
+                HandleMove(e.GetTouchPoint(_visualHost).Position);
                 e.Handled = true;
             };
             el.TouchUp += (s, e) =>
@@ -413,8 +699,9 @@ namespace Ink_Canvas.Controls
                         var toAngle = fromAngle + deltaAngle;
                         ArcDrawing?.Invoke(this, new CompassArcEventArgs
                         {
-                            Pivot = _needle,
-                            Radius = r,
+                            // 出墨坐标用的是画布坐标：整体缩放后半径按系数换算，圆心随锚点换算
+                            Pivot = ToRoot(_needle),
+                            Radius = r * _scale,
                             FromAngleDeg = fromAngle,
                             ToAngleDeg = toAngle,
                             StartNewStroke = _strokeNeedsNew

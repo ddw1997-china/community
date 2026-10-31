@@ -323,13 +323,27 @@ namespace Ink_Canvas
                 // 使用鼠标拖动的完整实现机制
                 ApplyMouseDragTransform(element, currentPoint, dragStartPoint);
 
+                // 填充块：拖动时选中对象工具栏、选择框与旋转锚点都要跟随
+                if (IsPaintBucketFillElement(element))
+                {
+                    UpdateStrokeSelectionBarLocationForPaintFill(element);
+
+                    // 自定义旋转中心跟着元素一起平移：位移现在记在 TranslateTransform 里，
+                    // 旋转中心的换算模型能正确跟踪，不必再复位
+                    if (ImageSelectionOverlay != null && ImageSelectionOverlay.HasCustomPivot)
+                    {
+                        var pivot = ImageSelectionOverlay.PivotCanvasPoint;
+                        var move = currentPoint - dragStartPoint;
+                        ImageSelectionOverlay.SetPivot(new Point(pivot.X + move.X, pivot.Y + move.Y));
+                    }
+                }
                 // 如果是图片元素，更新工具栏位置
-                if (IsBitmapLikeCanvasElement(element) && BorderImageSelectionControl?.Visibility == Visibility.Visible)
+                else if (IsBitmapLikeCanvasElement(element) && BorderImageSelectionControl?.Visibility == Visibility.Visible)
                 {
                     UpdateImageSelectionToolbarPosition(element);
                 }
 
-                // 如果是图片元素，更新选择点位置
+                // 如果是图片元素（含填充块），更新选择点位置
                 if (IsBitmapLikeCanvasElement(element) && ImageSelectionOverlay?.Visibility == Visibility.Visible)
                 {
                     UpdateImageResizeHandlesPosition(GetElementActualBounds(element));
@@ -370,13 +384,18 @@ namespace Ink_Canvas
                 }
                 ApplyWheelScaleTransform(element, e);
 
+                // 填充块：拖动/缩放时让选中对象工具栏跟随
+                if (IsPaintBucketFillElement(element))
+                {
+                    UpdateStrokeSelectionBarLocationForPaintFill(element);
+                }
                 // 如果是图片元素，更新工具栏位置
-                if (IsBitmapLikeCanvasElement(element) && BorderImageSelectionControl?.Visibility == Visibility.Visible)
+                else if (IsBitmapLikeCanvasElement(element) && BorderImageSelectionControl?.Visibility == Visibility.Visible)
                 {
                     UpdateImageSelectionToolbarPosition(element);
                 }
 
-                // 如果是图片元素，更新选择点位置
+                // 如果是图片元素（含填充块），更新选择点位置
                 if (IsBitmapLikeCanvasElement(element) && ImageSelectionOverlay?.Visibility == Visibility.Visible)
                 {
                     UpdateImageResizeHandlesPosition(GetElementActualBounds(element));
@@ -475,13 +494,18 @@ namespace Ink_Canvas
                 // 单指手势时，使用触摸拖动的完整实现
                 ApplyTouchManipulationTransform(element, e);
 
+                // 填充块：拖动/缩放时让选中对象工具栏跟随
+                if (IsPaintBucketFillElement(element))
+                {
+                    UpdateStrokeSelectionBarLocationForPaintFill(element);
+                }
                 // 如果是图片元素，更新工具栏位置
-                if (IsBitmapLikeCanvasElement(element) && BorderImageSelectionControl?.Visibility == Visibility.Visible)
+                else if (IsBitmapLikeCanvasElement(element) && BorderImageSelectionControl?.Visibility == Visibility.Visible)
                 {
                     UpdateImageSelectionToolbarPosition(element);
                 }
 
-                // 如果是图片元素，更新选择点位置
+                // 如果是图片元素（含填充块），更新选择点位置
                 if (IsBitmapLikeCanvasElement(element) && ImageSelectionOverlay?.Visibility == Visibility.Visible)
                 {
                     UpdateImageResizeHandlesPosition(GetElementActualBounds(element));
@@ -720,71 +744,71 @@ namespace Ink_Canvas
                 UpdateImageSelectionToolbarPosition(mediaControl);
         }
 
+        /// <summary>
+        /// 旋转元素。pivotCanvas 为空时绕元素当前视觉中心旋转，否则绕指定画布点旋转。
+        /// 实现方式：在画布坐标系里构造旋转矩阵，再换算回元素布局坐标系后追加到
+        /// RenderTransform 末尾，不再依赖 RotateTransform.Center 的空间建模，
+        /// 因此拖动、缩放、多次旋转之后依然精确。
+        /// </summary>
         /// <param name="element">要变换的元素</param>
-        /// <param name="angle">旋转角度</param>
-        /// <remarks>
-        /// - 获取元素的TransformGroup
-        /// - 查找RotateTransform
-        /// - 应用旋转变换
-        /// </remarks>
+        /// <param name="angle">旋转角度（度）</param>
+        /// <param name="pivotCanvas">旋转中心（inkCanvas 画布坐标），为空表示元素视觉中心</param>
         private void ApplyRotateTransform(FrameworkElement element, double angle, Point? pivotCanvas = null)
         {
-            if (element.RenderTransform is TransformGroup transformGroup)
+            if (element == null || Math.Abs(angle) < 0.0001) return;
+
+            try
             {
-                var scaleTransform = transformGroup.Children.OfType<ScaleTransform>().FirstOrDefault();
-                var translateTransform = transformGroup.Children.OfType<TranslateTransform>().FirstOrDefault();
-                var rotateTransform = transformGroup.Children.OfType<RotateTransform>().FirstOrDefault();
-                if (rotateTransform == null) return;
+                double left = InkCanvas.GetLeft(element);
+                double top = InkCanvas.GetTop(element);
+                if (double.IsNaN(left)) left = 0;
+                if (double.IsNaN(top)) top = 0;
 
-                var (ox, oy, visW, visH) = GetElementVisualBox(element);
-                double sX = scaleTransform?.ScaleX ?? 1;
-                double sY = scaleTransform?.ScaleY ?? 1;
-                double tx = translateTransform?.X ?? 0;
-                double ty = translateTransform?.Y ?? 0;
-
-                // Rotate runs last in the group, so its Center is in post-scale/translate space —
-                // i.e. the current visual center of the element. When the user dragged the pivot,
-                // convert that canvas-space point into the same space so rotation happens around it.
-                Point center;
+                Point pivot;
                 if (pivotCanvas.HasValue)
                 {
-                    double left = InkCanvas.GetLeft(element); if (double.IsNaN(left)) left = 0;
-                    double top = InkCanvas.GetTop(element); if (double.IsNaN(top)) top = 0;
-                    center = CanvasToRotateCenterSpace(pivotCanvas.Value, left, top,
-                                                       sX, sY, tx, ty,
-                                                       ox, oy, visW, visH,
-                                                       rotateTransform.Angle);
+                    pivot = pivotCanvas.Value;
                 }
                 else
                 {
-                    center = new Point(tx + (ox + visW / 2) * sX,
-                                       ty + (oy + visH / 2) * sY);
+                    var center = GetElementVisualCenterOnCanvas(element);
+                    if (!center.HasValue) return;
+                    pivot = center.Value;
                 }
 
-                rotateTransform.CenterX = center.X;
-                rotateTransform.CenterY = center.Y;
-                rotateTransform.Angle += angle;
+                // 元素布局坐标 → 画布坐标是「+ 布局偏移」，所以绕画布点 P 旋转要换算成：
+                // D = Translate(left, top) · RotateAt(P, angle) · Translate(-left, -top)
+                var delta = Matrix.Identity;
+                delta.Translate(left, top);
+                delta.RotateAt(angle, pivot.X, pivot.Y);
+                delta.Translate(-left, -top);
+
+                ApplyMatrixTransformToElement(element, delta, true);
+            }
+            catch (Exception ex)
+            {
+                LogHelper.WriteLogToFile($"旋转元素失败: {ex.Message}", LogHelper.LogType.Error);
             }
         }
 
-        // 画布坐标 → RotateTransform.Center 空间（scale/translate 之后、绕视觉中心旋转之前）。
-        // 变换模型：P_canvas = (left, top) + Rotate_视觉中心(S * local + T)
-        private static Point CanvasToRotateCenterSpace(Point canvasPoint, double left, double top,
-                                                       double sx, double sy, double tx, double ty,
-                                                       double ox, double oy, double visW, double visH,
-                                                       double angleDeg)
+        /// <summary>元素视觉中心在 inkCanvas 画布坐标下的位置（基于实际渲染变换求解）。</summary>
+        private Point? GetElementVisualCenterOnCanvas(FrameworkElement element)
         {
-            double centerX = tx + (ox + visW / 2) * sx;
-            double centerY = ty + (oy + visH / 2) * sy;
+            if (element == null) return null;
 
-            double rad = -angleDeg * Math.PI / 180.0;
-            double cos = Math.Cos(rad);
-            double sin = Math.Sin(rad);
+            try
+            {
+                var (ox, oy, visW, visH) = GetElementVisualBox(element);
+                if (visW <= 0 || visH <= 0) return null;
 
-            double dx = canvasPoint.X - left - centerX;
-            double dy = canvasPoint.Y - top - centerY;
-            return new Point(centerX + dx * cos - dy * sin,
-                             centerY + dx * sin + dy * cos);
+                var transform = element.TransformToAncestor(inkCanvas);
+                return transform.Transform(new Point(ox + visW / 2, oy + visH / 2));
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine(ex);
+                return null;
+            }
         }
 
         /// <summary>
@@ -805,8 +829,25 @@ namespace Ink_Canvas
             currentSelectedElement = element;
 
             // 根据元素类型显示不同的选择工具栏
-            if (IsBitmapLikeCanvasElement(element))
+            if (IsPaintBucketFillElement(element))
             {
+                // 油漆桶填充块：复用「选中对象工具栏」（与笔迹同一套），
+                // 不显示图片工具栏与四角缩放手柄
+                if (BorderImageSelectionControl != null)
+                {
+                    BorderImageSelectionControl.Visibility = Visibility.Collapsed;
+                }
+
+                HideImageResizeHandles();
+                // 单点选中：把这块填充写进多选集合，工具栏操作统一从集合取目标
+                SelectSinglePaintFill(element);
+                ShowStrokeSelectionBarForPaintFill(element);
+            }
+            else if (IsBitmapLikeCanvasElement(element))
+            {
+                // 上一个选中对象可能是填充块，恢复工具栏按钮可用性
+                SetStrokeSelectionBarPaintFillMode(false);
+
                 // 显示图片选择工具栏并设置位置
                 if (BorderImageSelectionControl != null)
                 {
@@ -823,6 +864,8 @@ namespace Ink_Canvas
             }
             else
             {
+                SetStrokeSelectionBarPaintFillMode(false);
+
                 // 隐藏图片选择工具栏
                 if (BorderImageSelectionControl != null)
                 {
@@ -836,8 +879,8 @@ namespace Ink_Canvas
                 // 不需要直接设置BorderStrokeSelectionControl.Visibility
             }
 
-            // 确保选择框不显示，避免蓝色边框
-            if (GridInkCanvasSelectionCover != null)
+            // 确保选择框不显示，避免蓝色边框（填充块用墨迹工具栏，保持显示）
+            if (GridInkCanvasSelectionCover != null && !IsPaintBucketFillElement(element))
             {
                 GridInkCanvasSelectionCover.Visibility = Visibility.Collapsed;
             }
@@ -866,7 +909,12 @@ namespace Ink_Canvas
         /// </remarks>
         private void UnselectElement(FrameworkElement element)
         {
-            // 去除选中效果
+            // 去除选中效果：填充块收尾时恢复工具栏按钮可用性并收起工具栏
+            if (element != null && IsPaintBucketFillElement(element))
+            {
+                ClearPaintFillSelection();
+                HideStrokeSelectionBarForPaintFill();
+            }
 
             // 隐藏图片选择工具栏
             if (BorderImageSelectionControl != null)
@@ -1036,15 +1084,16 @@ namespace Ink_Canvas
             {
                 // 计算鼠标移动的位移向量
                 var delta = currentPoint - startPoint;
+                if (Math.Abs(delta.X) < 0.01 && Math.Abs(delta.Y) < 0.01) return;
 
-                // 创建 Matrix 对象并应用 Translate 变换
-                var matrix = new Matrix();
-                matrix.Translate(delta.X, delta.Y);
-
-                // 对选中的图片元素应用矩阵变换
-                ApplyMatrixTransformToElement(element, matrix, false);
+                // 元素：直接累加 TranslateTransform，让位移落在变换链里 Rotate 之前的平移分量，
+                // 这样旋转中心换算（CanvasToRotateCenterSpace）始终成立；
+                // 原先追加 MatrixTransform 会把位移甩到变换链末尾，移动后旋转中心随之错位。
+                MoveElementByDelta(element, delta);
 
                 // 对选中的笔画应用变换
+                var matrix = new Matrix();
+                matrix.Translate(delta.X, delta.Y);
                 var selectedStrokes = inkCanvas.GetSelectedStrokes();
                 foreach (var stroke in selectedStrokes)
                 {
@@ -1057,6 +1106,44 @@ namespace Ink_Canvas
             {
                 LogHelper.WriteLogToFile($"鼠标拖动失败: {ex.Message}", LogHelper.LogType.Error);
             }
+        }
+
+        /// <summary>
+        /// 按画布位移移动元素：累加 TransformGroup 里的 TranslateTransform（无则补一个，
+        /// 并保证它排在 RotateTransform 之前）。位移作为 Rotate 之前的平移分量参与变换，
+        /// 旋转中心、选中框与命中范围都能随之保持一致。
+        /// </summary>
+        private static void MoveElementByDelta(FrameworkElement element, Vector delta)
+        {
+            if (element == null) return;
+
+            if (element.RenderTransform is TransformGroup transformGroup)
+            {
+                var translateTransform = transformGroup.Children.OfType<TranslateTransform>().FirstOrDefault();
+                if (translateTransform == null)
+                {
+                    translateTransform = new TranslateTransform(0, 0);
+
+                    int rotateIndex = -1;
+                    for (int i = 0; i < transformGroup.Children.Count; i++)
+                    {
+                        if (transformGroup.Children[i] is RotateTransform)
+                        {
+                            rotateIndex = i;
+                            break;
+                        }
+                    }
+
+                    if (rotateIndex >= 0) transformGroup.Children.Insert(rotateIndex, translateTransform);
+                    else transformGroup.Children.Add(translateTransform);
+                }
+
+                translateTransform.X += delta.X;
+                translateTransform.Y += delta.Y;
+                return;
+            }
+
+            element.RenderTransform = new TranslateTransform(delta.X, delta.Y);
         }
 
         /// <summary>
@@ -1169,10 +1256,11 @@ namespace Ink_Canvas
         /// - 否则使用原始尺寸
         /// - 返回创建的Image对象
         /// </remarks>
-        /// <summary>与图片选择工具栏、缩放控制点联动的画布位图类元素（普通图片、多页 PDF 嵌入或媒体控件）。</summary>
+        /// <summary>与图片选择工具栏、缩放控制点联动的画布位图类元素（普通图片、多页 PDF 嵌入、媒体控件、SVG 元素与油漆桶填充块）。</summary>
         private static bool IsBitmapLikeCanvasElement(FrameworkElement fe)
         {
             return fe is Image || fe is PdfEmbeddedView || fe is CanvasMediaControl
+                || IsPaintBucketFillElement(fe)
                 || string.Equals(fe?.GetType().FullName, "Ink_Canvas.SecAgent.Plugin.SvgCanvasElement", StringComparison.Ordinal)
                 || string.Equals(fe?.GetType().FullName, "Ink_Canvas.SecAgent.Plugin.SvgSceneElement", StringComparison.Ordinal)
                 || string.Equals(fe?.GetType().FullName, "Ink_Canvas.SecAgent.Plugin.SvgSceneGroup", StringComparison.Ordinal);
@@ -2857,13 +2945,12 @@ namespace Ink_Canvas
                 var (ox, oy, visW, visH) = GetElementVisualBox(element);
                 if (visW <= 0 || visH <= 0) return;
 
-                double scaleX = 1, scaleY = 1, angle = 0;
+                double scaleX = 1, scaleY = 1;
+                double angle = GetElementRotationAngle(element);
                 if (element.RenderTransform is TransformGroup tg)
                 {
                     var st = tg.Children.OfType<ScaleTransform>().FirstOrDefault();
-                    var rt = tg.Children.OfType<RotateTransform>().FirstOrDefault();
                     if (st != null) { scaleX = st.ScaleX; scaleY = st.ScaleY; }
-                    if (rt != null) angle = rt.Angle;
                 }
 
                 // Compute the visual center directly from the element's actual transform,
@@ -2904,14 +2991,25 @@ namespace Ink_Canvas
             }
         }
 
+        /// <summary>元素当前的实际旋转角：直接从到画布的实际变换里提取，矩阵法旋转同样有效。</summary>
         private double GetElementRotationAngle(FrameworkElement element)
         {
-            if (element?.RenderTransform is TransformGroup tg)
+            if (element == null) return 0;
+
+            try
             {
-                var rt = tg.Children.OfType<RotateTransform>().FirstOrDefault();
-                if (rt != null) return rt.Angle;
+                var transform = element.TransformToAncestor(inkCanvas);
+                var origin = transform.Transform(new Point(0, 0));
+                var unitX = transform.Transform(new Point(1, 0));
+                var direction = unitX - origin;
+                if (direction.Length <= 0.0001) return 0;
+                return Math.Atan2(direction.Y, direction.X) * 180.0 / Math.PI;
             }
-            return 0;
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine(ex);
+                return 0;
+            }
         }
 
         // Visual box of the rendered content inside element.ActualWidth/Height,
@@ -2978,16 +3076,34 @@ namespace Ink_Canvas
 
         private bool IsStrokeRotationOverlayTarget()
         {
-            return currentSelectedElement == null
-                && inkCanvas?.GetSelectedStrokes().Count > 0
-                && GridInkCanvasSelectionCover?.Visibility == Visibility.Visible;
+            if (inkCanvas == null || GridInkCanvasSelectionCover?.Visibility != Visibility.Visible) return false;
+
+            // 选中对象是图片/视频等其它元素时不算（那些走元素自己的旋转）
+            if (currentSelectedElement != null && !IsPaintBucketFillElement(currentSelectedElement)) return false;
+
+            // 填充块参与多选时也算：旋转手柄要能带着填充块一起转
+            return inkCanvas.GetSelectedStrokes().Count > 0 || HasPaintFillSelection;
+        }
+
+        /// <summary>当前选区的合并包围盒（笔迹选区 ∪ 填充块选中集合）。</summary>
+        private Rect GetCurrentSelectionUnionBounds()
+        {
+            var bounds = inkCanvas.GetSelectionBounds();
+            if (HasPaintFillSelection)
+            {
+                var fillBounds = GetPaintFillSelectionBounds();
+                if (bounds.IsEmpty) bounds = fillBounds;
+                else if (!fillBounds.IsEmpty) bounds = Rect.Union(bounds, fillBounds);
+            }
+            return bounds;
         }
 
         private void ImageSelectionOverlay_InteractionStarted(object sender, EventArgs e)
         {
             if (!IsStrokeRotationOverlayTarget()) return;
 
-            var bounds = inkCanvas.GetSelectionBounds();
+            var bounds = GetCurrentSelectionUnionBounds();
+            if (bounds.IsEmpty) return;
             _isStrokeRotationOverlayActive = true;
             _strokeRotationCenter = new Point(bounds.Left + bounds.Width / 2,
                                               bounds.Top + bounds.Height / 2);
@@ -3005,7 +3121,8 @@ namespace Ink_Canvas
             _isStrokeRotationOverlayActive = false;
             _strokeRotationAngle = 0;
             CommitPendingStrokeManipulationHistory();
-            RefreshStrokeSelectionChrome();
+            if (inkCanvas.GetSelectedStrokes().Count > 0) RefreshStrokeSelectionChrome();
+            if (HasPaintFillSelection) RefreshPaintFillSelectionChrome();
         }
 
         private void ImageSelectionOverlay_ResizeDelta(object sender, ImageResizeDeltaEventArgs e)
@@ -3070,7 +3187,7 @@ namespace Ink_Canvas
                 if (_isStrokeRotationOverlayActive)
                 {
                     var strokes = inkCanvas.GetSelectedStrokes();
-                    if (strokes.Count == 0) return;
+                    if (strokes.Count == 0 && !HasPaintFillSelection) return;
 
                     bool customPivot = ImageSelectionOverlay.HasCustomPivot;
                     Point pivot = customPivot ? ImageSelectionOverlay.PivotCanvasPoint : _strokeRotationCenter;
@@ -3079,6 +3196,10 @@ namespace Ink_Canvas
                     matrix.RotateAt(e.AngleDelta, pivot.X, pivot.Y);
                     foreach (var stroke in strokes)
                         stroke.Transform(matrix, false);
+
+                    // 一起选中的填充块用同一个旋转中心逐帧同步旋转
+                    foreach (var fill in GetSelectedPaintFills())
+                        ApplyRotateTransform(fill, e.AngleDelta, pivot);
 
                     // 自定义旋转中心时，选中框中心也要绕该点转动，框才会跟着墨迹一起转。
                     if (customPivot)
@@ -3130,7 +3251,7 @@ namespace Ink_Canvas
             var rotateTransform = transformGroup.Children.OfType<RotateTransform>().FirstOrDefault();
             if (scaleTransform == null || translateTransform == null) return;
 
-            double angle = rotateTransform?.Angle ?? 0;
+            double angle = GetElementRotationAngle(element);
 
             var (ox, oy, visW, visH) = GetElementVisualBox(element);
             if (visW <= 0 || visH <= 0) return;

@@ -73,6 +73,13 @@ namespace Ink_Canvas
             if (TryBlockFrozenPageMutation("克隆墨迹")) return;
             if (lastBorderMouseDownObject != sender) return;
 
+            // 填充块：克隆元素本身；若同时选中了笔迹，继续走下面的笔迹克隆
+            if (HasPaintFillSelection)
+            {
+                CloneSelectedPaintFill();
+                if (inkCanvas.GetSelectedStrokes().Count == 0) return;
+            }
+
             try
             {
                 var strokes = inkCanvas.GetSelectedStrokes();
@@ -103,6 +110,13 @@ namespace Ink_Canvas
             if (TryBlockFrozenPageMutation("克隆墨迹到新页面")) return;
             if (lastBorderMouseDownObject != sender) return;
 
+            // 填充块：复制一份到新页面（同时选中的笔迹也一起复制到同一页）
+            if (HasPaintFillSelection)
+            {
+                CloneSelectedPaintFillToNewBoard(includeStrokes: true);
+                return;
+            }
+
             var strokes = inkCanvas.GetSelectedStrokes();
             inkCanvas.Select(new StrokeCollection());
             CloneStrokesToNewBoard(strokes);
@@ -118,6 +132,13 @@ namespace Ink_Canvas
         {
             if (TryBlockFrozenPageMutation("插入墨迹到白板")) return;
             if (lastBorderMouseDownObject != sender) return;
+
+            // 填充块：直接插入常规白板（小白板只接受墨迹），同时选中的笔迹一并插入
+            if (HasPaintFillSelection)
+            {
+                InsertSelectedPaintFillToWhiteboard(includeStrokes: true);
+                return;
+            }
 
             var strokes = inkCanvas.GetSelectedStrokes();
             if (strokes.Count == 0) return;
@@ -222,6 +243,15 @@ namespace Ink_Canvas
         private void BorderStrokeSelectionDelete_MouseUp(object sender, MouseButtonEventArgs e)
         {
             if (lastBorderMouseDownObject != sender) return;
+
+            // 填充块：只删除这个元素，绝不能落到下面的「清空画布」逻辑
+            if (HasPaintFillSelection)
+            {
+                DeleteSelectedPaintFill();
+                // 同时选中了笔迹：继续走下面的删除流程，一次删掉两者
+                if (inkCanvas.GetSelectedStrokes().Count == 0) return;
+            }
+
             SymbolIconDelete_MouseUp(sender, e);
         }
 
@@ -238,6 +268,13 @@ namespace Ink_Canvas
         {
             if (TryBlockFrozenPageMutation("修改墨迹粗细")) return;
             if (lastBorderMouseDownObject != sender) return;
+            // 填充块：粗细映射为填充不透明度
+            if (HasPaintFillSelection)
+            {
+                ChangeSelectedPaintFillOpacity(0.8, false);
+                if (inkCanvas.GetSelectedStrokes().Count == 0) return;
+            }
+
             ChangeStrokeThickness(0.8);
         }
 
@@ -254,6 +291,13 @@ namespace Ink_Canvas
         {
             if (TryBlockFrozenPageMutation("修改墨迹粗细")) return;
             if (lastBorderMouseDownObject != sender) return;
+            // 填充块：粗细映射为填充不透明度
+            if (HasPaintFillSelection)
+            {
+                ChangeSelectedPaintFillOpacity(1.25, false);
+                if (inkCanvas.GetSelectedStrokes().Count == 0) return;
+            }
+
             ChangeStrokeThickness(1.25);
         }
 
@@ -305,6 +349,14 @@ namespace Ink_Canvas
         {
             if (TryBlockFrozenPageMutation("修改墨迹粗细")) return;
             if (lastBorderMouseDownObject != sender) return;
+
+            // 填充块：恢复默认的不透明度
+            if (HasPaintFillSelection)
+            {
+                ChangeSelectedPaintFillOpacity(1.0, true);
+                // 恢复默认笔宽：有笔迹时继续走下面的流程
+                if (inkCanvas.GetSelectedStrokes().Count == 0) return;
+            }
 
             foreach (var stroke in inkCanvas.GetSelectedStrokes())
             {
@@ -362,6 +414,14 @@ namespace Ink_Canvas
                 paletteControl.ClearAllChecked();
                 paletteControl.SetCheckedByColor(selectedStrokes[0].DrawingAttributes.Color);
             }
+            else if (GetSelectedPaintFillColor() is Color paintFillColor
+                     && _strokeSelectionColorPopup.Child is Border paintFillBorder
+                     && paintFillBorder.Child is QuickColorPaletteControl paintFillPalette)
+            {
+                // 填充块：勾选当前填充色
+                paintFillPalette.ClearAllChecked();
+                paintFillPalette.SetCheckedByColor(paintFillColor);
+            }
 
             _strokeSelectionColorPopup.IsOpen = !_strokeSelectionColorPopup.IsOpen;
         }
@@ -388,6 +448,14 @@ namespace Ink_Canvas
                 "Purple" => Color.FromRgb(147, 51, 234),
                 _ => Colors.Black
             };
+
+            // 填充块：直接改填充色，保留原有不透明度
+            if (HasPaintFillSelection)
+            {
+                ApplyColorToSelectedPaintFill(color);
+                // 同时选中了笔迹：把颜色也应用到笔迹
+                if (inkCanvas.GetSelectedStrokes().Count == 0) return;
+            }
 
             var changed = false;
             foreach (var stroke in inkCanvas.GetSelectedStrokes())
@@ -432,6 +500,62 @@ namespace Ink_Canvas
             BeginAxisFlip();
         }
 
+        /// <summary>沿轴翻转的提示浮层（复用同一个 Popup，避免每次提示都新建窗口句柄）。</summary>
+        private Popup _axisFlipToastPopup;
+        private TextBlock _axisFlipToastText;
+        private System.Windows.Threading.DispatcherTimer _axisFlipToastTimer;
+
+        /// <summary>沿轴翻转进入拖轴模式时在窗口中央给一次提示。</summary>
+        private void ShowAxisFlipToast(string message)
+        {
+            try
+            {
+                if (_axisFlipToastPopup == null)
+                {
+                    _axisFlipToastText = new TextBlock { Foreground = Brushes.White, FontSize = 15 };
+
+                    _axisFlipToastPopup = new Popup
+                    {
+                        Child = new Border
+                        {
+                            Background = new SolidColorBrush(Color.FromArgb(235, 24, 24, 27)),
+                            BorderBrush = new SolidColorBrush(Color.FromArgb(120, 255, 255, 255)),
+                            BorderThickness = new Thickness(1),
+                            CornerRadius = new CornerRadius(8),
+                            Padding = new Thickness(16, 10, 16, 10),
+                            Child = _axisFlipToastText
+                        },
+                        Placement = PlacementMode.Center,
+                        PlacementTarget = this,
+                        StaysOpen = true,
+                        AllowsTransparency = true,
+                        IsHitTestVisible = false
+                    };
+
+                    _axisFlipToastTimer = new System.Windows.Threading.DispatcherTimer
+                    {
+                        Interval = TimeSpan.FromMilliseconds(1800)
+                    };
+                    _axisFlipToastTimer.Tick += (s, args) =>
+                    {
+                        _axisFlipToastTimer.Stop();
+                        if (_axisFlipToastPopup != null) _axisFlipToastPopup.IsOpen = false;
+                    };
+                }
+
+                _axisFlipToastText.Text = message;
+                if (!_axisFlipToastPopup.IsOpen) _axisFlipToastPopup.IsOpen = true;
+
+                // 重复提示时重新计时，避免旧计时器提前把新提示关掉
+                _axisFlipToastTimer.Stop();
+                _axisFlipToastTimer.Start();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine(ex);
+            }
+        }
+
         #region 沿轴翻转（选中对象工具栏）
 
         /// <summary>沿轴翻转占用的绘制模式号（不占用图形面板的 1~27）。</summary>
@@ -443,6 +567,9 @@ namespace Ink_Canvas
         /// <summary>等待画对称轴的源墨迹。原图保留，最终只新增一份镜像副本。</summary>
         private List<Stroke> _axisFlipSourceStrokes;
 
+        /// <summary>等待沿轴镜像的填充块（可与 _axisFlipSourceStrokes 同时存在）。</summary>
+        private List<FrameworkElement> _axisFlipSourceElements;
+
         /// <summary>拖动阶段显示的对称轴（荧光笔辅助线，只属于预览，结束时移除）。</summary>
         private Stroke _axisFlipGuideStroke;
 
@@ -450,23 +577,31 @@ namespace Ink_Canvas
         private Point _axisFlipAxisEnd;
         private bool _axisFlipAxisEndValid;
 
-        /// <summary>进入沿轴翻转状态：等待用户拖出一条对称轴。</summary>
+        /// <summary>进入沿轴翻转状态：等待用户拖出一条对称轴。笔迹与填充块一起处理。</summary>
         private void BeginAxisFlip()
         {
             if (inkCanvas == null) return;
 
-            var selected = inkCanvas.GetSelectedStrokes();
-            if (selected == null || selected.Count == 0) return;
+            // 填充块：记录元素本身，拖出轴线后逐块镜像
+            _axisFlipSourceElements = HasPaintFillSelection
+                ? GetSelectedPaintFills().ToList()
+                : null;
 
             _axisFlipSourceStrokes = new List<Stroke>();
-            foreach (var stroke in selected)
+            var selected = inkCanvas.GetSelectedStrokes();
+            if (selected != null)
             {
-                if (stroke != null) _axisFlipSourceStrokes.Add(stroke);
+                foreach (var stroke in selected)
+                {
+                    if (stroke != null) _axisFlipSourceStrokes.Add(stroke);
+                }
             }
+            if (_axisFlipSourceStrokes.Count == 0) _axisFlipSourceStrokes = null;
 
-            if (_axisFlipSourceStrokes.Count == 0)
+            // 两个来源都为空：没有可镜像的内容
+            if (_axisFlipSourceStrokes == null && (_axisFlipSourceElements == null || _axisFlipSourceElements.Count == 0))
             {
-                _axisFlipSourceStrokes = null;
+                _axisFlipSourceElements = null;
                 return;
             }
 
@@ -489,6 +624,28 @@ namespace Ink_Canvas
             isLongPressSelected = true;
 
             SetAxisFlipSelectionChromePinned(true);
+            ShowAxisFlipToast("请按下鼠标绘制对称轴");
+        }
+
+        /// <summary>
+        /// 拖轴阶段画布按下的接管入口（由 Window_PreviewMouseDown 调用）。
+        /// InkCanvas 在「选中元素 + 拖轴模式」下会把 MouseDown 吃掉，inkCanvas_MouseDown 不会执行，
+        /// 于是 iniP 仍是上一次落笔的位置、isMouseDown 仍为 false：轴线画不出来，松手时按旧起点镜像。
+        /// 这里用按下位置重置起点并置位 isMouseDown，后续 MouseMove/MouseUp 走原有链接即可正常工作。
+        /// </summary>
+        private void BeginAxisFlipDragAt(Point pressPoint)
+        {
+            if (drawingShapeMode != AxisFlipShapeMode) return;
+
+            RemoveAxisFlipGuide();
+            _axisFlipAxisEnd = pressPoint;
+            _axisFlipAxisEndValid = false;
+            iniP = pressPoint;
+            isMouseDown = true;
+
+            // 捕获鼠标：在窗口外抬起（或 Alt+Tab 切走）时也能收到抬起 / 丢失捕获，
+            // 避免 isMouseDown 卡在 true，让之后不按键的鼠标移动被当成拖轴持续重绘。
+            if (inkCanvas != null && !inkCanvas.IsMouseCaptured) inkCanvas.CaptureMouse();
         }
 
         /// <summary>
@@ -503,12 +660,16 @@ namespace Ink_Canvas
             if (pinned)
             {
                 GridInkCanvasSelectionCover.IsHitTestVisible = false;
+                // 元素选择框（图片/填充块）同样会拦截鼠标：不关掉它，从元素上方开始拖轴
+                // 就会落在 MoveSurface 上，结果既没有轴线预览，抬手时又用旧起点生成了副本
+                if (ImageSelectionOverlay != null) ImageSelectionOverlay.IsHitTestVisible = false;
                 // 显示选择框与工具栏，但保持原位不重新定位（用户可能刚拖动过工具栏）
                 RefreshStrokeSelectionChrome();
             }
             else
             {
                 GridInkCanvasSelectionCover.IsHitTestVisible = true;
+                if (ImageSelectionOverlay != null) ImageSelectionOverlay.IsHitTestVisible = true;
             }
         }
 
@@ -530,35 +691,52 @@ namespace Ink_Canvas
         }
 
         /// <summary>
-        /// 按轴线的无限延长线镜像选中的墨迹：原图不动，另加一份镜像副本；
+        /// 按轴线的无限延长线镜像选中的内容（笔迹与填充块一起）：原图不动，另加一份镜像副本；
         /// 轴线只用于预览，结束后移除；随后回到选择模式并保持原选中。
         /// </summary>
         private void CompleteAxisFlip(Point axisEnd)
         {
             var source = _axisFlipSourceStrokes;
+            var sourceElements = _axisFlipSourceElements;
             _axisFlipSourceStrokes = null;
+            _axisFlipSourceElements = null;
 
             RemoveAxisFlipGuide();
 
             var axis = axisEnd - iniP;
-            if (source != null && source.Count > 0 && axis.Length >= AxisFlipMinLength)
+            if (axis.Length >= AxisFlipMinLength)
             {
                 axis.Normalize();
-                var matrix = CreateAxisReflectionMatrix(iniP, axis);
 
-                var mirrored = new StrokeCollection();
-                foreach (var stroke in source)
+                // 填充块：逐块生成镜像副本
+                if (sourceElements != null)
                 {
-                    if (stroke == null) continue;
-                    var clone = stroke.Clone();
-                    clone.Transform(matrix, false);
-                    mirrored.Add(clone);
+                    foreach (var element in sourceElements)
+                    {
+                        if (element is System.Windows.Shapes.Path fill && IsPaintBucketFillElement(fill))
+                            MirrorPaintFillElement(fill, iniP, axis);
+                    }
                 }
 
-                if (mirrored.Count > 0 && inkCanvas != null)
+                // 笔迹：克隆后整体做反射变换
+                if (source != null && source.Count > 0)
                 {
-                    inkCanvas.Strokes.Add(mirrored);
-                    timeMachine.CommitStrokeUserInputHistory(mirrored);
+                    var matrix = CreateAxisReflectionMatrix(iniP, axis);
+
+                    var mirrored = new StrokeCollection();
+                    foreach (var stroke in source)
+                    {
+                        if (stroke == null) continue;
+                        var clone = stroke.Clone();
+                        clone.Transform(matrix, false);
+                        mirrored.Add(clone);
+                    }
+
+                    if (mirrored.Count > 0 && inkCanvas != null)
+                    {
+                        inkCanvas.Strokes.Add(mirrored);
+                        timeMachine.CommitStrokeUserInputHistory(mirrored);
+                    }
                 }
             }
 
@@ -569,6 +747,7 @@ namespace Ink_Canvas
         private void CancelAxisFlip()
         {
             _axisFlipSourceStrokes = null;
+            _axisFlipSourceElements = null;
             RemoveAxisFlipGuide();
             ExitAxisFlipMode(null);
         }
@@ -669,24 +848,48 @@ namespace Ink_Canvas
             if (TryBlockFrozenPageMutation("旋转墨迹")) return;
             if (lastBorderMouseDownObject != sender) return;
 
-            RotateSelectedStrokesBy(angleDegrees);
+            if (!HasPaintFillSelection && inkCanvas.GetSelectedStrokes().Count == 0) return;
+
+            // 旋转中心只算一次：填充块与笔迹必须绕同一个点转，否则填充块只会原地自转
+            var pivot = GetSelectionRotationCenter();
+
+            if (HasPaintFillSelection) RotateSelectedPaintFill(angleDegrees, pivot);
+
+            // 同时选中了笔迹：一起旋转，保持相对布局
+            if (inkCanvas.GetSelectedStrokes().Count > 0) RotateSelectedStrokesBy(angleDegrees, pivot);
+        }
+
+        /// <summary>
+        /// 当前选区的旋转中心：有自定义旋转中心时用它，否则用「笔迹选区 ∪ 填充块包围盒」的中心。
+        /// 笔迹与填充块共用同一个中心，旋转后相对位置才不会错。
+        /// </summary>
+        private Point GetSelectionRotationCenter()
+        {
+            if (ImageSelectionOverlay != null && ImageSelectionOverlay.HasCustomPivot)
+                return ImageSelectionOverlay.PivotCanvasPoint;
+
+            var bounds = inkCanvas.GetSelectionBounds();
+            if (HasPaintFillSelection)
+            {
+                var fillBounds = GetPaintFillSelectionBounds();
+                if (bounds.IsEmpty) bounds = fillBounds;
+                else if (!fillBounds.IsEmpty) bounds = Rect.Union(bounds, fillBounds);
+            }
+
+            if (bounds.IsEmpty) return new Point(0, 0);
+            return new Point(bounds.Left + bounds.Width / 2, bounds.Top + bounds.Height / 2);
         }
 
         /// <summary>
         /// 顺时针旋转选中的墨迹。旋转中心优先使用用户拖动设置的旋转中心
         /// （ImageSelectionOverlay 的枢轴点），未设置时使用选区中心。
         /// </summary>
-        private void RotateSelectedStrokesBy(double angleDegrees)
+        private void RotateSelectedStrokesBy(double angleDegrees, Point? pivotCanvas = null)
         {
             var targetStrokes = inkCanvas.GetSelectedStrokes();
             if (targetStrokes == null || targetStrokes.Count == 0) return;
 
-            var selectionBounds = inkCanvas.GetSelectionBounds();
-            bool useCustomPivot = ImageSelectionOverlay != null && ImageSelectionOverlay.HasCustomPivot;
-            var center = useCustomPivot
-                ? ImageSelectionOverlay.PivotCanvasPoint
-                : new Point(selectionBounds.Left + selectionBounds.Width / 2,
-                            selectionBounds.Top + selectionBounds.Height / 2);
+            var center = pivotCanvas ?? GetSelectionRotationCenter();
 
             var m = new Matrix();
             m.RotateAt(angleDegrees, center.X, center.Y);
@@ -793,34 +996,64 @@ namespace Ink_Canvas
                 e.Handled = true;
                 return;
             }
-            isGridInkCanvasSelectionCoverMouseDown = true;
 
-            // 检查是否有选中的墨迹
-            if (inkCanvas.GetSelectedStrokes().Count > 0)
+            // 填充块同样需要在覆盖层上做命中测试：命中则交给元素拖动流程；
+            // 未命中且当前选中的正是填充块时取消选中，否则铺满画布的覆盖层会吞掉所有点击
+            var paintFillElement = FindPaintBucketFillAtCanvasPoint(scenePoint);
+            if (paintFillElement != null)
             {
-                // 获取鼠标点击位置
+                isGridInkCanvasSelectionCoverMouseDown = false;
+                isStrokeDragging = false;
+                GridInkCanvasSelectionCover.ReleaseMouseCapture();
+                Element_MouseLeftButtonDown(paintFillElement, e);
+                e.Handled = true;
+                return;
+            }
+
+            // 已有选区（笔迹 / 填充块 / 两者同时）：在合并包围盒内按下就开始拖动，
+            // 点在外面则整体取消选中。这样套索一起选中的填充块能跟着笔迹一起移动。
+            var selectedStrokeCount = inkCanvas.GetSelectedStrokes().Count;
+            if (selectedStrokeCount > 0 || HasPaintFillSelection)
+            {
                 var clickPoint = e.GetPosition(inkCanvas);
                 var selectionBounds = inkCanvas.GetSelectionBounds();
 
-                // 检查点击位置是否在选择框边界内
-                if (clickPoint.X >= selectionBounds.Left &&
-                    clickPoint.X <= selectionBounds.Right &&
-                    clickPoint.Y >= selectionBounds.Top &&
-                    clickPoint.Y <= selectionBounds.Bottom)
+                if (HasPaintFillSelection)
                 {
-                    // 只有在选择框边界内才允许拖动
+                    var fillBounds = GetPaintFillSelectionBounds();
+                    if (selectionBounds.IsEmpty) selectionBounds = fillBounds;
+                    else if (!fillBounds.IsEmpty) selectionBounds.Union(fillBounds);
+                }
+
+                // 检查点击位置是否在（笔迹 + 填充块的）合并选区边界内
+                if (!selectionBounds.IsEmpty
+                    && clickPoint.X >= selectionBounds.Left
+                    && clickPoint.X <= selectionBounds.Right
+                    && clickPoint.Y >= selectionBounds.Top
+                    && clickPoint.Y <= selectionBounds.Bottom)
+                {
+                    // 只有在选区边界内才允许拖动
+                    isGridInkCanvasSelectionCoverMouseDown = true;
                     isStrokeDragging = true;
                     strokeDragStartPoint = clickPoint;
                     GridInkCanvasSelectionCover.CaptureMouse();
                     GridInkCanvasSelectionCover.Cursor = Cursors.SizeAll;
+                    return;
                 }
-                else
-                {
-                    // 点击在选择框外，取消选择
-                    inkCanvas.Select(new StrokeCollection());
-                    GridInkCanvasSelectionCover.Visibility = Visibility.Collapsed;
-                }
+
+                // 点击在选择框外，取消全部选择
+                var previousSelectedFill = (currentSelectedElement != null && IsPaintBucketFillElement(currentSelectedElement))
+                    ? currentSelectedElement
+                    : null;
+                currentSelectedElement = null;
+                ClearPaintFillSelection();
+                if (previousSelectedFill != null) UnselectElement(previousSelectedFill);
+                inkCanvas.Select(new StrokeCollection());
+                GridInkCanvasSelectionCover.Visibility = Visibility.Collapsed;
+                return;
             }
+
+            isGridInkCanvasSelectionCoverMouseDown = true;
         }
 
         /// <summary>
@@ -872,6 +1105,12 @@ namespace Ink_Canvas
                     stroke.Transform(matrix, false);
                 }
 
+                // 一起被套索选中的填充块同步平移，保持与笔迹的相对位置
+                foreach (var fill in GetSelectedPaintFills())
+                {
+                    MovePaintFillByDelta(fill, delta);
+                }
+
                 // 更新选择框和旋转锚点位置（选中栏保持原位，除非拖动拖动柄）
                 UpdateSelectionDisplay();
 
@@ -903,8 +1142,8 @@ namespace Ink_Canvas
 
             isGridInkCanvasSelectionCoverMouseDown = false;
 
-            // 只有在没有选中墨迹时才隐藏选中栏
-            if (inkCanvas.GetSelectedStrokes().Count == 0)
+            // 只有在既没有墨迹、也没有填充块被选中时才隐藏选中栏
+            if (inkCanvas.GetSelectedStrokes().Count == 0 && !HasPaintFillSelection)
             {
                 GridInkCanvasSelectionCover.Visibility = Visibility.Collapsed;
                 HideSelectionDisplay();
@@ -912,7 +1151,8 @@ namespace Ink_Canvas
             else
             {
                 CommitPendingStrokeManipulationHistory();
-                RefreshStrokeSelectionChrome();
+                if (inkCanvas.GetSelectedStrokes().Count > 0) RefreshStrokeSelectionChrome();
+                if (HasPaintFillSelection) RefreshPaintFillSelectionChrome();
             }
         }
 
@@ -994,6 +1234,9 @@ namespace Ink_Canvas
             // 优先检查墨迹选择状态
             if (inkCanvas.GetSelectedStrokes().Count > 0)
             {
+                // 从填充块切回墨迹选择：恢复工具栏按钮可用性
+                SetStrokeSelectionBarPaintFillMode(false);
+
                 // 有墨迹被选中，清除图片选择状态
                 if (currentSelectedElement != null)
                 {
@@ -1012,13 +1255,16 @@ namespace Ink_Canvas
                 // 新的墨迹选区：旋转中心复位到选区中心
                 ImageSelectionOverlay?.ResetPivot();
                 UpdateSelectionDisplay();
+
+                // 套索/框选：把与笔迹选区相交的填充块也纳入选中，实现「一起被选中」
+                SyncPaintFillSelectionFromStrokeSelection();
                 return;
             }
 
             // 检查是否有图片元素被选中（通过InkCanvas的选中元素）
             var selectedElements = inkCanvas.GetSelectedElements();
             var selectedImageElement = selectedElements
-                .FirstOrDefault(element => element is Image || element is PdfEmbeddedView) as FrameworkElement;
+                .FirstOrDefault(element => element is Image || element is PdfEmbeddedView || IsPaintBucketFillElement(element)) as FrameworkElement;
 
             // InkCanvas 首次点击可能直接接管图片选择，这里把选中结果立即交给新版图片选中框，
             // 避免先显示旧版选择锚点，等第二次点击/拖拽时才进入自定义流程。
@@ -1048,6 +1294,13 @@ namespace Ink_Canvas
             // 检查是否有图片元素被选中（通过currentSelectedElement）
             if (currentSelectedElement != null && IsBitmapLikeCanvasElement(currentSelectedElement))
             {
+                // 填充块用的是墨迹那套工具栏：选中过程中 InkCanvas 清空墨迹选择会触发本事件，
+                // 这里必须保持工具栏显示，不能折叠覆盖层
+                if (IsPaintBucketFillElement(currentSelectedElement))
+                {
+                    return;
+                }
+
                 GridInkCanvasSelectionCover.Visibility = Visibility.Collapsed;
                 HideSelectionDisplay();
                 return;
@@ -1056,6 +1309,8 @@ namespace Ink_Canvas
             // 没有选中任何内容，隐藏选择框
             GridInkCanvasSelectionCover.Visibility = Visibility.Collapsed;
             HideSelectionDisplay();
+            // 笔迹选区清空后，填充块的随动选中也要一起清掉
+            ClearPaintFillSelection();
         }
 
 

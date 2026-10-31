@@ -317,6 +317,18 @@ namespace Ink_Canvas
             }
 
             // 进入新模式
+            EnterShapeDrawingMode(mode);
+        }
+
+        /// <summary>
+        /// 进入指定几何绘制模式：清理上一个多步绘制残留的状态、切换编辑模式并刷新按钮选中态。
+        /// 供几何按钮点击与「填充色调色盘选色后自动选中填充工具」共用。
+        /// </summary>
+        /// <param name="mode">目标绘制模式号（与 <see cref="GetDrawingModeForButton"/> 返回值一致）</param>
+        private void EnterShapeDrawingMode(int mode)
+        {
+            if (mode == 0 || drawingShapeMode == mode) return;
+
             if (drawingShapeMode == 15) CancelMidpointDrawing();
             if (drawingShapeMode == 17) CancelParallelDrawing();
             if (drawingShapeMode == 21) CancelPerpendicularDrawing();
@@ -2857,10 +2869,25 @@ namespace Ink_Canvas
                 case 28:
                     // 沿轴翻转：拖动阶段只显示一条对称轴线（荧光笔辅助线），松手时按该轴镜像选中的墨迹
                     if (GetDistance(iniP, endP) < AxisFlipMinLength) return;
-                    RemoveAxisFlipGuide();
-                    _axisFlipGuideStroke = GenerateLineStroke(iniP, endP);
-                    _axisFlipGuideStroke.DrawingAttributes = CreatePerpendicularGuideDrawingAttributes();
-                    inkCanvas.Strokes.Add(_axisFlipGuideStroke);
+                    {
+                        // 复用同一根辅助线，只改两个端点：每帧 Remove/Add 笔画会让 InkPresenter
+                        // 反复重建笔画收集，高回报率鼠标下会明显掉帧
+                        if (_axisFlipGuideStroke == null)
+                        {
+                            _axisFlipGuideStroke = GenerateLineStroke(iniP, endP);
+                            _axisFlipGuideStroke.DrawingAttributes = CreatePerpendicularGuideDrawingAttributes();
+                            inkCanvas.Strokes.Add(_axisFlipGuideStroke);
+                        }
+                        else
+                        {
+                            var guidePoints = _axisFlipGuideStroke.StylusPoints;
+                            if (guidePoints.Count >= 2)
+                            {
+                                guidePoints[0] = new StylusPoint(iniP.X, iniP.Y);
+                                guidePoints[1] = new StylusPoint(endP.X, endP.Y);
+                            }
+                        }
+                    }
                     // 记录终点：触摸抬笔时合成的鼠标事件拿不到触摸位置
                     _axisFlipAxisEnd = endP;
                     _axisFlipAxisEndValid = true;
@@ -4271,7 +4298,8 @@ namespace Ink_Canvas
                 _arcAwaitNewGesture = false;
                 ClearArcHandleHighlight();
             }
-            // 沿轴翻转：新的一次按下清掉上一帧的轴线
+            // 沿轴翻转：新的一次按下清掉上一帧的轴线（起点与 isMouseDown 由 Window_PreviewMouseDown
+            // 调用 BeginAxisFlipDragAt 置位，这里不再重复提示，避免两条 ④ 提示叠在一起）
             if (drawingShapeMode == AxisFlipShapeMode)
             {
                 RemoveAxisFlipGuide();
@@ -4333,6 +4361,22 @@ namespace Ink_Canvas
         /// </remarks>
         private void inkCanvas_MouseMove(object sender, MouseEventArgs e)
         {
+            // 沿轴翻转兜底：若抬起事件没送到画布（拖到窗口外松手、丢失捕获等），
+            // isMouseDown 会一直为 true，之后不按键的移动就会被当成拖轴持续重绘。
+            // 这里发现左键已松开就立即收尾：有有效终点则按该轴完成镜像，否则直接取消。
+            if (drawingShapeMode == AxisFlipShapeMode
+                && isMouseDown
+                && e.LeftButton == MouseButtonState.Released)
+            {
+                isMouseDown = false;
+                if (_axisFlipAxisEndValid)
+                    CompleteAxisFlip(_axisFlipAxisEnd);
+                else
+                    CancelAxisFlip();
+                if (inkCanvas.IsMouseCaptured) inkCanvas.ReleaseMouseCapture();
+                return;
+            }
+
             // 多边形：仅刷新“已确定顶点 + 光标”的预览，不参与拖动绘制
             if (drawingShapeMode == 12)
             {
