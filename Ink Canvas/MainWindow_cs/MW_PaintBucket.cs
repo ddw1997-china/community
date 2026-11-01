@@ -36,6 +36,9 @@ namespace Ink_Canvas
         /// </summary>
         private const int PaintBucketContourOutset = 1;
 
+        /// <summary>油漆桶图标的倾斜角度（度，负值 = 逆时针），让图标不那么板正。</summary>
+        private const double PaintBucketIconTiltAngle = -8;
+
         /// <summary>填充元素的名字前缀：用于缩放/漫游时识别并同步变换。</summary>
         private const string PaintBucketFillElementPrefix = "paintfill_";
 
@@ -587,20 +590,30 @@ namespace Ink_Canvas
                         Padding = new Thickness(8, 6, 8, 6),
                         Child = palette
                     },
+                    // 锚点是形状面板里的▲按钮：调色盘因此成为面板窗口的被拥有窗口，
+                    // 天然排在面板和主窗口之上，不会被置顶的面板盖住。
                     Placement = PlacementMode.Bottom,
                     // 与「选中对象工具栏」的颜色弹窗保持一致：由按钮自己控制开合。
                     // StaysOpen=false 会在按钮抬起（触发 Checked）的同一轮鼠标事件里把弹窗立即关掉。
                     StaysOpen = true,
                     AllowsTransparency = true,
-                    PopupAnimation = PopupAnimation.Fade
+                    // 不用淡入动画：开场动画叠加在位置/尺寸的首次测量上，会看到一次明显的闪。
+                    // 直接显示即可，交互上更快。
+                    PopupAnimation = PopupAnimation.None
                 };
 
-                // 点击外部关闭时，把▲按钮恢复到未选中态
-                _paintBucketColorPopup.Closed += (s, e) => SetPaintBucketColorToggleState(false);
+                _paintBucketColorPopup.Closed += OnPaintBucketColorPopupClosed;
 
-                // 交给宿主统一的 Popup 管理器接管 Z 序：批注/置顶模式下它会周期性把弹窗拉回 TOPMOST，
-                // 否则弹窗会被其它应用窗口盖住（与「选中对象工具栏」的颜色弹窗行为一致）
+                // 必须注册到 PopupManagerHelper：
+                // 1) 只有进了 _openPopups，拖动浮动栏时才会被 UpdatePosition 重新贴到▲按钮上（否则不跟随）；
+                // 2) 置顶保活由它统一负责，批注/置顶模式下才压得住其他窗口。
+                // 注册后可能出现「面板和调色盘都被反复抬顶、主窗口在两者之间来回插」的闪烁，
+                // 这个问题改由 SuspendPaintBucketPanelZOrderFix 在调色盘打开期间暂停面板的周期修正来规避。
                 GetPopupManager()?.RegisterPopup(_paintBucketColorPopup);
+
+                // 宿主面板收起时同步关掉调色盘，避免留下悬空弹窗
+                BorderDrawShape.Closed += OnPaintBucketColorHostClosed;
+                BoardBorderDrawShape.Closed += OnPaintBucketColorHostClosed;
             }
 
             _paintBucketColorPopupOwner = content;
@@ -614,6 +627,23 @@ namespace Ink_Canvas
             }
 
             _paintBucketColorPopup.IsOpen = true;
+
+            // 打开后立刻收敛一次层级，不必等下一个 400ms 周期（批注模式下这一步决定它压不压得住其他窗口）
+            GetPopupManager()?.RefreshPopupZOrder(_paintBucketColorPopup);
+        }
+
+        /// <summary>调色盘关闭：恢复▲按钮的未选中态。</summary>
+        private void OnPaintBucketColorPopupClosed(object sender, EventArgs e)
+        {
+            SetPaintBucketColorToggleState(false);
+        }
+
+        /// <summary>宿主形状绘制面板收起时，同步关闭填充色调色盘，避免留下悬空弹窗。</summary>
+        private void OnPaintBucketColorHostClosed(object sender, EventArgs e)
+        {
+            if (_paintBucketColorPopup == null || !_paintBucketColorPopup.IsOpen) return;
+            _paintBucketColorPopup.IsOpen = false;
+            SetPaintBucketColorToggleState(false);
         }
 
         /// <summary>调色盘选色：作为油漆桶的填充色，并收起弹窗。</summary>
@@ -708,7 +738,10 @@ namespace Ink_Canvas
         {
             var group = new DrawingGroup
             {
-                ClipGeometry = Geometry.Parse("M0,0 V750 H750 V0 H0 Z")
+                ClipGeometry = Geometry.Parse("M0,0 V750 H750 V0 H0 Z"),
+                // 整体逆时针倾斜一点，避免图标过于板正
+                // （与 Resources/DrawShapeImageDictionary.xaml 里的 Bucket 资源保持一致）
+                Transform = new RotateTransform(PaintBucketIconTiltAngle, 375, 375)
             };
 
             var outlinePen = new Pen(new SolidColorBrush(outlineColor), 42)

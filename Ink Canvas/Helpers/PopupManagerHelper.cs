@@ -25,8 +25,20 @@ namespace Ink_Canvas.Helpers
         private bool _isInitialized = false;
         private bool _needsUpdate = false;
         private bool _lastTopmostState = false;
-        private int _topmostCheckCounter = 0;
-        private const int TopmostCheckInterval = 25;
+
+        /// <summary>
+        /// 置顶保活的节拍（毫秒）。按时间判定而不是帧计数：帧计数会随刷新率变化
+        /// （144Hz ≈ 0.17 秒一次，30Hz ≈ 0.83 秒一次），导致高低端机器的重排频率不一致。
+        /// <para>
+        /// 注意：这里仍然挂在 <see cref="CompositionTarget.Rendering"/> 上而不是独立定时器。
+        /// 与绘制同拍是必须的——Z 序修正必须落在「这一帧画完之后」，
+        /// 换成 DispatcherTimer 会出现弹窗不跟随拖动、闪烁、压不住其他窗口的问题。
+        /// </para>
+        /// </summary>
+        private const int TopmostMaintenanceIntervalMs = 400;
+
+        /// <summary>上次执行置顶保活的时间戳（<see cref="Environment.TickCount64"/>）。</summary>
+        private long _lastTopmostMaintenanceTicks;
 
         #endregion
 
@@ -139,6 +151,19 @@ namespace Ink_Canvas.Helpers
         }
 
         /// <summary>
+        /// 立即对指定 Popup 做一次 Z 序修正（已处于目标状态时是空操作）。
+        /// 供外部在「刚打开一个子浮层」等时机主动收敛，不需要等下一个周期。
+        /// </summary>
+        public void RefreshPopupZOrder(Popup popup)
+        {
+            if (popup == null || !popup.IsOpen) return;
+
+            FixPopupZOrder(popup);
+            if (popup.Child is FrameworkElement child)
+                FixChildPopups(child);
+        }
+
+        /// <summary>
         /// 关闭所有已注册的 Popup。
         /// <para>
         /// 供 <c>HideSubPanels</c> / <c>HideSubPanelsImmediately</c> 兜底调用：宿主自带面板是按名字逐个关闭的，
@@ -246,7 +271,7 @@ namespace Ink_Canvas.Helpers
 
         #endregion
 
-        #region 内部实现 - 渲染回调
+        #region 内部实现 - 渲染回调 / 周期保活
 
         private void OnRendering(object sender, EventArgs e)
         {
@@ -263,16 +288,17 @@ namespace Ink_Canvas.Helpers
                     _needsUpdate = false;
                 }
 
-                _topmostCheckCounter++;
-                if (_topmostCheckCounter >= TopmostCheckInterval)
+                // 置顶保活：按真实时间节流，但必须留在渲染回调里与绘制同拍。
+                // FixPopupZOrder 内部是幂等的（已经是 TOPMOST 就跳过），所以周期调用不会造成 Z 序抖动。
+                var now = Environment.TickCount64;
+                if (now - _lastTopmostMaintenanceTicks < TopmostMaintenanceIntervalMs) return;
+                _lastTopmostMaintenanceTicks = now;
+
+                foreach (var popup in _openPopups)
                 {
-                    _topmostCheckCounter = 0;
-                    foreach (var popup in _openPopups)
-                    {
-                        FixPopupZOrder(popup);
-                        if (popup.Child is FrameworkElement child)
-                            FixChildPopups(child);
-                    }
+                    FixPopupZOrder(popup);
+                    if (popup.Child is FrameworkElement child)
+                        FixChildPopups(child);
                 }
             }
             catch (Exception ex)
@@ -304,6 +330,22 @@ namespace Ink_Canvas.Helpers
             return hwnd;
         }
 
+        /// <summary>窗口当前是否已经处于 TOPMOST（用于跳过无意义的 SetWindowPos，避免 Z 序抖动）。</summary>
+        private static bool IsTopmostApplied(IntPtr handle)
+        {
+            if (handle == IntPtr.Zero) return false;
+
+            try
+            {
+                int exStyle = PInvoke.GetWindowLong(new HWND(handle), WINDOW_LONG_PTR_INDEX.GWL_EXSTYLE);
+                return (exStyle & NativeWindowHelper.WS_EX_TOPMOST) != 0;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         private void FixPopupZOrder(Popup popup)
         {
             if (popup?.Child == null) return;
@@ -314,9 +356,15 @@ namespace Ink_Canvas.Helpers
                 if (popupHwnd == IntPtr.Zero) return;
 
                 var shouldBeTopmost = CheckShouldBeTopmost();
+                var isTopmost = IsTopmostApplied(popupHwnd);
 
                 if (shouldBeTopmost)
                 {
+                    // 已经是 TOPMOST 就什么都不做。这一步很关键：
+                    // 周期性重排时若每次都无条件 SetWindowPos，弹窗（以及被插到它下面的主窗口）
+                    // 每 400ms 就被重排一次，多个弹窗同时打开时会互相把主窗口插到对方下面，表现为闪烁。
+                    if (isTopmost) return;
+
                     PInvoke.SetWindowPos(new HWND(popupHwnd), new HWND(NativeWindowHelper.HWND_TOPMOST), 0, 0, 0, 0,
                         SET_WINDOW_POS_FLAGS.SWP_NOMOVE | SET_WINDOW_POS_FLAGS.SWP_NOSIZE | SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE | SET_WINDOW_POS_FLAGS.SWP_NOOWNERZORDER);
 
@@ -328,11 +376,10 @@ namespace Ink_Canvas.Helpers
                 }
                 else
                 {
+                    if (!isTopmost) return;
+
                     int exStyle = PInvoke.GetWindowLong(new HWND(popupHwnd), WINDOW_LONG_PTR_INDEX.GWL_EXSTYLE);
-                    if ((exStyle & NativeWindowHelper.WS_EX_TOPMOST) != 0)
-                    {
-                        PInvoke.SetWindowLong(new HWND(popupHwnd), WINDOW_LONG_PTR_INDEX.GWL_EXSTYLE, exStyle & ~NativeWindowHelper.WS_EX_TOPMOST);
-                    }
+                    PInvoke.SetWindowLong(new HWND(popupHwnd), WINDOW_LONG_PTR_INDEX.GWL_EXSTYLE, exStyle & ~NativeWindowHelper.WS_EX_TOPMOST);
 
                     PInvoke.SetWindowPos(new HWND(popupHwnd), new HWND(NativeWindowHelper.HWND_NOTOPMOST), 0, 0, 0, 0,
                         SET_WINDOW_POS_FLAGS.SWP_NOMOVE | SET_WINDOW_POS_FLAGS.SWP_NOSIZE | SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE);
@@ -355,7 +402,7 @@ namespace Ink_Canvas.Helpers
                     if (childPopup.IsOpen && childPopup.Child != null)
                     {
                         var source = PresentationSource.FromVisual(childPopup.Child) as HwndSource;
-                        if (source?.Handle != IntPtr.Zero)
+                        if (source?.Handle != IntPtr.Zero && !IsTopmostApplied(source.Handle))
                         {
                             PInvoke.SetWindowPos(new HWND(source.Handle), new HWND(NativeWindowHelper.HWND_TOPMOST), 0, 0, 0, 0,
                                 SET_WINDOW_POS_FLAGS.SWP_NOMOVE | SET_WINDOW_POS_FLAGS.SWP_NOSIZE | SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE | SET_WINDOW_POS_FLAGS.SWP_NOOWNERZORDER);
@@ -393,6 +440,7 @@ namespace Ink_Canvas.Helpers
             try
             {
                 CompositionTarget.Rendering -= OnRendering;
+
                 foreach (var popup in _registeredPopups)
                 {
                     popup.Opened -= OnPopupOpened;

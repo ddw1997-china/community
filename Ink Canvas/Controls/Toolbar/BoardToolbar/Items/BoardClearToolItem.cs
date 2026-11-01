@@ -9,7 +9,8 @@ namespace Ink_Canvas.Controls.Toolbar.BoardToolbar.Items
     internal sealed class BoardClearToolItem : BoardToolbarImageButtonItemBase
     {
         public override string Id => "board.clear";
-        public override string LocalizationKey => "MiniWhiteboard_Clear";
+        // 白板工具栏按钮文案为「清空」；迷你白板窗口仍使用 MiniWhiteboard_Clear（清除），两者互不影响。
+        public override string LocalizationKey => "FloatingBar_Clear";
         public override string Description => "清空画布";
 
         public override string IconGeometry => XamlGraphicsIconGeometries.DeleteIcon;

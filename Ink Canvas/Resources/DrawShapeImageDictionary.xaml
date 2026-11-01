@@ -407,6 +407,10 @@
     <DrawingImage x:Key="DrawShapeImageSource.Bucket">
         <DrawingImage.Drawing>
             <DrawingGroup ClipGeometry="M0,0 V750 H750 V0 H0 Z">
+                <!-- 整体逆时针倾斜一点，避免图标过于板正（与 MainWindow_cs/MW_PaintBucket.cs 的 BuildPaintBucketIcon 保持一致） -->
+                <DrawingGroup.Transform>
+                    <RotateTransform Angle="-8" CenterX="375" CenterY="375" />
+                </DrawingGroup.Transform>
                 <!-- 桶身外轮廓 -->
                 <GeometryDrawing>
                     <GeometryDrawing.Pen>
