@@ -107,10 +107,13 @@ namespace Ink_Canvas
             }
 
             // 检查画布上的所有UI元素，确保它们都在历史记录中
+            // 油漆桶填充块同样是画布子元素（矢量 Path），必须和图片一样兜底提交进本页历史，
+            // 否则退出白板 / 切页时 RestoreStrokes 里的 Children.Clear() 之后就再也恢复不回来。
             var missingElements = 0;
             foreach (UIElement child in inkCanvas.Children)
             {
-                if (child is Image || child is MediaElement || child is CanvasMediaControl || child is PdfEmbeddedView)
+                if (child is Image || child is MediaElement || child is CanvasMediaControl ||
+                    child is PdfEmbeddedView || IsPaintBucketFillElement(child))
                 {
                     if (child is Image img && img.Tag is string tag && tag == VideoPresenterLiveFrameTag)
                     {
@@ -182,6 +185,26 @@ namespace Ink_Canvas
 
 
             }
+
+            LogPaintFillSnapshot("保存白板页", isBackupMain ? 0 : CurrentWhiteboardIndex);
+        }
+
+        /// <summary>
+        /// 油漆桶诊断：记录某页在保存/恢复时的填充块数量（画布与历史各多少）。
+        /// 只在存在填充块时才写日志，避免污染正常运行的日志。
+        /// </summary>
+        private void LogPaintFillSnapshot(string stage, int pageIndex)
+        {
+            if (inkCanvas == null) return;
+
+            var onCanvas = inkCanvas.Children.OfType<FrameworkElement>().Count(IsPaintBucketFillElement);
+            var history = TimeMachineHistories[pageIndex];
+            var inHistory = history?.Count(h =>
+                h.CommitType == TimeMachineHistoryType.ElementInsert && !h.StrokeHasBeenCleared &&
+                h.InsertedElement is FrameworkElement element && IsPaintBucketFillElement(element)) ?? 0;
+
+            if (onCanvas == 0 && inHistory == 0) return;
+            PaintBucketTrace($"{stage} {pageIndex}：画布填充={onCanvas}，历史填充={inHistory}");
         }
 
         /// <summary>
@@ -328,6 +351,7 @@ namespace Ink_Canvas
             {
                 ApplyFreezeStateToCurrentStrokes();
                 UpdateInkFreezeButtonState();
+                LogPaintFillSnapshot("恢复白板页", isBackupMain ? 0 : CurrentWhiteboardIndex);
             }
         }
 
@@ -401,6 +425,9 @@ namespace Ink_Canvas
                         BindElementEvents(fe);
                     }
                 }
+
+                // 翻页恢复的油漆桶填充块要按当前工具模式重设命中测试，否则选择模式下选不中
+                UpdatePaintFillHitTest();
 
                 SyncPdfPageSidebarWithCanvas();
             }));

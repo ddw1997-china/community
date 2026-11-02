@@ -810,6 +810,38 @@ namespace Ink_Canvas
             }
         }
 
+        /// <summary>
+        /// 清屏时删除画布上所有油漆桶填充块。填充块属于绘画内容，不像图片/媒体那样在清屏后保留；
+        /// 逐块写入元素删除历史，因此清屏后仍可用撤销逐块恢复。
+        /// </summary>
+        internal void RemoveAllPaintFillsFromCanvas()
+        {
+            if (inkCanvas == null) return;
+
+            var removed = 0;
+            for (int i = inkCanvas.Children.Count - 1; i >= 0; i--)
+            {
+                if (inkCanvas.Children[i] is not System.Windows.Shapes.Path path) continue;
+                if (!IsPaintBucketFillElement(path)) continue;
+
+                inkCanvas.Children.Remove(path);
+                timeMachine.CommitElementRemoveHistory(path);
+                removed++;
+            }
+
+            if (removed == 0) return;
+
+            // 选中状态一并收尾，否则工具栏会继续对着已移除的填充块操作
+            if (currentSelectedElement != null && !inkCanvas.Children.Contains(currentSelectedElement))
+                currentSelectedElement = null;
+            ClearPaintFillSelection();
+            HideStrokeSelectionBarForPaintFill();
+            if (GridInkCanvasSelectionCover != null && inkCanvas.GetSelectedStrokes().Count == 0)
+                GridInkCanvasSelectionCover.Visibility = Visibility.Collapsed;
+
+            PaintBucketTrace($"清屏移除填充块 {removed} 块");
+        }
+
         /// <summary>判断画布坐标下的矩形（橡皮擦范围）是否命中填充路径。</summary>
         private static bool PaintFillHitByRect(System.Windows.Shapes.Path path, Rect canvasRect)
         {

@@ -4897,6 +4897,8 @@ namespace Ink_Canvas
             }
 
             ClearStrokes(false);
+            // 填充块属于绘画内容：先按绘画内容删掉，避免被下面的「保留非笔画元素」带回画布
+            RemoveAllPaintFillsFromCanvas();
             // 保存非笔画元素（如图片）
             var preservedElements = PreserveNonStrokeElements();
             inkCanvas.Children.Clear();

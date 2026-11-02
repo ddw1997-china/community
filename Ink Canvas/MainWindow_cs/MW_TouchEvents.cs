@@ -878,14 +878,17 @@ namespace Ink_Canvas
                     && (IsSecAgentEditableSceneElement(sceneChild) || IsSecAgentEditableSceneGroup(sceneChild)))
                     continue;
 
-                // 保存图片、媒体元素等非笔画相关的UI元素
+                // 保存图片、媒体元素等非笔画相关的UI元素；油漆桶填充块也是画布子元素，同样要保留
                 if (child is Image || child is MediaElement || child is CanvasMediaControl ||
+                    IsPaintBucketFillElement(child) ||
                     (child is Border border && border.Name != "EraserOverlayCanvas" &&
                      !string.Equals(child.GetType().FullName, "Ink_Canvas.SecAgent.Plugin.SvgSceneElement", StringComparison.Ordinal) &&
                      !string.Equals(child.GetType().FullName, "Ink_Canvas.SecAgent.Plugin.SvgSceneGroup", StringComparison.Ordinal)))
                 {
                     // CanvasMediaControl 直接保留原始引用，避免克隆导致播放状态丢失
-                    if (child is CanvasMediaControl)
+                    // 油漆桶填充块同样保留原始引用：白板页历史里记的是同一批元素实例，
+                    // 换成克隆会让历史引用失效（保存时又补提交一次，恢复后出现重复填充块）
+                    if (child is CanvasMediaControl || IsPaintBucketFillElement(child))
                     {
                         preservedElements.Add(child);
                         continue;
@@ -1041,6 +1044,9 @@ namespace Ink_Canvas
                     LogHelper.WriteLogToFile($"恢复非笔画元素失败: {ex.Message}", LogHelper.LogType.Error);
                 }
             }
+
+            // 填充块重建后要按当前工具模式重设命中测试，否则切模式/清图层后会失去可选性
+            UpdatePaintFillHitTest();
         }
 
         /// <summary>
