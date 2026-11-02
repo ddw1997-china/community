@@ -1474,16 +1474,51 @@ namespace Ink_Canvas
                 // 镜像矩阵按画布坐标计算，而元素先走自身 RenderTransform、再由布局偏移搬到画布上，
                 // 所以整条链必须是：源变换 → 平移(left,top) → 镜像 → 平移(-left,-top)，
                 // 这样“局部坐标 → 画布坐标 → 镜像 → 回到局部坐标”。
-                // 用 TransformGroup 的子项顺序表达，避免再手写矩阵乘法：
                 // 早先的两端平移方向写反（先 T(-l,-t) 再 T(l,t)），等价于以 (-l,-t) 为原点镜像，
                 // 副本被整体推到画布外约 1460px（看起来像「没生成」）。
-                var baseTransform = clone.RenderTransform;
-                var mirrorChain = new TransformGroup();
-                if (baseTransform != null) mirrorChain.Children.Add(baseTransform);
-                mirrorChain.Children.Add(new TranslateTransform(left, top));
-                mirrorChain.Children.Add(new MatrixTransform(matrix));
-                mirrorChain.Children.Add(new TranslateTransform(-left, -top));
-                clone.RenderTransform = mirrorChain;
+                Matrix chain;
+                if (clone.RenderTransform is TransformGroup baseGroup) chain = baseGroup.Value;
+                else if (clone.RenderTransform != null) chain = clone.RenderTransform.Value;
+                else chain = Matrix.Identity;
+                chain *= new Matrix(1, 0, 0, 1, left, top);
+                chain *= matrix;
+                chain *= new Matrix(1, 0, 0, 1, -left, -top);
+
+                // 反射必须烘焙进几何，不能留在 RenderTransform 里：
+                // 拖动是按「TransformGroup 里第一个 TranslateTransform」累加画布位移的（见
+                // ImageSelectionOverlay_MoveDelta），反射矩阵若排在那个平移之后，位移会被反射一次，
+                // 表现为副本朝鼠标移动的反方向跑（且随位移放大）。烘焙后副本的变换链回到
+                // 与普通元素一致的 [Scale, Translate, Rotate]，拖动/旋转/缩放的行为才统一。
+                if (source.Data != null)
+                {
+                    var geometry = source.Data.Clone();
+                    var total = geometry.Transform?.Value ?? Matrix.Identity;
+                    total *= chain;
+                    geometry.Transform = new MatrixTransform(total);
+
+                    // 归一到与普通填充相同的不变式：几何以 (0,0) 为原点，位置只由 Left/Top 决定。
+                    // 烘焙后的几何带着 (left,top) 一线的偏移，元素盒（Left/Top + ActualWidth/Height）
+                    // 就不再等于图形实际范围 —— 选中框会错位、看起来比副本大一圈，命中检测、缩放中心
+                    // 也都按元素盒算，所以必须归一。
+                    var bounds = geometry.Bounds;
+                    if (!bounds.IsEmpty && (Math.Abs(bounds.X) > 0.001 || Math.Abs(bounds.Y) > 0.001))
+                    {
+                        total.Translate(-bounds.X, -bounds.Y);
+                        geometry.Transform = new MatrixTransform(total);
+                        left += bounds.X;
+                        top += bounds.Y;
+                        InkCanvas.SetLeft(clone, left);
+                        InkCanvas.SetTop(clone, top);
+                    }
+
+                    clone.Data = geometry;
+                }
+
+                var standardTransform = new TransformGroup();
+                standardTransform.Children.Add(new ScaleTransform(1, 1));
+                standardTransform.Children.Add(new TranslateTransform(0, 0));
+                standardTransform.Children.Add(new RotateTransform(0));
+                clone.RenderTransform = standardTransform;
 
                 PlacePaintFillClone(clone);
                 PaintBucketTrace("已沿轴镜像一块填充");
