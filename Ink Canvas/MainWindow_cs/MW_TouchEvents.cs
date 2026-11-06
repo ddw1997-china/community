@@ -1246,6 +1246,9 @@ namespace Ink_Canvas
                         _arcAwaitNewGesture = false;
                         ClearArcHandleHighlight();
                     }
+                    // 坐标系：每次落笔都换一个新的分组标记，否则第二组坐标系会复用上一次的 GUID，
+                    // 注册出两条同 Tag 的记录，之后拖轴长可能改到旧的那个坐标系（与鼠标落笔对齐）
+                    if (drawingShapeMode == 11) _pendingCoordinateTag = Guid.Empty;
 
                     isTouchDown = true;
                     ViewboxFloatingBar.IsHitTestVisible = false;
@@ -1973,6 +1976,17 @@ namespace Ink_Canvas
             // 中垂线 / 中点：新的一次按下，允许重新绘制（上一次手势的收尾锁定到此解除）
             if (drawingShapeMode == 26) _perpendicularBisectorAwaitNewGesture = false;
             if (drawingShapeMode == 15) _midpointAwaitNewGesture = false;
+            // 画圆弧：触摸落笔同样要解除上一次的收尾锁定。鼠标（inkCanvas_MouseDown）和
+            // 手写笔（另一条 StylusDown 分支）都重置了，唯独触摸这条漏了，导致鸿合等触摸一体机上
+            // 圆弧只能画一次，之后 MouseTouchMove 的 _arcAwaitNewGesture 判断会把每一帧都挡掉。
+            if (drawingShapeMode == 27)
+            {
+                _arcAwaitNewGesture = false;
+                ClearArcHandleHighlight();
+            }
+            // 坐标系：每次落笔都换一个新的分组标记（与鼠标 inkCanvas_MouseDown 对齐），
+            // 否则第二组坐标系复用上一次的 GUID，注册出两条同 Tag 记录
+            if (drawingShapeMode == 11) _pendingCoordinateTag = Guid.Empty;
 
             var touchPointForBar = e.GetTouchPoint(this);
             var floatingBarBounds = ViewboxFloatingBar.TransformToAncestor(this).TransformBounds(
@@ -2293,6 +2307,17 @@ namespace Ink_Canvas
             // 中点：手指/触控笔抬起时立刻收尾（移除荧光笔线段，只留中点标记）
             if (drawingShapeMode == 15) CompleteMidpointNow();
 
+            // 沿轴翻转：手指/触控笔抬起时立刻收尾。鼠标路径靠 inkCanvas_MouseUp 收尾，
+            // 触摸抬起不会提升为鼠标抬起，漏掉就会把 drawingShapeMode 卡在 28，
+            // 同时留下 inkCanvas 的鼠标捕获和「覆盖层命中测试被关闭」的状态 ——
+            // 表现为原填充块一直被选中、点空白或点其它对象都没反应（鸿合等触摸一体机）。
+            if (drawingShapeMode == AxisFlipShapeMode)
+            {
+                CompleteAxisFlip(_axisFlipAxisEndValid
+                    ? _axisFlipAxisEnd
+                    : e.GetTouchPoint(inkCanvas).Position);
+            }
+
             // 视频展台特殊模式：所有手指抬起后恢复用户原本的 EditingMode
             // （PreviewTouchDown 中为了抑制 InkCanvas 内部框选临时切到了 None）
             // 图形绘制模式例外：需要走正常绘制流程完成图形
@@ -2390,6 +2415,16 @@ namespace Ink_Canvas
 
             if (inkCanvas.EditingMode == InkCanvasEditingMode.EraseByPoint && !isPalmEraserActive)
             {
+                // 橡皮擦路径依赖「不释放触摸捕获」，所以后面的 ReleaseAllTouchCaptures 不能提前。
+                // 但 dec 记账必须配对（落笔时 dec.Add 已执行），否则多出一指会让后续双指手势判断失真。
+                dec.Remove(e.TouchDevice.Id);
+                if (dec.Count <= 1)
+                    isMultiTouchTimerActive = false;
+                // 与落笔时的置 false 配对（MW_TouchEvents.cs 非形状路径无条件置 false）。
+                // 这里只在抬起时刻恢复，不碰触摸捕获，因此不影响擦除过程本身；
+                // 否则手指原生擦除一次后浮动栏会一直不可点，直到下一次鼠标/笔操作才恢复。
+                ViewboxFloatingBar.IsHitTestVisible = true;
+                BlackboardUIGridForInkReplay.IsHitTestVisible = true;
                 return;
             }
             inkCanvas.ReleaseAllTouchCaptures();

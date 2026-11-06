@@ -759,8 +759,28 @@ namespace Ink_Canvas
 
             drawingShapeMode = 0;
             isLongPressSelected = false;
+            // 复位轴线终点，避免下一次手势（尤其触摸抬起委托）取到上一轮的陈旧终点
+            _axisFlipAxisEndValid = false;
             // 恢复覆盖层的命中测试（翻转期间为让工具窗口常驻而被临时关闭）
             SetAxisFlipSelectionChromePinned(false);
+
+            // 兜底恢复交互状态：翻转期间 inkCanvas 会 CaptureMouse，触摸设备上抬起事件不一定走
+            // 鼠标抬起路径，捕获残留会让之后点空白、点其它元素全部失效（选中框一直挂在原对象上）。
+            try
+            {
+                if (inkCanvas?.IsMouseCaptured == true) inkCanvas.ReleaseMouseCapture();
+                if (GridInkCanvasSelectionCover?.IsMouseCaptured == true)
+                    GridInkCanvasSelectionCover.ReleaseMouseCapture();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine(ex);
+            }
+            isGridInkCanvasSelectionCoverMouseDown = false;
+            isStrokeDragging = false;
+            if (ViewboxFloatingBar != null) ViewboxFloatingBar.IsHitTestVisible = true;
+            if (BlackboardUIGridForInkReplay != null) BlackboardUIGridForInkReplay.IsHitTestVisible = true;
+
             if (inkCanvas == null) return;
 
             inkCanvas.EditingMode = InkCanvasEditingMode.Select;

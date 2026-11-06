@@ -334,6 +334,13 @@ namespace Ink_Canvas
             if (drawingShapeMode == 21) CancelPerpendicularDrawing();
             if (drawingShapeMode == 22) CancelAngleBisectorDrawing();
             if (drawingShapeMode == 26) CancelPerpendicularBisector();
+            // 圆弧：切入该工具时清掉上一次的收尾锁定。锁定本该由落笔解除，但触摸落笔路径
+            // 历史上漏了重置，切工具再切回来也仍然锁死；这里兜底，保证每次进入工具都能重新画。
+            if (mode == 27)
+            {
+                _arcAwaitNewGesture = false;
+                ClearArcHandleHighlight();
+            }
             forcePointEraser = false;
             DisableEraserOverlay();
 
