@@ -1206,7 +1206,13 @@ namespace Ink_Canvas
         private void UpdateStrokeSelectionBarLocationForPaintFill(FrameworkElement fill)
         {
             if (fill == null) return;
-            UpdateStrokeSelectionBarLocationForBounds(GetElementActualBounds(fill));
+
+            // 优先用几何范围（Path.Data.Bounds + 渲染变换）：刚填充/刚克隆/刚翻页恢复的
+            // 填充块布局可能还没跑完，ActualWidth 仍是 0，用元素尺寸会把工具栏定位到左上角，
+            // 看起来就像「第一次选中只有选中框、工具条没出现」，第二次点选才正常。
+            var bounds = GetPaintFillCanvasBounds(fill);
+            if (bounds.IsEmpty) bounds = GetElementActualBounds(fill);
+            UpdateStrokeSelectionBarLocationForBounds(bounds);
         }
 
         /// <summary>把选中对象工具栏摆到给定包围盒下方（下方放不下时摆到上方）。</summary>

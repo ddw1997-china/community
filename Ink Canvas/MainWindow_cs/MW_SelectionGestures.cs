@@ -785,7 +785,13 @@ namespace Ink_Canvas
 
             inkCanvas.EditingMode = InkCanvasEditingMode.Select;
 
-            if (source == null || source.Count == 0) return;
+            if (source == null || source.Count == 0)
+            {
+                // 只翻折填充块（没有笔迹选区可恢复）：按填充块重新挂好选中框与工具条，
+                // 否则翻转结束后覆盖层/工具条停在翻转期间的临时状态，点空白也取消不掉
+                if (HasPaintFillSelection) RefreshPaintFillSelectionChrome();
+                return;
+            }
 
             var selection = new StrokeCollection();
             foreach (var stroke in source)
@@ -795,7 +801,15 @@ namespace Ink_Canvas
 
             if (selection.Count == 0)
             {
-                // 源墨迹已被删除：没有选中内容，收起覆盖层与工具窗口，避免留下空工具栏
+                // 源墨迹已被删除：若填充块仍在选中集合里，工具条要留给填充块，
+                // 不能在这里折叠覆盖层，否则翻转后填充块又有框没工具条、点空白也取消不掉
+                if (HasPaintFillSelection)
+                {
+                    RefreshPaintFillSelectionChrome();
+                    return;
+                }
+
+                // 没有选中内容：收起覆盖层与工具窗口，避免留下空工具栏
                 GridInkCanvasSelectionCover.Visibility = Visibility.Collapsed;
                 HideSelectionDisplay();
                 return;
@@ -1578,7 +1592,6 @@ namespace Ink_Canvas
             {
                 var touchPoint = e.GetTouchPoint(null);
                 centerPoint = touchPoint.Position;
-                lastTouchPointOnGridInkCanvasCover = touchPoint.Position;
 
                 var touchPointInCanvas = e.GetTouchPoint(inkCanvas);
                 lastDragPointInCanvas = touchPointInCanvas.Position;
@@ -1598,39 +1611,48 @@ namespace Ink_Canvas
 
             lastDragPointInCanvas = new Point(0, 0);
 
-            var touchUpPoint = e.GetTouchPoint(null).Position;
-            if (lastTouchPointOnGridInkCanvasCover == touchUpPoint)
+            // 合并选区 = 墨迹选区 ∪ 填充块包围盒。原实现只看 inkCanvas.GetSelectionBounds()，
+            // 而只选中填充块时它为空，手指点在填充块上也会被判成「点空白」：工具条被折叠，
+            // 填充块的选中集合与元素框却留着 —— 表现为选中框一直挂着、点空白也取消不掉。
+            var touchPointInCanvas = e.GetTouchPoint(inkCanvas).Position;
+            var selectionBounds = inkCanvas.GetSelectionBounds();
+            if (HasPaintFillSelection)
             {
-                var touchPointInCanvas = e.GetTouchPoint(inkCanvas).Position;
-                var selectionBounds = inkCanvas.GetSelectionBounds();
-
-                if (selectionBounds.Contains(touchPointInCanvas))
-                {
-                    StrokesSelectionClone = new StrokeCollection();
-                    CommitPendingStrokeManipulationHistory();
-                    RefreshStrokeSelectionChrome();
-                    return;
-                }
-
-                isProgramChangeStrokeSelection = true;
-                inkCanvas.Select(new StrokeCollection());
-                GridInkCanvasSelectionCover.Visibility = Visibility.Collapsed;
-                isProgramChangeStrokeSelection = false;
-                StrokesSelectionClone = new StrokeCollection();
-                HideSelectionDisplay();
+                var fillBounds = GetPaintFillSelectionBounds();
+                if (selectionBounds.IsEmpty) selectionBounds = fillBounds;
+                else if (!fillBounds.IsEmpty) selectionBounds = Rect.Union(selectionBounds, fillBounds);
             }
-            else if (inkCanvas.GetSelectedStrokes().Count == 0)
-            {
-                GridInkCanvasSelectionCover.Visibility = Visibility.Collapsed;
-                StrokesSelectionClone = new StrokeCollection();
-                HideSelectionDisplay();
-            }
-            else
+
+            // 点在选区内（单击保持选中 / 拖动结束仍落在选区内）：只刷新选区框与工具条
+            if (!selectionBounds.IsEmpty && selectionBounds.Contains(touchPointInCanvas))
             {
                 StrokesSelectionClone = new StrokeCollection();
                 CommitPendingStrokeManipulationHistory();
-                RefreshStrokeSelectionChrome();
+                if (inkCanvas.GetSelectedStrokes().Count > 0) RefreshStrokeSelectionChrome();
+                if (HasPaintFillSelection) RefreshPaintFillSelectionChrome();
+                return;
             }
+
+            // 点在选区外（或拖动结束已离开选区）：真正取消全部选中，
+            // 包括填充块选中集合、元素选择框与选中对象工具栏
+            currentSelectedElement = null;
+            ClearPaintFillSelection();
+            HideStrokeSelectionBarForPaintFill();
+            HideImageResizeHandles();
+
+            isProgramChangeStrokeSelection = true;
+            try
+            {
+                inkCanvas.Select(new StrokeCollection());
+            }
+            finally
+            {
+                isProgramChangeStrokeSelection = false;
+            }
+
+            StrokesSelectionClone = new StrokeCollection();
+            HideSelectionDisplay();
+            GridInkCanvasSelectionCover.Visibility = Visibility.Collapsed;
         }
 
         /// <summary>
@@ -1644,8 +1666,8 @@ namespace Ink_Canvas
                 e.Handled = true;
                 return;
             }
-            // 处理触摸移动事件 - 用于拖动选中的墨迹
-            if (inkCanvas.GetSelectedStrokes().Count > 0 && dec.Count == 1)
+            // 处理触摸移动事件 - 用于拖动选中的墨迹（以及一起被选中的填充块）
+            if ((inkCanvas.GetSelectedStrokes().Count > 0 || HasPaintFillSelection) && dec.Count == 1)
             {
                 var currentTouchPoint = e.GetTouchPoint(inkCanvas).Position;
 
@@ -1668,8 +1690,15 @@ namespace Ink_Canvas
                             stroke.Transform(matrix, false);
                         }
 
+                        // 套索同时选中的填充块必须跟笔迹一起平移，否则手指拖动后两者会错位
+                        foreach (var fill in GetSelectedPaintFills())
+                        {
+                            MovePaintFillByDelta(fill, delta);
+                        }
+
                         // 更新选择框和旋转锚点位置（选中栏保持原位，除非拖动拖动柄）
                         UpdateSelectionDisplay();
+                        if (HasPaintFillSelection) RefreshPaintFillSelectionChrome();
 
                         // 更新最后触摸点
                         lastDragPointInCanvas = currentTouchPoint;
@@ -1678,7 +1707,6 @@ namespace Ink_Canvas
             }
         }
 
-        private Point lastTouchPointOnGridInkCanvasCover = new Point(0, 0);
         private Point lastDragPointInCanvas = new Point(0, 0);
 
         /// <summary>
