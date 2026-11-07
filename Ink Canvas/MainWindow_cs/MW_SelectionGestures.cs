@@ -577,6 +577,9 @@ namespace Ink_Canvas
         private Point _axisFlipAxisEnd;
         private bool _axisFlipAxisEndValid;
 
+        /// <summary>进入沿轴翻转前的 IsManipulationEnabled，退出时还原（null 表示未记录）。</summary>
+        private bool? _axisFlipManipulationEnabledBefore;
+
         /// <summary>进入沿轴翻转状态：等待用户拖出一条对称轴。笔迹与填充块一起处理。</summary>
         private void BeginAxisFlip()
         {
@@ -612,6 +615,10 @@ namespace Ink_Canvas
             drawingShapeMode = AxisFlipShapeMode;
             drawMultiStepShapeCurrentStep = 0;
             inkCanvas.EditingMode = InkCanvasEditingMode.None;
+
+            // 记下翻转前的开关：翻转期间为了让手指能拖出对称轴才临时打开，
+            // 退出时必须还原，否则触摸设备上选择模式的单指点击会被 Manipulation 抢占
+            _axisFlipManipulationEnabledBefore = inkCanvas.IsManipulationEnabled;
             inkCanvas.IsManipulationEnabled = true;
 
             // 不能直接调用 CancelSingleFingerDragMode()：它会把 GridInkCanvasSelectionCover 收起，
@@ -784,6 +791,12 @@ namespace Ink_Canvas
             if (inkCanvas == null) return;
 
             inkCanvas.EditingMode = InkCanvasEditingMode.Select;
+
+            // 还原翻转前的 Manipulation 开关。普通模式应为 false（与 BtnSelect_Click 一致），
+            // 否则触摸设备上单指点击会被 InkCanvas 当成 Manipulation 吃掉：
+            // 表现为「翻折后选择工具选不中任何对象，必须再点一次选择工具才恢复」。
+            inkCanvas.IsManipulationEnabled = _axisFlipManipulationEnabledBefore ?? false;
+            _axisFlipManipulationEnabledBefore = null;
 
             if (source == null || source.Count == 0)
             {

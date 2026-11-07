@@ -40,6 +40,10 @@ param(
     # -Publish 时若有未提交改动，用这条信息提交
     [string]$CommitMessage,
 
+    # 本机未配置 git 身份时，-Publish 提交可临时指定（不写入 git config）
+    [string]$GitName,
+    [string]$GitEmail,
+
     # Release 说明文件（Markdown）；省略则自动用最近一次提交信息
     [string]$NotesFile
 )
@@ -87,7 +91,17 @@ if (-not (Test-Path (Join-Path $root '.git'))) {
 $branch = (& git rev-parse --abbrev-ref HEAD).Trim()
 if ($Publish) {
     if (-not (Get-Command gh -ErrorAction SilentlyContinue)) { throw '未找到 gh CLI，无法发布 Release' }
-    if (-not (git config user.email)) { throw '未配置 git user.email，请先执行 git config user.email <邮箱>' }
+
+    $gitIdentity = @()
+    if (-not (git config user.email)) {
+        if ($GitName -and $GitEmail) {
+            # 用 -c 临时身份提交，不改动 git config
+            $gitIdentity = @('-c', "user.name=$GitName", '-c', "user.email=$GitEmail")
+        }
+        else {
+            throw '未配置 git user.email，请配置 git 身份，或用 -GitName / -GitEmail 传入提交身份'
+        }
+    }
 
     $dirty = @(git status --porcelain)
     if ($dirty.Count -gt 0) {
@@ -96,7 +110,7 @@ if ($Publish) {
         }
         Write-Step "提交源码：$CommitMessage"
         Invoke-Native git @('add', '-A') 'git add 失败'
-        Invoke-Native git @('commit', '-m', $CommitMessage) 'git commit 失败'
+        Invoke-Native git (@($gitIdentity) + @('commit', '-m', $CommitMessage)) 'git commit 失败'
     }
 }
 
