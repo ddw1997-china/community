@@ -804,6 +804,11 @@ namespace Ink_Canvas
             // 注册橡皮擦操作结束事件
             inkCanvas.StylusUp += inkCanvas_StylusUp;
 
+            // 线擦剪枝：必须在 InkCanvas 内部「整条删除」之前接管输入
+            inkCanvas.PreviewStylusDown += InkCanvas_PreviewStylusDown_LineErase;
+            inkCanvas.PreviewStylusMove += InkCanvas_PreviewStylusMove_LineErase;
+            inkCanvas.PreviewStylusUp += InkCanvas_PreviewStylusUp_LineErase;
+
             // 初始化第一页Canvas
             var firstCanvas = new System.Windows.Controls.Canvas();
             whiteboardPages.Add(firstCanvas);
@@ -2228,11 +2233,14 @@ namespace Ink_Canvas
         {
             if (e.ChangedButton == MouseButton.Left && inkCanvas.EditingMode == InkCanvasEditingMode.EraseByStroke)
             {
-                if (BeginSecAgentStrokeErase(e.GetPosition(inkCanvas)))
-                {
-                    e.Handled = true;
-                    return;
-                }
+                // 线擦剪枝：接管鼠标擦除，阻止 InkCanvas 把整条笔迹删掉
+                var lineErasePoint = e.GetPosition(inkCanvas);
+                BeginLineEraseSession(lineErasePoint);
+                BeginSecAgentStrokeErase(lineErasePoint);
+                PruneLineEraseAt(lineErasePoint);
+                if (!inkCanvas.IsMouseCaptured) inkCanvas.CaptureMouse();
+                e.Handled = true;
+                return;
             }
             // 视频展台特殊模式：非 Ink 模式下，鼠标左键拖动应该移动摄像头预览画面，
             // 而不是触发 InkCanvas 内部框选逻辑。这里拦截事件，启动鼠标拖动。
@@ -2297,10 +2305,11 @@ namespace Ink_Canvas
             if (inkCanvas?.EditingMode != InkCanvasEditingMode.EraseByStroke || e.LeftButton != MouseButtonState.Pressed)
                 return;
 
-            if (MoveSecAgentStrokeErase(e.GetPosition(inkCanvas)))
-            {
-                e.Handled = true;
-            }
+            // 线擦剪枝：每个鼠标采样点都尝试剪掉落点所在的一段
+            var lineErasePoint = e.GetPosition(inkCanvas);
+            MoveSecAgentStrokeErase(lineErasePoint);
+            PruneLineEraseAt(lineErasePoint);
+            e.Handled = true;
         }
 
         private void inkCanvas_PreviewMouseUp(object sender, MouseButtonEventArgs e)
@@ -2311,7 +2320,11 @@ namespace Ink_Canvas
             if (drawingShapeMode == 26) CompletePerpendicularBisectorNow();
             if (drawingShapeMode == 15) CompleteMidpointNow();
             if (inkCanvas?.EditingMode == InkCanvasEditingMode.EraseByStroke)
+            {
                 EndSecAgentStrokeErase();
+                EndLineEraseSession();
+                if (inkCanvas.IsMouseCaptured) inkCanvas.ReleaseMouseCapture();
+            }
         }
 
         // 手写笔输入
@@ -2370,6 +2383,7 @@ namespace Ink_Canvas
             if (drawingShapeMode == 15) CompleteMidpointNow();
 
             EndSecAgentStrokeErase();
+            EndLineEraseSession();
             if (_isBoardRoamingPointerDown)
             {
                 EndBoardRoaming();

@@ -634,6 +634,10 @@ namespace Ink_Canvas
                 return;
             }
 
+            // 线擦剪枝兜底：InkCanvas 若先一步整条删除了命中的笔迹，这里还原并改为剪枝，
+            // 返回 true 表示本次删除已接管，不再走下面的整条删除历史
+            if (TryRestoreLineEraseDeletedStrokes(e)) return;
+
             // 通知插件墨迹集合变化。冻结页回滚已在上面 return，不会误报；
             // 程序性 CodeInput 变化（含插件自身经 ICanvasInkService 的插入/清除）也会触发，
             // 插件需避免在处理器内再次写入造成循环。

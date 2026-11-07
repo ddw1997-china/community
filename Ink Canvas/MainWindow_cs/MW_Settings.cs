@@ -1341,7 +1341,7 @@ namespace Ink_Canvas
                 {
                     SetIcon(Cursor_Icon, isCursorSolid, XamlGraphicsIconGeometries.LegacySolidCursorIcon, XamlGraphicsIconGeometries.LegacyLinedCursorIcon);
                     SetIcon(Pen_Icon, isPenSolid, XamlGraphicsIconGeometries.LegacySolidPenIcon, XamlGraphicsIconGeometries.LegacyLinedPenIcon);
-                    SetIcon(EraserByStrokes_Icon, isStrokeEraserSolid, XamlGraphicsIconGeometries.LegacySolidEraserStrokeIcon, XamlGraphicsIconGeometries.LegacyLinedEraserStrokeIcon);
+                    SetIcon(EraserByStrokes_Icon, isStrokeEraserSolid, XamlGraphicsIconGeometries.ScissorsIcon, XamlGraphicsIconGeometries.ScissorsIcon);
                     SetIcon(Eraser_Icon, isCircleEraserSolid, XamlGraphicsIconGeometries.LegacySolidEraserCircleIcon, XamlGraphicsIconGeometries.LegacyLinedEraserCircleIcon);
                     SetIcon(SymbolIconSelect, isLassoSolid, XamlGraphicsIconGeometries.LegacySolidLassoSelectIcon, XamlGraphicsIconGeometries.LegacyLinedLassoSelectIcon);
                 }
@@ -1349,7 +1349,7 @@ namespace Ink_Canvas
                 {
                     SetIcon(Cursor_Icon, isCursorSolid, XamlGraphicsIconGeometries.SolidCursorIcon, XamlGraphicsIconGeometries.LinedCursorIcon);
                     SetIcon(Pen_Icon, isPenSolid, XamlGraphicsIconGeometries.SolidPenIcon, XamlGraphicsIconGeometries.LinedPenIcon);
-                    SetIcon(EraserByStrokes_Icon, isStrokeEraserSolid, XamlGraphicsIconGeometries.SolidEraserStrokeIcon, XamlGraphicsIconGeometries.LinedEraserStrokeIcon);
+                    SetIcon(EraserByStrokes_Icon, isStrokeEraserSolid, XamlGraphicsIconGeometries.ScissorsIcon, XamlGraphicsIconGeometries.ScissorsIcon);
                     SetIcon(Eraser_Icon, isCircleEraserSolid, XamlGraphicsIconGeometries.SolidEraserCircleIcon, XamlGraphicsIconGeometries.LinedEraserCircleIcon);
                     SetIcon(SymbolIconSelect, isLassoSolid, XamlGraphicsIconGeometries.SolidLassoSelectIcon, XamlGraphicsIconGeometries.LinedLassoSelectIcon);
                 }
@@ -1372,7 +1372,7 @@ namespace Ink_Canvas
                     case "pen":
                         return isSolid ? XamlGraphicsIconGeometries.LegacySolidPenIcon : XamlGraphicsIconGeometries.LegacyLinedPenIcon;
                     case "eraserStroke":
-                        return isSolid ? XamlGraphicsIconGeometries.LegacySolidEraserStrokeIcon : XamlGraphicsIconGeometries.LegacyLinedEraserStrokeIcon;
+                        return XamlGraphicsIconGeometries.ScissorsIcon;
                     case "eraserCircle":
                         return isSolid ? XamlGraphicsIconGeometries.LegacySolidEraserCircleIcon : XamlGraphicsIconGeometries.LegacyLinedEraserCircleIcon;
                     case "lassoSelect":
@@ -1389,7 +1389,7 @@ namespace Ink_Canvas
                     case "pen":
                         return isSolid ? XamlGraphicsIconGeometries.SolidPenIcon : XamlGraphicsIconGeometries.LinedPenIcon;
                     case "eraserStroke":
-                        return isSolid ? XamlGraphicsIconGeometries.SolidEraserStrokeIcon : XamlGraphicsIconGeometries.LinedEraserStrokeIcon;
+                        return XamlGraphicsIconGeometries.ScissorsIcon;
                     case "eraserCircle":
                         return isSolid ? XamlGraphicsIconGeometries.SolidEraserCircleIcon : XamlGraphicsIconGeometries.LinedEraserCircleIcon;
                     case "lassoSelect":

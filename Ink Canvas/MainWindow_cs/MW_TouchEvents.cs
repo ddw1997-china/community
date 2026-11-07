@@ -2047,9 +2047,21 @@ namespace Ink_Canvas
                 return;
             }
 
-            if ((inkCanvas.EditingMode == InkCanvasEditingMode.EraseByPoint
-                 || inkCanvas.EditingMode == InkCanvasEditingMode.EraseByStroke)
-                && !isPalmEraserActive)
+            // 线擦（EraseByStroke）：接管触摸擦除，改为「只删落点所在的两个交点之间」
+            if (inkCanvas.EditingMode == InkCanvasEditingMode.EraseByStroke && !isPalmEraserActive)
+            {
+                var lineErasePoint = e.GetTouchPoint(inkCanvas).Position;
+                _lineEraseTouchId = e.TouchDevice.Id;
+                BeginLineEraseSession(lineErasePoint);
+                BeginSecAgentStrokeErase(lineErasePoint);
+                PruneLineEraseAt(lineErasePoint);
+                inkCanvas.CaptureTouch(e.TouchDevice);
+                e.Handled = true;
+                return;
+            }
+
+            // 面积擦：仍交给 InkCanvas 原生 + 自定义覆盖层处理
+            if (inkCanvas.EditingMode == InkCanvasEditingMode.EraseByPoint && !isPalmEraserActive)
             {
                 return;
             }
@@ -2236,6 +2248,18 @@ namespace Ink_Canvas
         /// </remarks>
         private void InkCanvas_PreviewTouchMove(object sender, TouchEventArgs e)
         {
+            // 线擦剪枝：跟随手指采样点逐段剪掉落点所在的部分
+            if (_lineEraseSessionActive
+                && _lineEraseTouchId == e.TouchDevice.Id
+                && inkCanvas?.EditingMode == InkCanvasEditingMode.EraseByStroke)
+            {
+                var lineErasePoint = e.GetTouchPoint(inkCanvas).Position;
+                MoveSecAgentStrokeErase(lineErasePoint);
+                PruneLineEraseAt(lineErasePoint);
+                e.Handled = true;
+                return;
+            }
+
             if (isPalmEraserActive)
             {
                 var touchPoint = e.GetTouchPoint(inkCanvas);
@@ -2306,6 +2330,15 @@ namespace Ink_Canvas
 
             // 中点：手指/触控笔抬起时立刻收尾（移除荧光笔线段，只留中点标记）
             if (drawingShapeMode == 15) CompleteMidpointNow();
+
+            // 线擦剪枝：抬指结束会话并提交这次按下期间的撤销历史
+            if (_lineEraseSessionActive && _lineEraseTouchId == e.TouchDevice.Id)
+            {
+                EndSecAgentStrokeErase();
+                EndLineEraseSession();
+                inkCanvas?.ReleaseTouchCapture(e.TouchDevice);
+                return;
+            }
 
             // 沿轴翻转：手指/触控笔抬起时立刻收尾。鼠标路径靠 inkCanvas_MouseUp 收尾，
             // 触摸抬起不会提升为鼠标抬起，漏掉就会把 drawingShapeMode 卡在 28，
