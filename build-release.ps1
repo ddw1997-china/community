@@ -197,6 +197,9 @@ if (-not $SkipSmokeTest) {
     if (-not $alive) { throw "程序启动后退出，退出码 $($proc.ExitCode)" }
     Write-Host ("运行中，内存 {0} MB" -f [math]::Round($alive.WorkingSet64 / 1MB))
     Stop-Process -Id $proc.Id -Force
+    # 进程退出后文件句柄才释放，等一等再做清理
+    $proc | Wait-Process -Timeout 15 -ErrorAction SilentlyContinue
+    Start-Sleep -Seconds 2
 }
 
 # ---------- 6. 清理成纯发布态 ----------
@@ -208,7 +211,13 @@ $runtimeItems = @(
     'IACore.dll', 'IALoader.dll', 'IAWinFX.dll'
 )
 foreach ($item in $runtimeItems) {
-    Remove-Item (Join-Path $OutputDir $item) -Recurse -Force -ErrorAction SilentlyContinue
+    # 刚退出的进程可能仍短暂占用文件，重试几次避免静默留下运行期文件
+    $path = Join-Path $OutputDir $item
+    for ($i = 0; $i -lt 10 -and (Test-Path $path); $i++) {
+        Remove-Item $path -Recurse -Force -ErrorAction SilentlyContinue
+        if (Test-Path $path) { Start-Sleep -Milliseconds 300 }
+    }
+    if (Test-Path $path) { Write-Warning "未能删除运行期文件：$item" }
 }
 # 引用项目被重新编译时会带出 pdb，发布包里不需要
 Get-ChildItem $OutputDir -Recurse -Filter *.pdb -File -ErrorAction SilentlyContinue |
@@ -282,8 +291,23 @@ if ($Publish) {
     }
     if (-not (Test-Path $NotesFile)) { throw "说明文件不存在：$NotesFile" }
 
-    & gh release view $tag --json tagName 2>$null | Out-Null
-    if ($LASTEXITCODE -eq 0) {
+    # PS 5.1 在 $ErrorActionPreference='Stop' 下会把原生命令的 stderr 当异常抛，
+    # 而 "release not found" 走 stderr，这里临时放宽并只看退出码
+    $releaseExists = $false
+    $previousPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = 'Continue'
+        & gh release view $tag --json tagName 2>$null | Out-Null
+        $releaseExists = ($LASTEXITCODE -eq 0)
+    }
+    catch {
+        $releaseExists = $false
+    }
+    finally {
+        $ErrorActionPreference = $previousPreference
+    }
+
+    if ($releaseExists) {
         Invoke-Native gh @('release', 'upload', $tag, $zip, '--clobber') '覆盖 Release 资产失败'
         Invoke-Native gh @('release', 'edit', $tag, '--latest', '--notes-file', $NotesFile) '更新 Release 说明失败'
     }
