@@ -446,25 +446,25 @@ namespace Ink_Canvas
 
         // ---------------- 输入接管 ----------------
 
+        /// <summary>更新线擦落点：兜底剪枝（原生整条删除后改写）依赖最近一次指针位置。</summary>
+        internal void UpdateLineErasePointer(Point point)
+        {
+            if (!_lineEraseSessionActive) return;
+
+            _lineErasePointer = point;
+            _lineErasePointerValid = true;
+        }
+
+        // 手写笔/触摸：不拦截输入，擦除仍由 InkCanvas 原生执行。
+        // 这样鸿合等一体机上的触摸光标（小橡皮擦指示）不会被我们的 Handled 吃掉；
+        // 原生删完整条后，StrokesOnStrokesChanged 里的兜底会把它改写成「只删落点所在段」。
         private void InkCanvas_PreviewStylusDown_LineErase(object sender, StylusDownEventArgs e)
         {
             if (inkCanvas?.EditingMode != InkCanvasEditingMode.EraseByStroke) return;
 
-            if (IsCurrentPageFrozen)
-            {
-                TryBlockFrozenPageMutation("线擦");
-                e.Handled = true;
-                return;
-            }
-
             var point = e.GetPosition(inkCanvas);
             BeginLineEraseSession(point);
-            // SVG 元素（可编辑场景）仍按原逻辑整行/整元素擦除
-            BeginSecAgentStrokeErase(point);
-            PruneLineEraseAt(point);
-
-            if (!inkCanvas.IsStylusCaptured) inkCanvas.CaptureStylus();
-            e.Handled = true;
+            UpdateLineErasePointer(point);
         }
 
         private void InkCanvas_PreviewStylusMove_LineErase(object sender, StylusEventArgs e)
@@ -472,24 +472,12 @@ namespace Ink_Canvas
             if (!_lineEraseSessionActive) return;
             if (inkCanvas?.EditingMode != InkCanvasEditingMode.EraseByStroke) return;
 
-            var point = e.GetPosition(inkCanvas);
-            MoveSecAgentStrokeErase(point);
-            PruneLineEraseAt(point);
-            e.Handled = true;
+            UpdateLineErasePointer(e.GetPosition(inkCanvas));
         }
 
         private void InkCanvas_PreviewStylusUp_LineErase(object sender, StylusEventArgs e)
         {
-            if (!_lineEraseSessionActive) return;
-
-            EndSecAgentStrokeErase();
             EndLineEraseSession();
-
-            if (inkCanvas?.IsStylusCaptured == true) inkCanvas.ReleaseStylusCapture();
-
-            // 冒泡的 StylusUp 被 Handled 挡住了，橡皮擦自动切回要在这里补一次
-            HandleEraserOperationEnded();
-            e.Handled = true;
         }
     }
 }

@@ -4,24 +4,21 @@
     按原参数构建 InkCanvasForClass 本地手工发布包（x86 / 自包含 / 单文件 / 不裁剪）。
 
 .DESCRIPTION
-    1. 可选更新 version.json 的版本号；
-    2. 必要时构建 PowerPoint VSTO 加载项（ppt-agent 的来源）；
-    3. dotnet restore --locked-mode + dotnet publish（固定原参数）；
-    4. 校验版本信息、启动冒烟、清理运行期文件；
-    5. 打包成 artifacts\InkCanvasForClass.CE.<版本>.zip 并输出 SHA256；
-    6. 加 -Publish 时：提交源码 → 推送 → 创建 tag → 用本地包创建/覆盖 GitHub Release。
+    版本号规则：每次编译取当前年月日时分（yyyy.MMDD.HHmm，由 Directory.Build.targets 注入）。
+    1. 必要时构建 PowerPoint VSTO 加载项（ppt-agent 的来源）；
+    2. dotnet restore --locked-mode + dotnet publish（固定原参数）；
+    3. 校验版本信息、启动冒烟、清理运行期文件、预置默认设置；
+    4. 打包成 artifacts\InkCanvasForClass.CE.<版本>.zip 并输出 SHA256；
+    5. 加 -Publish 时：提交源码 → 推送 → 创建 tag → 用本地包创建/覆盖 GitHub Release。
 
 .EXAMPLE
-    .\build-release.ps1 -Version 1.8.1.1108
+    .\build-release.ps1
 
 .EXAMPLE
-    .\build-release.ps1 -Version 1.8.1.1108 -Publish -CommitMessage "fix: ..." -NotesFile .\notes.md
+    .\build-release.ps1 -Publish -CommitMessage "fix: ..." -NotesFile .\notes.md
 #>
 [CmdletBinding()]
 param(
-    # 四段版本号，例如 1.8.1.1108；省略则沿用 version.json 中的现值
-    [string]$Version,
-
     # 发布输出目录（相对仓库根目录）
     [string]$OutputDir = 'artifacts/publish/x86-clean2',
 
@@ -31,7 +28,7 @@ param(
     # 跳过启动冒烟测试
     [switch]$SkipSmokeTest,
 
-    # 可复现构建：源码路径归一 + 确定性编译，配合同一 commit / 同一 SDK 可产出逐字节相同的包
+    # 可复现构建：源码路径归一 + 确定性编译（版本号仍取构建时间，跨分钟构建不保证逐字节一致）
     [switch]$Deterministic,
 
     # 构建完成后推源码、打 tag 并发布 GitHub Release
@@ -65,27 +62,8 @@ if (-not $root) { $root = (Get-Location).Path }
 Set-Location $root
 
 # ---------- 0. 版本号 ----------
-$versionFile = Join-Path $root 'version.json'
-if (-not (Test-Path $versionFile)) { throw "找不到 version.json：$versionFile" }
-
-if ($Version) {
-    if ($Version -notmatch '^\d+\.\d+\.\d+\.\d+$') {
-        throw "版本号必须是四段数字，例如 1.8.1.1108（当前传入：$Version）"
-    }
-    Write-Step "写入版本号 $Version"
-    $json = Get-Content $versionFile -Raw
-    $json = $json -replace '"version"\s*:\s*"[^"]+"', ('"version": "' + $Version + '"')
-    [IO.File]::WriteAllText($versionFile, $json, (New-Object System.Text.UTF8Encoding($false)))
-}
-
-$currentVersion = ([regex]::Match((Get-Content $versionFile -Raw), '"version"\s*:\s*"([^"]+)"')).Groups[1].Value
-if (-not $currentVersion) { throw "无法从 version.json 解析版本号" }
-Write-Host "版本：$currentVersion"
-
-# 版本号来自 git（Nerdbank.GitVersioning），缺 .git 会丢掉短 SHA 后缀
-if (-not (Test-Path (Join-Path $root '.git'))) {
-    Write-Warning '仓库根目录没有 .git，程序集信息版本将不含短 SHA，版本号也可能与预期不同'
-}
+# 版本号由 Directory.Build.targets 在编译时取当前年月日时分生成，
+# 构建完成后从 exe 的 FileVersion 读回来，用于命名 zip、tag 与 Release。
 
 # ---------- 1. -Publish 的提交 ----------
 $branch = (& git rev-parse --abbrev-ref HEAD).Trim()
@@ -184,9 +162,12 @@ if (-not (Test-Path (Join-Path $pptAgent 'Microsoft.Office.Tools.Common.v4.0.Uti
 $info = (Get-Item $exe).VersionInfo
 Write-Host ("FileVersion    : {0}" -f $info.FileVersion)
 Write-Host ("ProductVersion : {0}" -f $info.ProductVersion)
-if ($info.FileVersion -ne $currentVersion) {
-    throw "FileVersion ($($info.FileVersion)) 与 version.json ($currentVersion) 不一致"
+
+$currentVersion = $info.FileVersion
+if ($currentVersion -notmatch '^\d{4}\.\d{4}\.\d{4}$') {
+    throw "无法从 exe 读取时间版本号（当前：$currentVersion），请确认 Directory.Build.targets 已生效"
 }
+Write-Host "版本：$currentVersion（编译时间）"
 
 # ---------- 5. 冒烟 ----------
 if (-not $SkipSmokeTest) {
@@ -222,6 +203,28 @@ foreach ($item in $runtimeItems) {
 # 引用项目被重新编译时会带出 pdb，发布包里不需要
 Get-ChildItem $OutputDir -Recurse -Filter *.pdb -File -ErrorAction SilentlyContinue |
     Remove-Item -Force -ErrorAction SilentlyContinue
+
+# ---------- 6.1 预置默认设置 ----------
+# 发布包以 Configs\DefaultSettings.json 携带默认设置：程序首次运行（无 Settings.json）时
+# 自动写入为 Configs\Settings.json，首次向导点取消时也回退到它。
+# 不直接放 Settings.json，避免解压升级覆盖用户已有设置。
+# 必须放在清理之后：上面的 Configs 清理会把试运行生成的用户设置一并删掉。
+$defaultSettingsFile = Join-Path $root 'default_setting_ppthelper.json'
+if (Test-Path $defaultSettingsFile) {
+    Write-Step '预置默认设置 Configs\DefaultSettings.json'
+    try {
+        Get-Content $defaultSettingsFile -Raw -Encoding UTF8 | ConvertFrom-Json | Out-Null
+    }
+    catch {
+        throw "默认设置文件不是合法 JSON：$defaultSettingsFile（$($_.Exception.Message)）"
+    }
+    $configsDir = Join-Path $OutputDir 'Configs'
+    if (-not (Test-Path $configsDir)) { New-Item -ItemType Directory -Path $configsDir | Out-Null }
+    Copy-Item $defaultSettingsFile (Join-Path $configsDir 'DefaultSettings.json') -Force
+}
+else {
+    Write-Warning "未找到默认设置文件 $defaultSettingsFile，发布包将不带预置设置"
+}
 $fileCount = (Get-ChildItem $OutputDir -Recurse -File).Count
 Write-Host "发布目录文件数：$fileCount"
 

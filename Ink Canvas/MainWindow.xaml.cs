@@ -863,17 +863,18 @@ namespace Ink_Canvas
 
                             var oobeWindow = new OobeWindow(Settings);
                             oobeWindow.Owner = this;
+                            bool accepted = false;
                             try
                             {
                                 App.IsOobeShowing = true;
-                                oobeWindow.ShowDialog();
+                                accepted = oobeWindow.ShowDialog() == true;
                             }
                             finally
                             {
                                 App.IsOobeShowing = false;
                             }
 
-                            OnOobeCompleted();
+                            OnOobeCompleted(accepted);
                         }
                         catch (Exception ex)
                         {
@@ -895,15 +896,25 @@ namespace Ink_Canvas
         }
 
         /// <summary>
-        /// 处理完成首次引导（OOBE）后的状态更新与界面恢复。
+        /// 处理首次引导（OOBE）结束后的状态更新与界面恢复。
         /// </summary>
+        /// <param name="accepted">
+        /// true 表示用户完成向导或套用了预设，采用用户自己的配置；
+        /// false 表示取消或直接关闭向导，回退到发布包内置的默认配置。
+        /// </param>
         /// <remarks>
         /// 将启动配置标记为已显示 OOBE 并持久化；在常规模式（currentMode == 0）下恢复并显示浮动工具栏（并触发边距动画）；记录完成事件或在出错时记录错误信息。
         /// </remarks>
-        private void OnOobeCompleted()
+        private void OnOobeCompleted(bool accepted)
         {
             try
             {
+                if (!accepted)
+                {
+                    // 取消向导：丢弃向导中的临时改动，回退到发布包内置的默认配置
+                    ApplyPublishedDefaultSettings();
+                }
+
                 if (Settings?.Startup != null)
                 {
                     Settings.Startup.HasShownOobe = true;

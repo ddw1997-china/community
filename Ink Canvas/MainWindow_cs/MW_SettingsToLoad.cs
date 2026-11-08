@@ -35,6 +35,26 @@ namespace Ink_Canvas
         }
 
         /// <summary>
+        /// 将发布包内置的默认配置（Configs\DefaultSettings.json）应用到当前设置。
+        /// 仅用于首次向导被取消时的回退；默认配置文件缺失或解析失败时保留当前设置。
+        /// </summary>
+        private void ApplyPublishedDefaultSettings()
+        {
+            try
+            {
+                var defaultPath = System.IO.Path.Combine(App.RootPath, "Configs", "DefaultSettings.json");
+                if (!File.Exists(defaultPath)) return;
+
+                var defaults = JsonConvert.DeserializeObject<Settings>(File.ReadAllText(defaultPath));
+                if (defaults != null) Settings = defaults;
+            }
+            catch (Exception ex)
+            {
+                LogHelper.WriteLogToFile($"应用发布默认配置失败，保留当前设置: {ex.Message}", LogHelper.LogType.Warning);
+            }
+        }
+
+        /// <summary>
         /// 重置为默认设置并记录失败原因。仅在 <see cref="Settings"/> 仍为 null 或加载链路完全失败时调用。
         /// </summary>
         /// <param name="reason">失败原因描述，会以 Warning 级别写入日志。</param>

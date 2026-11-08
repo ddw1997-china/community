@@ -102,7 +102,9 @@ namespace Ink_Canvas.Windows.SettingsViews.Pages
             try
             {
                 var version = Assembly.GetExecutingAssembly().GetName().Version;
-                AppVersionTextBlock.Text = version.Major + "." + version.Minor + "." + version.Build + "." + version.Revision;
+                AppVersionTextBlock.Text = version.Revision > 0
+                    ? version.Major + "." + version.Minor + "." + version.Build + "." + version.Revision
+                    : version.Major + "." + version.Minor + "." + version.Build;
                 var informationalVersion = Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>();
                 if (informationalVersion != null)
                 {

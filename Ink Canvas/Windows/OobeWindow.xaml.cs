@@ -338,7 +338,13 @@ namespace Ink_Canvas.Windows
         {
             var presetWindow = new OobePresetWindow { Owner = this };
             bool? result = presetWindow.ShowDialog();
-            if (result != true) return;
+            if (result != true)
+            {
+                // 取消预设选择：按发布包内置默认配置收尾，直接结束首次向导
+                DialogResult = false;
+                Close();
+                return;
+            }
 
             switch (presetWindow.SelectedPreset)
             {

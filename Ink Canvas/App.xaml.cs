@@ -1090,6 +1090,9 @@ namespace Ink_Canvas
             // 启动阶段跳过昂贵的 StackTrace 采集
             LogHelper.SuppressCallerInfo = true;
 
+            // 首次运行：把发布包内置的默认配置（Configs\DefaultSettings.json）落为 Configs\Settings.json
+            SeedPublishedDefaultSettings();
+
             // 一次性读取并解析 Settings.json，避免重复 I/O + dynamic 反序列化
             dynamic parsedSettings = ReadSettingsJsonOnce();
 
@@ -1131,7 +1134,9 @@ namespace Ink_Canvas
 
             var version = Assembly.GetExecutingAssembly().GetName().Version;
             var informationalVersion = Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>();
-            string versionString = version.Major + "." + version.Minor + "." + version.Build + "." + version.Revision;
+            string versionString = version.Revision > 0
+                ? version.Major + "." + version.Minor + "." + version.Build + "." + version.Revision
+                : version.Major + "." + version.Minor + "." + version.Build;
             if (informationalVersion != null)
             {
                 string infoVersion = informationalVersion.InformationalVersion;
@@ -1577,6 +1582,32 @@ namespace Ink_Canvas
         {
             CachedSettingsJson = json;
             _cachedParsedSettings = JsonConvert.DeserializeObject(json);
+        }
+
+        /// <summary>
+        /// 首次运行（Configs\Settings.json 不存在）时，把发布包内置的默认配置
+        /// Configs\DefaultSettings.json 复制为 Configs\Settings.json。
+        /// 已有用户配置时不做任何改动，保证解压升级不会覆盖用户设置。
+        /// </summary>
+        private static void SeedPublishedDefaultSettings()
+        {
+            try
+            {
+                var baseDir = AppDomain.CurrentDomain.SetupInformation.ApplicationBase;
+                var settingsPath = Path.Combine(baseDir, "Configs", "Settings.json");
+                if (File.Exists(settingsPath)) return;
+
+                var defaultPath = Path.Combine(baseDir, "Configs", "DefaultSettings.json");
+                if (!File.Exists(defaultPath)) return;
+
+                Directory.CreateDirectory(Path.GetDirectoryName(settingsPath));
+                File.Copy(defaultPath, settingsPath);
+                LogHelper.WriteLogToFile("首次运行：已写入发布包默认配置", LogHelper.LogType.Event);
+            }
+            catch (Exception ex)
+            {
+                LogHelper.WriteLogToFile($"写入发布默认配置失败: {ex.Message}", LogHelper.LogType.Warning);
+            }
         }
 
         /// <summary>

@@ -293,7 +293,7 @@ namespace Ink_Canvas.Windows
                 var version = Assembly.GetExecutingAssembly().GetName().Version;
                 if (version != null)
                 {
-                    VersionTextBlock.Text = $"v{version.Major}.{version.Minor}.{version.Build}.{version.Revision}";
+                    VersionTextBlock.Text = $"v{version.Major}.{version.Minor}.{version.Build}";
                     var informationalVersion = Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>();
                     if (informationalVersion != null)
                     {

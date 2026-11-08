@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project>
+  <!--
+    版本号规则：每次编译取当前年月日时分，格式 yyyy.MMDD.HHmm（例：2025.1108.1030）。
+    时间在每次编译时重新计算，因此不再依赖 version.json / git 提交高度；
+    需要固定版本（例如复现历史包）时可传 -p:UseTimestampVersion=false 关闭。
+  -->
+  <PropertyGroup>
+    <UseTimestampVersion Condition="'$(UseTimestampVersion)' == ''">true</UseTimestampVersion>
+    <BuildTimestampVersion>$([System.DateTime]::Now.ToString('yyyy.MMdd.HHmm'))</BuildTimestampVersion>
+  </PropertyGroup>
+
+  <Target Name="OverrideVersionWithBuildTimestamp"
+          AfterTargets="GetBuildVersion"
+          BeforeTargets="GenerateAssemblyNBGVVersionInfo;GenerateAssemblyInfo;GetAssemblyVersion"
+          Condition="'$(UseTimestampVersion)' == 'true'">
+    <PropertyGroup>
+      <Version>$(BuildTimestampVersion)</Version>
+      <AssemblyVersion>$(BuildTimestampVersion)</AssemblyVersion>
+      <FileVersion>$(BuildTimestampVersion)</FileVersion>
+      <AssemblyFileVersion>$(BuildTimestampVersion)</AssemblyFileVersion>
+      <InformationalVersion>$(BuildTimestampVersion)</InformationalVersion>
+      <AssemblyInformationalVersion>$(BuildTimestampVersion)</AssemblyInformationalVersion>
+      <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    </PropertyGroup>
+  </Target>
+</Project>

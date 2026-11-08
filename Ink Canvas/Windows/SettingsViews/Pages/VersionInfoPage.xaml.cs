@@ -28,7 +28,9 @@ namespace Ink_Canvas.Windows.SettingsViews.Pages
             var version = Assembly.GetExecutingAssembly().GetName().Version;
             return version == null
                 ? string.Empty
-                : $"{version.Major}.{version.Minor}.{version.Build}.{version.Revision}";
+                : version.Revision > 0
+                    ? $"{version.Major}.{version.Minor}.{version.Build}.{version.Revision}"
+                    : $"{version.Major}.{version.Minor}.{version.Build}";
         }
     }
 }

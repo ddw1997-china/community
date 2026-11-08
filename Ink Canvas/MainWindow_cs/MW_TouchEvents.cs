@@ -2047,16 +2047,15 @@ namespace Ink_Canvas
                 return;
             }
 
-            // 线擦（EraseByStroke）：接管触摸擦除，改为「只删落点所在的两个交点之间」
+            // 线擦（EraseByStroke）：触摸擦除仍交给 InkCanvas 原生执行（不能 Handled，
+            // 否则一体机上的触摸光标「小橡皮擦」不再显示），只记录落点，
+            // 原生删完整条后由 StrokesOnStrokesChanged 的兜底改写成「只删落点所在段」。
             if (inkCanvas.EditingMode == InkCanvasEditingMode.EraseByStroke && !isPalmEraserActive)
             {
                 var lineErasePoint = e.GetTouchPoint(inkCanvas).Position;
                 _lineEraseTouchId = e.TouchDevice.Id;
                 BeginLineEraseSession(lineErasePoint);
-                BeginSecAgentStrokeErase(lineErasePoint);
-                PruneLineEraseAt(lineErasePoint);
-                inkCanvas.CaptureTouch(e.TouchDevice);
-                e.Handled = true;
+                UpdateLineErasePointer(lineErasePoint);
                 return;
             }
 
@@ -2248,15 +2247,13 @@ namespace Ink_Canvas
         /// </remarks>
         private void InkCanvas_PreviewTouchMove(object sender, TouchEventArgs e)
         {
-            // 线擦剪枝：跟随手指采样点逐段剪掉落点所在的部分
+            // 线擦：只更新落点（供兜底剪枝使用），擦除本身仍由 InkCanvas 原生执行，
+            // 保证触摸光标/橡皮擦指示照常显示
             if (_lineEraseSessionActive
                 && _lineEraseTouchId == e.TouchDevice.Id
                 && inkCanvas?.EditingMode == InkCanvasEditingMode.EraseByStroke)
             {
-                var lineErasePoint = e.GetTouchPoint(inkCanvas).Position;
-                MoveSecAgentStrokeErase(lineErasePoint);
-                PruneLineEraseAt(lineErasePoint);
-                e.Handled = true;
+                UpdateLineErasePointer(e.GetTouchPoint(inkCanvas).Position);
                 return;
             }
 
@@ -2331,13 +2328,11 @@ namespace Ink_Canvas
             // 中点：手指/触控笔抬起时立刻收尾（移除荧光笔线段，只留中点标记）
             if (drawingShapeMode == 15) CompleteMidpointNow();
 
-            // 线擦剪枝：抬指结束会话并提交这次按下期间的撤销历史
+            // 线擦：抬指结束会话并提交这次按下期间的撤销历史，随后继续走常规收尾
+            // （释放触摸捕获、恢复浮动栏命中测试等）
             if (_lineEraseSessionActive && _lineEraseTouchId == e.TouchDevice.Id)
             {
-                EndSecAgentStrokeErase();
                 EndLineEraseSession();
-                inkCanvas?.ReleaseTouchCapture(e.TouchDevice);
-                return;
             }
 
             // 沿轴翻转：手指/触控笔抬起时立刻收尾。鼠标路径靠 inkCanvas_MouseUp 收尾，

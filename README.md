@@ -37,7 +37,7 @@
 | Windows 10 1809+ / Windows 11 | 仅支持 Windows |
 | [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) | 主程序目标框架为 `net10.0-windows10.0.19041.0`，需含 x86 目标包 |
 | Visual Studio 2022 或 Build Tools | 勾选「.NET 桌面开发」与「Office/SharePoint 开发」，用于编译 PowerPoint VSTO 加载项 |
-| Git | 版本号由 Nerdbank.GitVersioning 从 git 提交计算，**不能只下载源码压缩包** |
+| Git | 推荐使用 git 克隆（提交记录用于发布与追溯）；版本号本身取编译时间，不依赖 git |
 | PowerShell 5.1+ | 执行一键脚本 |
 | VSTO 4.0 Runtime | 仅在使用 `ppt-agent`（PPT 联动）时需要 |
 
@@ -49,7 +49,7 @@ cd community
 powershell -ExecutionPolicy Bypass -File .\build-release.ps1 -Deterministic -SkipSmokeTest
 ```
 
-产物为 `artifacts\InkCanvasForClass.CE.<版本>.zip`，解压后即可运行；脚本会依次完成加载项构建、锁定还原、发布、清理运行期文件、打包并打印 SHA256。
+产物为 `artifacts\InkCanvasForClass.CE.<版本>.zip`，解压后即可运行；脚本会依次完成加载项构建、锁定还原、发布、清理运行期文件、写入默认设置、打包并打印 SHA256。
 
 ### 3. 手工构建
 
@@ -94,7 +94,7 @@ dotnet publish "Ink Canvas/InkCanvasForClass.csproj" `
 
 ### 4. 校验与清理
 
-发布目录应为 **16 个文件**：
+发布目录应为 **17 个文件**：
 
 ```
 InkCanvasForClass.exe
@@ -103,6 +103,7 @@ InkCanvas.Controls.xml
 InkCanvas.PluginSdk.xml
 InkCanvas.IACoreHelper.exe
 InkCanvas.IACoreHelper.exe.config
+Configs\DefaultSettings.json
 ppt-agent\InkCanvas.PowerPointAddIn.dll
 ppt-agent\InkCanvas.PowerPointAddIn.dll.manifest
 ppt-agent\InkCanvas.PowerPointAddIn.vsto
@@ -115,8 +116,9 @@ ppt-agent\Microsoft.VisualStudio.Tools.Applications.Runtime.dll
 ppt-agent\Newtonsoft.Json.dll
 ```
 
-- 版本号：`FileVersion` 等于 [version.json](version.json) 中的 `version`，`ProductVersion` 末尾附带当前提交的短 SHA。
+- 版本号：由 [Directory.Build.targets](Directory.Build.targets) 在每次编译时取当前年月日时分生成，格式 `yyyy.MMDD.HHmm`（例：`2026.1108.1406`），`FileVersion` 与 `ProductVersion` 均为该值，不再附带提交短 SHA。
 - 试运行一次后，需要从发布目录删除运行期产生的 `Configs`、`Logs`、`Saves`、`Plugins`、`PluginConfigs`、`PluginLogs`、`PluginPackages`、`Backups`、`Automations`、`Crashes`、`device_id.dat`、`usage_stats.enc`，以及首次启动解出的 `IACore.dll`、`IALoader.dll`、`IAWinFX.dll`，否则发布包会夹带用户数据。
+- 清理完成后，把仓库根目录的 [default_setting_ppthelper.json](default_setting_ppthelper.json) 原样复制为 `Configs\DefaultSettings.json`。程序首次运行（没有 `Configs\Settings.json`）时会把它写入为 `Settings.json`；首次向导里点「取消」或直接关闭向导，也会回退到这份配置。升级解压不会覆盖用户已有设置。手工构建也必须做这一步，否则首次运行会按内置默认值走。该文件必须是合法 JSON，脚本会先校验再复制。
 - 引用项目被重新编译时会在发布目录带出 `*.pdb`，发布前一并删除。
 
 ### 5. 常见问题
@@ -124,5 +126,6 @@ ppt-agent\Newtonsoft.Json.dll
 - **`ppt-agent` 为空或缺少 `Microsoft.Office.Tools.Common.v4.0.Utilities.dll`**：加载项没有先编译，回到 3.2 步。
 - **还原报 `NU1004`**：`packages.lock.json` 与 csproj 不一致。确认是预期的依赖变更后执行 `dotnet restore --force-evaluate` 并提交新的锁文件，日常构建不要去掉 `--locked-mode`。
 - **产物体积异常（如单文件超过 240 MB）**：`bin`/`obj` 里混入了其它平台或其它配置的中间产物，删除这些目录后重新发布。
-- **换目录/换机器构建**：保持提交一致并用 `-Deterministic`（内部启用 `ContinuousIntegrationBuild` 与 `PathMap`），可让不同路径下产出的文件内容一致。
+- **换目录/换机器构建**：保持提交一致并用 `-Deterministic`（内部启用 `ContinuousIntegrationBuild` 与 `PathMap`），可让不同路径下产出的文件内容一致；但版本号取编译时间，跨分钟构建的单文件本身不会逐字节相同。
+- **想固定版本号**：构建时追加 `-p:UseTimestampVersion=false`，即恢复为由 version.json / Nerdbank.GitVersioning 计算。
 
