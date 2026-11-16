@@ -73,6 +73,18 @@ namespace Ink_Canvas.Controls
             set => ButtonBorder.Background = value;
         }
 
+        /// <summary>
+        /// 文字顔色。Label 在模板里用 DynamicResource 指定前景色，设置按钮的 Foreground 不会生效。
+        /// </summary>
+        public Brush LabelForeground
+        {
+            get => LabelControl?.Foreground;
+            set
+            {
+                if (LabelControl != null) LabelControl.Foreground = value;
+            }
+        }
+
         public GeometryDrawing Icon
         {
             get

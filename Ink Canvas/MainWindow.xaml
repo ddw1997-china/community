@@ -264,6 +264,15 @@
                         <TranslateTransform x:Name="EraserFeedbackTranslateTransform"/>
                     </Image.RenderTransform>
                 </Image>
+
+                <!-- 线擦光标：剪刀图形，与系统小橡皮擦同等大小；只显示，不拦截输入 -->
+                <Image x:Name="LineEraserCursorImage"
+                       Canvas.Left="0"
+                       Canvas.Top="0"
+                       Width="24"
+                       Height="24"
+                       IsHitTestVisible="False"
+                       Visibility="Collapsed"/>
             </Canvas>
 
             <!-- 圆规工具（图形工具面板中选择，希沃风格交互画圆/画弧） -->

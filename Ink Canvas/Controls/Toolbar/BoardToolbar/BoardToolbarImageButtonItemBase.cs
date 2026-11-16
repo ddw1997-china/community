@@ -46,7 +46,11 @@ namespace Ink_Canvas.Controls.Toolbar.BoardToolbar
                 btn.IconGeometry = IconGeometry;
 
             if (!string.IsNullOrEmpty(IconBrushResourceKey))
+            {
                 btn.SetResourceReference(BoardToolbarButton.IconBrushProperty, IconBrushResourceKey);
+                // 标记红色样式，后续高亮/主题刷新不再把颜色改回前景色
+                Ink_Canvas.Controls.Toolbar.FloatingToolbar.ToolbarRegistry.SetUseRedStyle(btn, true);
+            }
             if (!string.IsNullOrEmpty(LabelBrushResourceKey))
                 btn.SetResourceReference(BoardToolbarButton.LabelBrushProperty, LabelBrushResourceKey);
 

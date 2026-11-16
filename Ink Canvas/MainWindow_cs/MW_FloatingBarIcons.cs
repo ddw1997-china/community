@@ -684,7 +684,7 @@ namespace Ink_Canvas
                         if (boardRoaming != null) { boardRoaming.Background = Brushes.Transparent; boardRoaming.IconGeometryDrawing.Brush = boardThemeForeground; boardRoaming.Foreground = boardThemeForeground; }
                         if (boardEraser != null) { boardEraser.Background = Brushes.Transparent; boardEraser.IconGeometryDrawing.Brush = boardThemeForeground; boardEraser.Foreground = boardThemeForeground; }
                         if (boardStrokeEraser != null) { boardStrokeEraser.Background = Brushes.Transparent; boardStrokeEraser.IconGeometryDrawing.Brush = boardThemeForeground; boardStrokeEraser.Foreground = boardThemeForeground; }
-                        if (BoardShapeDrawToolBtn != null) { BoardShapeDrawToolBtn.Background = Brushes.Transparent; BoardShapeDrawToolBtn.IconBrush = boardThemeForeground; BoardShapeDrawToolBtn.Foreground = boardThemeForeground; }
+                        if (BoardShapeDrawToolBtn != null) { BoardShapeDrawToolBtn.Background = Brushes.Transparent; var shapeRed = TryFindResource("RedBrush") as Brush ?? Brushes.Red; BoardShapeDrawToolBtn.IconBrush = shapeRed; BoardShapeDrawToolBtn.Foreground = shapeRed; BoardShapeDrawToolBtn.LabelForeground = shapeRed; }
                     }
                     else
                     {
@@ -693,7 +693,7 @@ namespace Ink_Canvas
                         if (boardRoaming != null) { boardRoaming.Background = Brushes.Transparent; boardRoaming.IconGeometryDrawing.Brush = boardThemeForeground; boardRoaming.Foreground = boardThemeForeground; }
                         if (boardEraser != null) { boardEraser.Background = Brushes.Transparent; boardEraser.IconGeometryDrawing.Brush = boardThemeForeground; boardEraser.Foreground = boardThemeForeground; }
                         if (boardStrokeEraser != null) { boardStrokeEraser.Background = Brushes.Transparent; boardStrokeEraser.IconGeometryDrawing.Brush = boardThemeForeground; boardStrokeEraser.Foreground = boardThemeForeground; }
-                        if (BoardShapeDrawToolBtn != null) { BoardShapeDrawToolBtn.Background = Brushes.Transparent; BoardShapeDrawToolBtn.IconBrush = boardThemeForeground; BoardShapeDrawToolBtn.Foreground = boardThemeForeground; }
+                        if (BoardShapeDrawToolBtn != null) { BoardShapeDrawToolBtn.Background = Brushes.Transparent; var shapeRed = TryFindResource("RedBrush") as Brush ?? Brushes.Red; BoardShapeDrawToolBtn.IconBrush = shapeRed; BoardShapeDrawToolBtn.Foreground = shapeRed; BoardShapeDrawToolBtn.LabelForeground = shapeRed; }
                     }
                 }
 
@@ -827,7 +827,7 @@ namespace Ink_Canvas
                                 if (boardPen != null) { boardPen.Background = Brushes.Transparent; boardPen.IconGeometryDrawing.Brush = boardThemeForeground; boardPen.Foreground = boardThemeForeground; }
                                 if (boardEraser != null) { boardEraser.Background = Brushes.Transparent; boardEraser.IconGeometryDrawing.Brush = boardThemeForeground; boardEraser.Foreground = boardThemeForeground; }
                                 if (boardStrokeEraser != null) { boardStrokeEraser.Background = Brushes.Transparent; boardStrokeEraser.IconGeometryDrawing.Brush = boardThemeForeground; boardStrokeEraser.Foreground = boardThemeForeground; }
-                        if (BoardShapeDrawToolBtn != null) { BoardShapeDrawToolBtn.Background = Brushes.Transparent; BoardShapeDrawToolBtn.IconBrush = boardThemeForeground; BoardShapeDrawToolBtn.Foreground = boardThemeForeground; }
+                        if (BoardShapeDrawToolBtn != null) { BoardShapeDrawToolBtn.Background = Brushes.Transparent; var shapeRed = TryFindResource("RedBrush") as Brush ?? Brushes.Red; BoardShapeDrawToolBtn.IconBrush = shapeRed; BoardShapeDrawToolBtn.Foreground = shapeRed; BoardShapeDrawToolBtn.LabelForeground = shapeRed; }
                                 if (boardSelect != null) { boardSelect.Background = Brushes.Transparent; boardSelect.IconGeometryDrawing.Brush = boardThemeForeground; boardSelect.Foreground = boardThemeForeground; }
                                 if (boardRoaming != null) { boardRoaming.Background = Brushes.Transparent; boardRoaming.IconGeometryDrawing.Brush = boardThemeForeground; boardRoaming.Foreground = boardThemeForeground; }
 
@@ -843,7 +843,7 @@ namespace Ink_Canvas
                                 if (boardPen != null) { boardPen.Background = Brushes.Transparent; boardPen.IconGeometryDrawing.Brush = boardThemeForeground; boardPen.Foreground = boardThemeForeground; }
                                 if (boardEraser != null) { boardEraser.Background = Brushes.Transparent; boardEraser.IconGeometryDrawing.Brush = boardThemeForeground; boardEraser.Foreground = boardThemeForeground; }
                                 if (boardStrokeEraser != null) { boardStrokeEraser.Background = Brushes.Transparent; boardStrokeEraser.IconGeometryDrawing.Brush = boardThemeForeground; boardStrokeEraser.Foreground = boardThemeForeground; }
-                        if (BoardShapeDrawToolBtn != null) { BoardShapeDrawToolBtn.Background = Brushes.Transparent; BoardShapeDrawToolBtn.IconBrush = boardThemeForeground; BoardShapeDrawToolBtn.Foreground = boardThemeForeground; }
+                        if (BoardShapeDrawToolBtn != null) { BoardShapeDrawToolBtn.Background = Brushes.Transparent; var shapeRed = TryFindResource("RedBrush") as Brush ?? Brushes.Red; BoardShapeDrawToolBtn.IconBrush = shapeRed; BoardShapeDrawToolBtn.Foreground = shapeRed; BoardShapeDrawToolBtn.LabelForeground = shapeRed; }
                                 if (boardSelect != null) { boardSelect.Background = Brushes.Transparent; boardSelect.IconGeometryDrawing.Brush = boardThemeForeground; boardSelect.Foreground = boardThemeForeground; }
                                 if (boardRoaming != null) { boardRoaming.Background = Brushes.Transparent; boardRoaming.IconGeometryDrawing.Brush = boardThemeForeground; boardRoaming.Foreground = boardThemeForeground; }
 

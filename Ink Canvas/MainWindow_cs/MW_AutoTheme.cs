@@ -221,6 +221,32 @@ namespace Ink_Canvas
                 SetMenuGeometry(BoardManualToolBtn, XamlGraphicsIconGeometries.ManualIconGeometry);
                 SetMenuGeometry(BoardSettingsToolBtn, XamlGraphicsIconGeometries.SettingsIconGeometry);
 
+                // 几何图形按钮固定红色高亮（批注菜单、白板菜单、批注工具栏）
+                void SetShapeRedStyle()
+                {
+                    var red = Application.Current.TryFindResource("RedBrush") as Brush ?? Brushes.Red;
+
+                    void SetMenuRed(ToolMenuButton btn)
+                    {
+                        if (btn == null) return;
+                        btn.IconBrush = red;
+                        btn.Foreground = red;
+                        btn.LabelForeground = red;
+                    }
+
+                    SetMenuRed(ShapeDrawToolBtn);
+                    SetMenuRed(BoardShapeDrawToolBtn);
+
+                    if (ShapeDrawFloatingBarBtn != null)
+                    {
+                        ToolbarRegistry.SetUseRedStyle(ShapeDrawFloatingBarBtn, true);
+                        ShapeDrawFloatingBarBtn.IconBrush = red;
+                        ShapeDrawFloatingBarBtn.Icon.Brush = red;
+                    }
+                }
+
+                SetShapeRedStyle();
+
                 bool isDarkTheme = IsCurrentThemeDark();
                 Color selectedColor = isDarkTheme ? Color.FromRgb(102, 204, 255) : Color.FromRgb(30, 58, 138);
 

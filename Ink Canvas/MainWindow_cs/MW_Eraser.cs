@@ -31,6 +31,7 @@ namespace Ink_Canvas
         private System.Windows.Controls.Canvas eraserOverlayCanvas;
         private Image eraserFeedback;
         private TranslateTransform eraserFeedbackTranslateTransform;
+        private bool isLineEraserCursorActive;
 
         /// <summary>
         /// 橡皮擦覆盖层加载事件处理
@@ -110,8 +111,114 @@ namespace Ink_Canvas
                 EraserOverlay_PointerUp(sender);
             });
 
+            // 线擦（EraseByStroke）不经过本覆盖层（覆盖层保持不拦截输入），
+            // 这里只借窗口级预览事件跟随指针绘制剪刀光标：触摸/手写笔按下后会被 InkCanvas 捕获，
+            // 只有隧道阶段在窗口上能稳定收到，且不设置 Handled，原生线擦与剪枝逻辑不受影响。
+            if (LineEraserCursorImage != null)
+            {
+                LineEraserCursorImage.Source = new DrawingImage(
+                    new GeometryDrawing(Brushes.Black, new Pen(Brushes.White, 1.2),
+                        Geometry.Parse(XamlGraphicsIconGeometries.ScissorsIcon)));
+            }
+            PreviewStylusDown += ((o, args) => UpdateLineEraserCursor(args.GetPosition(inkCanvas)));
+            PreviewTouchDown += ((o, args) => UpdateLineEraserCursor(args.GetTouchPoint(inkCanvas).Position));
+            PreviewMouseDown += ((o, args) => UpdateLineEraserCursor(args.GetPosition(inkCanvas)));
+            PreviewStylusMove += ((o, args) => UpdateLineEraserCursor(args.GetPosition(inkCanvas)));
+            PreviewTouchMove += ((o, args) => UpdateLineEraserCursor(args.GetTouchPoint(inkCanvas).Position));
+            PreviewMouseMove += ((o, args) => UpdateLineEraserCursor(args.GetPosition(inkCanvas)));
+            PreviewStylusUp += ((o, args) => HideLineEraserCursor());
+            PreviewTouchUp += ((o, args) => HideLineEraserCursor());
+            PreviewMouseUp += ((o, args) => HideLineEraserCursor());
+
             // 设置橡皮擦样式
             UpdateEraserStyle();
+        }
+
+        /// <summary>
+        /// 线擦模式的剪刀光标：覆盖层只负责绘制、不拦截输入，擦除仍由 InkCanvas 原生执行。
+        /// 原生光标依赖系统指针，触摸面板上会时有时无，这里统一改为自绘。
+        /// </summary>
+        public void EnableLineEraserCursor()
+        {
+            isLineEraserCursorActive = true;
+
+            if (LineEraserCursorImage != null)
+            {
+                // 与系统小橡皮擦光标保持一致：使用系统光标尺寸
+                double cursorSize = SystemParameters.CursorWidth;
+                if (cursorSize <= 0)
+                {
+                    cursorSize = 24;
+                }
+                LineEraserCursorImage.Width = cursorSize;
+                LineEraserCursorImage.Height = cursorSize;
+                LineEraserCursorImage.Visibility = Visibility.Collapsed;
+            }
+
+            if (eraserOverlayCanvas != null)
+            {
+                // 仅用于绘制光标；一旦可命中，线擦的原生输入会被这里吃掉
+                eraserOverlayCanvas.IsHitTestVisible = false;
+                eraserOverlayCanvas.Visibility = Visibility.Visible;
+            }
+
+            if (inkCanvas != null)
+            {
+                // 隐藏系统原生光标，避免与剪刀光标叠加
+                inkCanvas.UseCustomCursor = true;
+                inkCanvas.ForceCursor = true;
+                inkCanvas.Cursor = Cursors.None;
+            }
+        }
+
+        /// <summary>
+        /// 关闭线擦光标，并收起覆盖层（线擦以外没有其他用途时不保留该视觉层）。
+        /// </summary>
+        private void DisableLineEraserCursor()
+        {
+            if (!isLineEraserCursorActive) return;
+            isLineEraserCursorActive = false;
+
+            if (LineEraserCursorImage != null)
+            {
+                LineEraserCursorImage.Visibility = Visibility.Collapsed;
+            }
+            if (eraserOverlayCanvas != null && !isUsingGeometryEraser)
+            {
+                eraserOverlayCanvas.Visibility = Visibility.Collapsed;
+            }
+            if (inkCanvas != null)
+            {
+                // 延后一拍按新模式恢复光标，避免覆盖掉模式切换流程里刚设置好的画笔光标
+                Dispatcher.BeginInvoke(new Action(() => SetCursorBasedOnEditingMode(inkCanvas)),
+                    System.Windows.Threading.DispatcherPriority.Background);
+            }
+        }
+
+        /// <summary>
+        /// 线擦过程中跟随指针移动剪刀光标，指针位于图标中心。
+        /// </summary>
+        private void UpdateLineEraserCursor(Point pt)
+        {
+            if (!isLineEraserCursorActive || LineEraserCursorImage == null) return;
+            if (inkCanvas?.EditingMode != InkCanvasEditingMode.EraseByStroke) return;
+
+            if (LineEraserCursorImage.Visibility != Visibility.Visible)
+            {
+                LineEraserCursorImage.Visibility = Visibility.Visible;
+            }
+
+            System.Windows.Controls.Canvas.SetLeft(LineEraserCursorImage, pt.X - LineEraserCursorImage.Width / 2);
+            System.Windows.Controls.Canvas.SetTop(LineEraserCursorImage, pt.Y - LineEraserCursorImage.Height / 2);
+        }
+
+        /// <summary>
+        /// 抬起或指针离开画布时隐藏线擦光标。
+        /// </summary>
+        private void HideLineEraserCursor()
+        {
+            if (!isLineEraserCursorActive || LineEraserCursorImage == null) return;
+            LineEraserCursorImage.Visibility = Visibility.Collapsed;
         }
 
         /// <summary>
@@ -705,6 +812,9 @@ namespace Ink_Canvas
         /// </summary>
         public void EnableEraserOverlay()
         {
+            // 面积擦走覆盖层接管输入，线擦光标不再需要
+            isLineEraserCursorActive = false;
+
             // An inserted SVG is selected immediately after insertion. Its image-style
             // selection overlay is a sibling above EraserOverlayCanvas and would otherwise
             // consume the pointer before the area eraser can receive it.
@@ -727,6 +837,9 @@ namespace Ink_Canvas
         /// </summary>
         public void DisableEraserOverlay()
         {
+            // 离开线擦时同步收起自绘光标
+            DisableLineEraserCursor();
+
             if (eraserOverlayCanvas != null)
             {
                 eraserOverlayCanvas.IsHitTestVisible = false;

@@ -11,6 +11,10 @@ namespace Ink_Canvas.Controls.Toolbar.FloatingToolbar.Items
         public override string Description => GeometryStrings.Title;
         public override string IconGeometry => XamlGraphicsIconGeometries.ShapesIcon;
 
+        // 与「清屏」一致，用红色突出显示
+        protected override string IconBrushResourceKey => "RedBrush";
+        protected override string LabelBrushResourceKey => "RedBrush";
+
         protected override void OnClick(IToolbarHost host, object sender, MouseButtonEventArgs e)
             => host.Window.ImageDrawShape_MouseUp(sender, e);
 

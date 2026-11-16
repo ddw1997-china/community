@@ -60,6 +60,14 @@ namespace Ink_Canvas
         {
             ShapeDrawFloatingBarBtn = btn;
             BorderDrawShape.PlacementTarget = btn;
+
+            // 几何图形按钮固定红色高亮：标记红色样式后，主题/高亮刷新都不会再覆盖
+            ToolbarRegistry.SetUseRedStyle(btn, true);
+            if (TryFindResource("RedBrush") is System.Windows.Media.Brush red)
+            {
+                btn.IconBrush = red;
+                if (btn.Icon != null) btn.Icon.Brush = red;
+            }
         }
         internal void AttachSymbolIconUndo(ToolbarImageButton btn)
         {

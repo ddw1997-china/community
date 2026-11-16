@@ -58,6 +58,8 @@ namespace Ink_Canvas.Controls.Toolbar.FloatingToolbar.Items
             {
                 if (btn.TryFindResource(IconBrushResourceKey) is Brush brush) btn.IconBrush = brush;
                 else btn.SetResourceReference(ToolbarImageButton.IconBrushProperty, IconBrushResourceKey);
+                // 标记红色样式，后续高亮/主题刷新不再把颜色改回前景色
+                ToolbarRegistry.SetUseRedStyle(btn, true);
             }
             if (!string.IsNullOrEmpty(LabelBrushResourceKey))
             {

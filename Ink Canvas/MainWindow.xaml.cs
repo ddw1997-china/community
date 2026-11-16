@@ -3316,6 +3316,12 @@ namespace Ink_Canvas
                 // 执行模式切换
                 inkCanvas.EditingMode = newMode;
 
+                // 线擦：改用自绘光标跟随指针，替代在触摸面板上时有时无的原生系统光标
+                if (newMode == InkCanvasEditingMode.EraseByStroke)
+                {
+                    EnableLineEraserCursor();
+                }
+
                 // 油漆桶填充块只选择模式下可命中，其余模式保持穿透（不挡书写与擦除）
                 UpdatePaintFillHitTest();
 

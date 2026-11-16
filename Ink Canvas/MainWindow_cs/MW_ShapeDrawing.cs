@@ -1,4 +1,5 @@
 using Ink_Canvas.Controls;
+using Ink_Canvas.Controls.Toolbar.FloatingToolbar;
 using Ink_Canvas.Helpers;
 using iNKORE.UI.WPF.Modern.Common.IconKeys;
 using iNKORE.UI.WPF.Modern.Controls;
@@ -406,6 +407,13 @@ namespace Ink_Canvas
                     btn.Background = accent;
                     btn.IconBrush = Brushes.White;
                     btn.Foreground = Brushes.White;
+                }
+                else if (ToolbarRegistry.GetUseRedStyle(btn))
+                {
+                    var red = Application.Current?.TryFindResource("RedBrush") as Brush ?? Brushes.Red;
+                    btn.Background = Brushes.Transparent;
+                    btn.IconBrush = red;
+                    btn.LabelTextBlockControl?.SetValue(TextBlock.ForegroundProperty, red);
                 }
                 else
                 {
