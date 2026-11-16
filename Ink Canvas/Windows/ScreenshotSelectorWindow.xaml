@@ -140,7 +140,7 @@
         </Canvas>
 
         <!-- 底部工具栏 -->
-        <Grid Name="ChromeGrid">
+        <Grid Name="ChromeGrid" Panel.ZIndex="2000">
         <Border Background="{StaticResource ScreenshotBarBackgroundBrush}"
                 BorderBrush="{DynamicResource {x:Static ui:ThemeKeys.CardStrokeColorDefaultBrushKey}}"
                 BorderThickness="1"

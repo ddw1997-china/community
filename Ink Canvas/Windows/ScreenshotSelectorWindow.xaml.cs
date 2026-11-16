@@ -342,6 +342,16 @@ namespace Ink_Canvas
             {
                 return source.CompositionTarget.TransformToDevice.M11;
             }
+
+            // 构造阶段窗口尚未显示，没有 PresentationSource：
+            // 用主屏物理像素 / 系统 DIP 宽度换算，避免在 125%/150% 缩放的屏幕上
+            // 把窗口和工具栏按 1.0 计算，导致工具栏被排到屏幕之外
+            var primaryPhysicalWidth = Screen.PrimaryScreen.Bounds.Width;
+            if (primaryPhysicalWidth > 0 && SystemParameters.PrimaryScreenWidth > 0)
+            {
+                return primaryPhysicalWidth / SystemParameters.PrimaryScreenWidth;
+            }
+
             return 1.0; // 默认DPI
         }
 
