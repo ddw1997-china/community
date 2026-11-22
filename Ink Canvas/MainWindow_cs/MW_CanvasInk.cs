@@ -153,7 +153,12 @@ namespace Ink_Canvas
                         forceEraser = false;
                         forcePointEraser = false;
                         drawingShapeMode = 0;
-                        inkCanvas.IsManipulationEnabled = true;
+                        // 与 BtnSelect_Click 保持一致：选择模式关闭 Manipulation，
+                        // 否则触摸会被 InkCanvas 消费成 Manipulation，手指画不出套索、无法多选
+                        if (!_isVideoPresenterSpecialMode)
+                        {
+                            inkCanvas.IsManipulationEnabled = false;
+                        }
                         SetCursorBasedOnEditingMode(inkCanvas);
                     });
 

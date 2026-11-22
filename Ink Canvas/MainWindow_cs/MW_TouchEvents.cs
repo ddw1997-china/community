@@ -1965,6 +1965,10 @@ namespace Ink_Canvas
         /// </remarks>
         private void InkCanvas_PreviewTouchDown(object sender, TouchEventArgs e)
         {
+            // 新的一次按下（此前没有活动触点）时复位覆盖层标记，
+            // 避免上一次触摸取消导致「套索松手」被误判为「从选区上按下」
+            if (dec.Count == 0) _selectionCoverTouchDownSeen = false;
+
             // 圆规拖动期间画布上的触摸一律不处理：手掌/第二指不该被当成画笔或橡皮
             if (_isCompassDragSuppressingInk)
             {

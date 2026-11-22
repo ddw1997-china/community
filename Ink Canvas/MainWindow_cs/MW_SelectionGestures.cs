@@ -1603,6 +1603,8 @@ namespace Ink_Canvas
             //设备1个的时候，记录中心点
             if (dec.Count == 1)
             {
+                _selectionCoverTouchDownSeen = true;
+
                 var touchPoint = e.GetTouchPoint(null);
                 centerPoint = touchPoint.Position;
 
@@ -1623,6 +1625,23 @@ namespace Ink_Canvas
             isProgramChangeStrokeSelection = false;
 
             lastDragPointInCanvas = new Point(0, 0);
+
+            // 覆盖层没收到按下，说明这次触摸不是从选区上开始的（例如 InkCanvas 原生套索刚选完，
+            // 松手点通常在套索终点、落在选区包围盒外）。此时绝不能按「点空白」处理，
+            // 否则刚套索选中的多个对象会被立刻清空 —— 表现就是「松手后什么也没选中」。
+            var hadCoverTouchDown = _selectionCoverTouchDownSeen;
+            _selectionCoverTouchDownSeen = false;
+            if (!hadCoverTouchDown)
+            {
+                if (inkCanvas.GetSelectedStrokes().Count > 0 || HasPaintFillSelection)
+                {
+                    StrokesSelectionClone = new StrokeCollection();
+                    CommitPendingStrokeManipulationHistory();
+                    if (inkCanvas.GetSelectedStrokes().Count > 0) RefreshStrokeSelectionChrome();
+                    if (HasPaintFillSelection) RefreshPaintFillSelectionChrome();
+                }
+                return;
+            }
 
             // 合并选区 = 墨迹选区 ∪ 填充块包围盒。原实现只看 inkCanvas.GetSelectionBounds()，
             // 而只选中填充块时它为空，手指点在填充块上也会被判成「点空白」：工具条被折叠，
@@ -1722,6 +1741,9 @@ namespace Ink_Canvas
 
         private Point lastDragPointInCanvas = new Point(0, 0);
 
+        /// <summary>本次触摸是否从选区覆盖层上按下（用于区分「点选区」与「套索松手」）。</summary>
+        private bool _selectionCoverTouchDownSeen;
+
         /// <summary>
         /// 切换到选择（套索）工具模式并同步光标显示。
         /// </summary>
@@ -1755,7 +1777,16 @@ namespace Ink_Canvas
             drawingShapeMode = 0;
             // 使用集中化的工具模式切换方法
             SetCurrentToolMode(InkCanvasEditingMode.Select);
-            inkCanvas.IsManipulationEnabled = true;
+
+            // 选择（套索）模式不能开启 IsManipulationEnabled：一旦开启，手指触摸会被 InkCanvas
+            // 当成 Manipulation 消费，不再提升为鼠标/笔事件，套索根本画不出来，
+            // 表现为「只能点选单个对象、无法同时选中多个」（鼠标不受 Manipulation 影响，所以电脑正常）。
+            // 视频展台特殊模式例外：该模式依赖 Manipulation 拖动摄像头画面。
+            if (!_isVideoPresenterSpecialMode)
+            {
+                inkCanvas.IsManipulationEnabled = false;
+            }
+
             SetCursorBasedOnEditingMode(inkCanvas);
         }
 
