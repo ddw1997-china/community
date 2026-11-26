@@ -30,9 +30,9 @@ mc:Ignorable="d">
                 </ikw:SimpleStackPanel>
                 <ikw:SimpleStackPanel x:Name="BoardOnlyRow1" Orientation="Horizontal" Spacing="6">
                     <controls:GeometryButton x:Name="ImageDrawCoordinate1" IconSource="{DynamicResource DrawShapeImageSource.Coordinate1}" Label="{x:Static props:GeometryStrings.DrawCoordinate1}" />
-                    <!-- 原坐标系2/3/4 已改为多边形/等边三角形/直角三角形工具（内部仍沿用 Coordinate2/3/4 的资源键与模式号） -->
+                    <!-- 原坐标系2/3/4 已改为多边形/圆的切线/直角三角形工具（内部仍沿用 Coordinate2/3/4 的资源键与模式号） -->
                     <controls:GeometryButton x:Name="ImageDrawCoordinate2" IconSource="{DynamicResource DrawShapeImageSource.Polygon}" Label="{x:Static props:GeometryStrings.DrawCoordinate2}" />
-                    <controls:GeometryButton x:Name="ImageDrawCoordinate3" IconSource="{DynamicResource DrawShapeImageSource.EquilateralTriangle}" Label="{x:Static props:GeometryStrings.DrawCoordinate3}" />
+                    <controls:GeometryButton x:Name="ImageDrawCoordinate3" IconSource="{DynamicResource DrawShapeImageSource.TangentLines}" Label="{x:Static props:GeometryStrings.DrawCoordinate3}" />
                     <controls:GeometryButton x:Name="ImageDrawCoordinate4" IconSource="{DynamicResource DrawShapeImageSource.RightTriangle}" Label="{x:Static props:GeometryStrings.DrawCoordinate4}" />
                     <!-- 原「三维坐标」已改为「画平行线」工具（内部仍沿用 Coordinate5 的资源键与模式号 17） -->
                     <controls:GeometryButton x:Name="ImageDrawCoordinate5" IconSource="{DynamicResource DrawShapeImageSource.ParallelLine}" Label="{x:Static props:GeometryStrings.DrawCoordinate5}" />

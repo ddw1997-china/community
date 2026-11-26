@@ -70,7 +70,7 @@
     <value>Polygon</value>
   </data>
   <data name="DrawCoordinate3" xml:space="preserve">
-    <value>Equilateral △</value>
+    <value>Tangent Line</value>
   </data>
   <data name="DrawCoordinate4" xml:space="preserve">
     <value>Rt△</value>

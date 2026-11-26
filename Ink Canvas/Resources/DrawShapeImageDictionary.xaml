@@ -1358,4 +1358,29 @@
             </DrawingGroup>
         </DrawingImage.Drawing>
     </DrawingImage>
+
+    <!-- 圆的切线工具图标（用于取代原「等边三角形」）：一个圆 + 圆外一点 + 过该点的两条切线 -->
+    <DrawingImage x:Key="DrawShapeImageSource.TangentLines">
+        <DrawingImage.Drawing>
+            <DrawingGroup ClipGeometry="M0,0 V813.58 H813.58 V0 H0 Z">
+                <GeometryDrawing>
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="{DynamicResource FloatBarForeground}" Thickness="50" StartLineCap="Round" EndLineCap="Round" LineJoin="Miter" />
+                    </GeometryDrawing.Pen>
+                    <GeometryDrawing.Geometry>
+                        <GeometryGroup>
+                            <EllipseGeometry Center="320,430" RadiusX="190" RadiusY="190" />
+                            <LineGeometry StartPoint="700,110" EndPoint="488.6,517.5" />
+                            <LineGeometry StartPoint="700,110" EndPoint="262.5,248.9" />
+                        </GeometryGroup>
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+                <GeometryDrawing Brush="{DynamicResource FloatBarForeground}">
+                    <GeometryDrawing.Geometry>
+                        <EllipseGeometry Center="700,110" RadiusX="34" RadiusY="34" />
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+            </DrawingGroup>
+        </DrawingImage.Drawing>
+    </DrawingImage>
 </ResourceDictionary>

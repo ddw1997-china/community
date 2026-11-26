@@ -1257,6 +1257,17 @@ namespace Ink_Canvas
                     // 设置起始点
                     if (NeedUpdateIniP()) iniP = e.GetPosition(inkCanvas);
 
+                    // 圆的切线 / 平行线 / 垂线：第一步的点选也在这里完成。
+                    // 鸿合等一体机的笔走 Stylus 事件，不一定会再触发 PreviewTouchDown；
+                    // 与鼠标/触摸路径重复调用是幂等的（重新选中同一个圆 / 同一条直线）。
+                    var shapePressPoint = e.GetPosition(inkCanvas);
+                    if (drawingShapeMode == TangentShapeMode)
+                        BeginTangentDragAt(shapePressPoint);
+                    else if ((drawingShapeMode == 17 || drawingShapeMode == 21) && drawMultiStepShapeCurrentStep == 0)
+                        BeginBaselinePickAt(shapePressPoint);
+                    else if (drawingShapeMode == 22)
+                        BeginAngleBisectorSidePick(shapePressPoint);
+
                     return;
                 }
                 if (inkCanvas.EditingMode != InkCanvasEditingMode.EraseByStroke)
@@ -1420,7 +1431,13 @@ namespace Ink_Canvas
                 ViewboxFloatingBar.IsHitTestVisible = true;
                 BlackboardUIGridForInkReplay.IsHitTestVisible = true;
 
+                // 圆的切线：记录抬笔位置（触摸路径合成的鼠标事件拿不到真实触控坐标）
+                if (drawingShapeMode == TangentShapeMode) _tangentTapPoint = e.GetPosition(inkCanvas);
+
                 // 对于双曲线等需要多步绘制的图形，手写笔抬起时应该进入下一步
+                // 中垂线：记录真实抬笔位置，交由 inkCanvas_MouseUp 用它补画最后一帧
+                if (drawingShapeMode == 26) _perpendicularBisectorUpPoint = e.GetPosition(inkCanvas);
+
                 if (drawingShapeMode == 24 || drawingShapeMode == 25 || drawingShapeMode == 21 || drawingShapeMode == 22
                     || drawingShapeMode == 17)
                 {
@@ -2092,8 +2109,23 @@ namespace Ink_Canvas
                         iniP = inkTouchPoint.Position;
                     }
                     lastTouchDownStrokeCollection = inkCanvas.Strokes.Clone();
+
+                    // 圆的切线：按下即尝试选中被按住的圆并进入拖动（触摸事件不会经过 inkCanvas_MouseDown）
+                    if (drawingShapeMode == TangentShapeMode)
+                        BeginTangentDragAt(inkTouchPoint.Position);
+
+                    // 平行线 / 垂线：第一步改为按下时点选一条已有直线作为基准
+                    if ((drawingShapeMode == 17 || drawingShapeMode == 21) && drawMultiStepShapeCurrentStep == 0)
+                        BeginBaselinePickAt(inkTouchPoint.Position);
+
+                    // 角平分线：两步都是按下时点选角的边
+                    if (drawingShapeMode == 22)
+                        BeginAngleBisectorSidePick(inkTouchPoint.Position);
                 }
                 dec.Add(e.TouchDevice.Id);
+                // 圆的切线：记住开始拖动的那根手指；抬起时只认它，手掌/第二指的抬起不参与收尾
+                if (drawingShapeMode == TangentShapeMode && dec.Count == 1)
+                    _tangentPrimaryTouchId = e.TouchDevice.Id;
                 return;
             }
 
@@ -2481,6 +2513,19 @@ namespace Ink_Canvas
                     _paintBucketTapPointValid = true;
                 }
 
+                // 圆的切线：只认发起拖动的那根手指——鸿合等一体机上手掌/第二指同时接触很常见，
+                // 它们的抬起不能当成拖动终点（否则会用手掌位置生成切线）
+                var tangentPrimaryUp = drawingShapeMode != TangentShapeMode
+                                       || _tangentPrimaryTouchId == -1
+                                       || _tangentPrimaryTouchId == e.TouchDevice.Id;
+
+                // 圆的切线：记录触摸抬笔位置（合成的鼠标事件拿不到触摸坐标）
+                if (drawingShapeMode == TangentShapeMode && tangentPrimaryUp)
+                    _tangentTapPoint = e.GetTouchPoint(inkCanvas).Position;
+
+                // 中垂线：记录真实抬笔位置，交由 inkCanvas_MouseUp 用它补画最后一帧
+                if (drawingShapeMode == 26) _perpendicularBisectorUpPoint = e.GetTouchPoint(inkCanvas).Position;
+
                 if (drawingShapeMode == 24 || drawingShapeMode == 25 || drawingShapeMode == 21 || drawingShapeMode == 22
                     || drawingShapeMode == 17)
                 {
@@ -2522,7 +2567,7 @@ namespace Ink_Canvas
                         inkCanvas_MouseUp(inkCanvas, mouseArgs);
                     }
                 }
-                else
+                else if (tangentPrimaryUp)
                 {
                     var mouseArgs = new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left)
                     {
@@ -2531,6 +2576,10 @@ namespace Ink_Canvas
                     };
                     inkCanvas_MouseUp(inkCanvas, mouseArgs);
                 }
+
+                // 主手指抬起后清掉触摸 Id，下一次拖动重新记录
+                if (drawingShapeMode == TangentShapeMode && tangentPrimaryUp)
+                    _tangentPrimaryTouchId = -1;
             }
 
             if (drawingShapeMode == 0)

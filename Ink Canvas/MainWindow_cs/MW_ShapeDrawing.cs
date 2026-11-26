@@ -134,7 +134,7 @@ namespace Ink_Canvas
         /// 10: 虚线圆形
         /// 11: 坐标系1
         /// 12: 多边形（单击添加顶点，点击起点闭合完成）
-        /// 13: 等边三角形
+        /// 13: 过圆外一点作圆的切线（拖动式：按住圆拖到圆外一点后松手）
         /// 14: 直角三角形
         /// 15: 平行线
         /// 16: 中心椭圆
@@ -142,7 +142,7 @@ namespace Ink_Canvas
         /// 18: 点线
         /// 19: 中心矩形
         /// 20: 抛物线1
-        /// 21: 垂线（两步：第一笔基准线，第二笔点）
+        /// 21: 垂线（两步：第一步点选一条直线，第二步给一点）
         /// 22: 带焦点的抛物线
         /// 23: 带焦点的中心椭圆
         /// 24: 双曲线
@@ -165,6 +165,10 @@ namespace Ink_Canvas
                 // 离开多边形模式时清理未完成的顶点与预览
                 if (previousMode == 12)
                     CancelPolygonDrawing();
+                // 离开圆的切线模式时清理选中圆的高亮与步骤状态（兜底所有直接改模式的入口，
+                // 否则高亮圆环会残留在画布上）
+                if (previousMode == 13)
+                    CancelTangentCircleDrawing();
                 // 图形对话框的选中状态变化后，同步白板工具栏「几何图形」按钮的高亮
                 UpdateBoardShapeButtonHighlight();
             }
@@ -335,6 +339,7 @@ namespace Ink_Canvas
             if (drawingShapeMode == 21) CancelPerpendicularDrawing();
             if (drawingShapeMode == 22) CancelAngleBisectorDrawing();
             if (drawingShapeMode == 26) CancelPerpendicularBisector();
+            if (drawingShapeMode == TangentShapeMode) CancelTangentCircleDrawing();
             // 圆弧：切入该工具时清掉上一次的收尾锁定。锁定本该由落笔解除，但触摸落笔路径
             // 历史上漏了重置，切工具再切回来也仍然锁死；这里兜底，保证每次进入工具都能重新画。
             if (mode == 27)
@@ -349,6 +354,18 @@ namespace Ink_Canvas
             drawingShapeMode = mode;
             // 每次进入工具都从第一步开始，避免上一次多步绘制残留的步骤状态
             drawMultiStepShapeCurrentStep = 0;
+            if (mode == TangentShapeMode)
+            {
+                // 圆的切线：清掉上一次的选中圆/高亮/预览，重新开始一次拖动
+                ResetTangentCircleState();
+                ShowCanvasToast("按住圆拖到圆外一点");
+            }
+            // 平行线 / 垂线：第一步改为点选一条已有直线作为基准
+            if (mode == 17 || mode == 21)
+                ShowCanvasToast("第一步：点击一条直线");
+            // 角平分线：两步都是点选角的边
+            if (mode == 22)
+                ShowCanvasToast("第一步：点击角的一条边");
             inkCanvas.EditingMode = InkCanvasEditingMode.None;
             inkCanvas.IsManipulationEnabled = true;
             CancelSingleFingerDragMode();
@@ -375,6 +392,7 @@ namespace Ink_Canvas
             if (drawingShapeMode == 21) CancelPerpendicularDrawing();
             if (drawingShapeMode == 22) CancelAngleBisectorDrawing();
             if (drawingShapeMode == 26) CancelPerpendicularBisector();
+            if (drawingShapeMode == TangentShapeMode) CancelTangentCircleDrawing();
             if (drawingShapeMode == AxisFlipShapeMode) CancelAxisFlip();
             ClearArcHandleHighlight();
             forceEraser = false;
@@ -898,6 +916,7 @@ namespace Ink_Canvas
             if (drawingShapeMode == 21) CancelPerpendicularDrawing();
             if (drawingShapeMode == 22) CancelAngleBisectorDrawing();
             if (drawingShapeMode == 26) CancelPerpendicularBisector();
+            if (drawingShapeMode == TangentShapeMode) CancelTangentCircleDrawing();
             if (drawingShapeMode == AxisFlipShapeMode) CancelAxisFlip();
             ClearArcHandleHighlight();
             forceEraser = false;
@@ -1207,21 +1226,22 @@ namespace Ink_Canvas
         }
 
         /// <summary>
-        /// 处理绘制等边三角形按钮点击事件（模式 13）
+        /// 处理「过圆外一点作圆的切线」按钮点击事件（模式 13）
         /// </summary>
         /// <param name="sender">事件发送者</param>
         /// <param name="e">鼠标按钮事件参数</param>
         /// <remarks>
-        /// 当绘制等边三角形按钮被点击时：
+        /// 当该按钮被点击时：
         /// 1. 检查是否在多点触控模式下
         /// 2. 禁用点橡皮擦模式
         /// 3. 禁用橡皮擦覆盖
         /// 4. 设置强制橡皮擦模式
-        /// 5. 设置绘制模式为等边三角形
-        /// 6. 设置墨水画布编辑模式为无
-        /// 7. 启用墨水画布的操作功能
-        /// 8. 取消单指拖拽模式
-        /// 9. 提示切换到画笔模式
+        /// 5. 设置绘制模式为圆的切线（拖动式：按住圆拖到圆外一点）
+        /// 6. 清掉上一次的选中圆、高亮与预览
+        /// 7. 设置墨水画布编辑模式为无
+        /// 8. 启用墨水画布的操作功能
+        /// 9. 取消单指拖拽模式
+        /// 10. 提示操作方法
         /// </remarks>
         private async void BtnDrawCoordinate3_Click(object sender, MouseButtonEventArgs e)
         {
@@ -1230,11 +1250,13 @@ namespace Ink_Canvas
             DisableEraserOverlay();
 
             forceEraser = true;
-            drawingShapeMode = 13;
+            drawingShapeMode = TangentShapeMode;
+            ResetTangentCircleState();
             inkCanvas.EditingMode = InkCanvasEditingMode.None;
             inkCanvas.IsManipulationEnabled = true;
             CancelSingleFingerDragMode();
             DrawShapePromptToPen();
+            ShowCanvasToast("按住圆拖到圆外一点");
         }
 
         /// <summary>
@@ -1301,6 +1323,7 @@ namespace Ink_Canvas
             inkCanvas.IsManipulationEnabled = true;
             CancelSingleFingerDragMode();
             DrawShapePromptToPen();
+            ShowCanvasToast("第一步：点击一条直线");
         }
 
         /// <summary>
@@ -1609,16 +1632,13 @@ namespace Ink_Canvas
 
             forceEraser = true;
             drawingShapeMode = 22;
-            drawMultiStepShapeCurrentStep = 0;
-            _angleBisectorLastPreview = null;
-            _angleBisectorSide1Stroke = null;
-            _angleBisectorUpPoint = null;
-            _angleBisectorVertex = default;
-            _angleBisectorSide1End = default;
+            // 点选式：每次进入工具都清掉上一次选中的边与高亮，从「点第一条边」开始
+            CancelAngleBisectorDrawing();
             inkCanvas.EditingMode = InkCanvasEditingMode.None;
             inkCanvas.IsManipulationEnabled = true;
             CancelSingleFingerDragMode();
             DrawShapePromptToPen();
+            ShowCanvasToast("第一步：点击角的一条边");
         }
 
         /// <summary>
@@ -1654,6 +1674,7 @@ namespace Ink_Canvas
             inkCanvas.IsManipulationEnabled = true;
             CancelSingleFingerDragMode();
             DrawShapePromptToPen();
+            ShowCanvasToast("第一步：点击一条直线");
         }
 
         /// <summary>
@@ -1883,16 +1904,26 @@ namespace Ink_Canvas
         // 触摸/手写笔抬起时传入的落点（鼠标抬起直接取事件坐标）
         private Point? _perpendicularUpPoint;
 
+        // 中垂线：触摸/手写笔抬起时的真实落点，用于补画最后一帧（避免中点停在旧位置）
+        private Point? _perpendicularBisectorUpPoint;
+
         // 中垂线（模式 26）专用：拖动时的荧光笔线段与定稿笔画（平分线 + 直角标记）
         private Stroke _perpendicularBisectorGuide;
         private StrokeCollection _perpendicularBisectorResult;
 
-        // 角平分线（模式 22）专用：两条边的荧光笔辅助线、第二步预览（平分线 + 等角弧）与顶点/端点
+        // 角平分线（模式 22）专用：两条边的高亮、预览（平分线 + 等角弧）与顶点/端点
         private StrokeCollection _angleBisectorLastPreview;
         private Stroke _angleBisectorSide1Stroke;
         private Stroke _angleBisectorSide2Stroke;
         private Point _angleBisectorVertex = default;
         private Point _angleBisectorSide1End = default;
+        // 角平分线两条被点选的边：直线端点 + 点选位置（点选位置决定取哪个方向的射线）
+        private Point _angleBisectorSide1LineStart = default;
+        private Point _angleBisectorSide1LineEnd = default;
+        private Point _angleBisectorSide1PickPoint = default;
+        private Point _angleBisectorSide2LineStart = default;
+        private Point _angleBisectorSide2LineEnd = default;
+        private Point _angleBisectorSide2PickPoint = default;
         // 触摸/手写笔抬起时传入的落点（鼠标抬起直接取事件坐标）
         private Point? _angleBisectorUpPoint;
 
@@ -2119,42 +2150,10 @@ namespace Ink_Canvas
                     // 多边形：单击添加顶点、点击起点闭合完成，不使用拖动绘制，
                     // 顶点与预览由 HandlePolygonClick / UpdatePolygonPreview 维护。
                     return;
-                case 13: // 等边三角形：起点为第一个顶点（拖动过程中固定不动），鼠标位置为第二个顶点，第三个顶点由旋转 60° 得到
-                    _currentCommitType = CommitReason.ShapeDrawing;
-                    {
-                        var ax = iniP.X;
-                        var ay = iniP.Y;
-                        var dx = endP.X - ax;
-                        var dy = endP.Y - ay;
-                        var side = Math.Sqrt(dx * dx + dy * dy);
-                        if (side < 0.01) return;
-                        // 以 AB 为一边，向 AB 的“上方”（屏幕坐标）构造第三个顶点：把向量 AB 旋转 -60°
-                        var cos60 = 0.5;
-                        var sin60 = Math.Sqrt(3) / 2;
-                        var cx = ax + dx * cos60 + dy * sin60;
-                        var cy = ay - dx * sin60 + dy * cos60;
-                        pointList = new List<Point>
-                        {
-                            new Point(ax, ay),
-                            new Point(endP.X, endP.Y),
-                            new Point(cx, cy),
-                            new Point(ax, ay)
-                        };
-                    }
-                    point = new StylusPointCollection(pointList);
-                    stroke = new Stroke(point)
-                    {
-                        DrawingAttributes = inkCanvas.DefaultDrawingAttributes.Clone()
-                    };
-                    try
-                    {
-                        inkCanvas.Strokes.Remove(lastTempStroke);
-                    }
-                    catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex); }
-
-                    lastTempStroke = stroke;
-                    inkCanvas.Strokes.Add(stroke);
-                    break;
+                case TangentShapeMode:
+                    // 圆的切线：按住圆拖动时实时预览两条切线，松手由 CommitTangentDrag 提交
+                    UpdateTangentPreview(endP);
+                    return;
                 case 14: // 直角三角形：起点为直角顶点，横纵拖拽距离为两条直角边
                     _currentCommitType = CommitReason.ShapeDrawing;
                     {
@@ -2162,23 +2161,35 @@ namespace Ink_Canvas
                         var rightHeight = endP.Y - iniP.Y;
                         if (Math.Abs(rightWidth) < 0.01 || Math.Abs(rightHeight) < 0.01) return;
 
-                        pointList = new List<Point>
+                        var rightTriangleVertices = new List<Point>
                         {
                             new Point(iniP.X, iniP.Y),
                             new Point(endP.X, iniP.Y),
-                            new Point(iniP.X, endP.Y),
-                            new Point(iniP.X, iniP.Y)
+                            new Point(iniP.X, endP.Y)
                         };
-                        point = new StylusPointCollection(pointList);
 
                         var triangleAttributes = inkCanvas.DefaultDrawingAttributes.Clone();
-                        var triangleStrokes = new StrokeCollection
+                        var triangleStrokes = new StrokeCollection();
+
+                        // 三条边：内切圆的切点（圆心到边的垂足）把每条边切成两段，
+                        // 与切线工具的分段方式一致，便于后续选中/擦除/分段操作
+                        var hasIncircle = TryGetTriangleIncircle(rightTriangleVertices,
+                            out var incircleCenter, out var incircleRadius);
+                        if (hasIncircle)
                         {
-                            new Stroke(point)
+                            var splitEdges = BuildEdgesSplitAtTangency(rightTriangleVertices,
+                                incircleCenter, incircleRadius, triangleAttributes);
+                            if (splitEdges != null)
                             {
-                                DrawingAttributes = triangleAttributes
+                                foreach (Stroke edgeStroke in splitEdges) triangleStrokes.Add(edgeStroke);
                             }
-                        };
+                        }
+
+                        if (triangleStrokes.Count == 0)
+                        {
+                            var closedTriangle = CreateClosedPolygonStroke(rightTriangleVertices, triangleAttributes);
+                            if (closedTriangle != null) triangleStrokes.Add(closedTriangle);
+                        }
 
                         // 直角标记：以直角顶点（起点）为角点，沿两条直角边各取一段，画成小方块
                         const double rightMarkSize = 14;
@@ -2197,32 +2208,27 @@ namespace Ink_Canvas
                             DrawingAttributes = triangleAttributes.Clone()
                         });
 
+                        // 直角三角形带内切圆：切点同样把圆切成几段圆弧（与边的分段点一致）
+                        if (hasIncircle)
+                        {
+                            var tangencyPoints = GetPolygonTangencyPoints(rightTriangleVertices, incircleCenter, incircleRadius);
+                            var incircleArcs = BuildCircleArcsSplitAtTangency(incircleCenter, incircleRadius,
+                                tangencyPoints, triangleAttributes);
+                            if (incircleArcs != null)
+                            {
+                                foreach (Stroke arcStroke in incircleArcs) triangleStrokes.Add(arcStroke);
+                            }
+                        }
+
                         RemoveStrokesSafe(lastTempStrokeCollection);
                         lastTempStrokeCollection = triangleStrokes;
                         inkCanvas.Strokes.Add(triangleStrokes);
                         break;
                     }
                 case 17:
-                    // 平行线（交互步骤与垂线一致）：第一笔拖出红色荧光笔基准辅助线，
-                    // 第二笔点击（或拖动）给出一点，过该点作基准线的平行线；完成后辅助线消失
-                    if (drawMultiStepShapeCurrentStep == 0)
-                    {
-                        // 辅助线不写入撤销历史，完成绘制后直接移除
-                        _currentCommitType = CommitReason.UserInput;
-                        if (GetDistance(iniP, endP) < 0.01) return;
-                        try { inkCanvas.Strokes.Remove(_parallelLastPreview); }
-                        catch { }
-
-                        _parallelBaseStart = iniP;
-                        _parallelBaseEnd = endP;
-                        _parallelBaselineStroke = GenerateLineStroke(iniP, endP);
-                        _parallelBaselineStroke.DrawingAttributes = CreatePerpendicularGuideDrawingAttributes();
-                        strokes.Add(_parallelBaselineStroke);
-                        lastTempStrokeCollection = strokes;
-                        inkCanvas.Strokes.Add(strokes);
-                        _parallelLastPreview = strokes;
-                        break;
-                    }
+                    // 平行线：第一步已在按下时点选一条已有直线作为基准（BeginBaselinePickAt），
+                    // 这里只处理第二步——点击（或拖动）给出一点，过该点作基准线的平行线
+                    if (drawMultiStepShapeCurrentStep == 0) return;
 
                     _currentCommitType = CommitReason.ShapeDrawing;
                     {
@@ -2684,26 +2690,9 @@ namespace Ink_Canvas
                     inkCanvas.Strokes.Add(strokes);
                     break;
                 case 21:
-                    //垂线：第一笔拖出红色荧光笔基准辅助线，第二笔点击（或拖动）给出一点，
-                    //过该点作基准线的垂线并标直角；完成后辅助线消失
-                    if (drawMultiStepShapeCurrentStep == 0)
-                    {
-                        // 辅助线不写入撤销历史，完成绘制后直接移除
-                        _currentCommitType = CommitReason.UserInput;
-                        if (GetDistance(iniP, endP) < 0.01) return;
-                        try { inkCanvas.Strokes.Remove(_perpendicularLastPreview); }
-                        catch { }
-
-                        _perpendicularBaseStart = iniP;
-                        _perpendicularBaseEnd = endP;
-                        _perpendicularBaselineStroke = GenerateLineStroke(iniP, endP);
-                        _perpendicularBaselineStroke.DrawingAttributes = CreatePerpendicularGuideDrawingAttributes();
-                        strokes.Add(_perpendicularBaselineStroke);
-                        lastTempStrokeCollection = strokes;
-                        inkCanvas.Strokes.Add(strokes);
-                        _perpendicularLastPreview = strokes;
-                        break;
-                    }
+                    // 垂线：第一步已在按下时点选一条已有直线作为基准（BeginBaselinePickAt），
+                    // 这里只处理第二步——点击（或拖动）给出一点，过该点作基准线的垂线并标直角
+                    if (drawMultiStepShapeCurrentStep == 0) return;
 
                     _currentCommitType = CommitReason.ShapeDrawing;
                     {
@@ -2725,9 +2714,10 @@ namespace Ink_Canvas
                         try { inkCanvas.Strokes.Remove(_perpendicularLastPreview); }
                         catch { }
 
-                        // 垂线：穿过垂足与所给点，并略微延长，视觉上更接近“一条线”
-                        const double overshoot = 16;
-                        strokes.Add(GeneratePerpendicularStroke(foot - normal * overshoot, externalPoint + normal * overshoot));
+                        // 垂线：穿过垂足与所给点；垂足一侧再延长一段，视觉上是一条完整的垂线
+                        const double externalOvershoot = 16;
+                        var footOvershoot = Math.Max(60, GetDistance(foot, externalPoint) * 0.4);
+                        strokes.Add(GeneratePerpendicularStroke(foot - normal * footOvershoot, externalPoint + normal * externalOvershoot));
 
                         // 直角符号：以垂足为角点，沿基准线与垂线各取一段边长，画两条直角边
                         const double markSize = 14;
@@ -2745,53 +2735,57 @@ namespace Ink_Canvas
                         break;
                     }
                 case 22:
-                    // 角平分线（用法与垂线一致）：第一步用荧光笔拖出角的第一条边，
-                    // 第二步再用荧光笔拖出第二条边，随后自动画出角平分线与两个等角弧；
-                    // 完成时两条荧光笔辅助边移除，只保留平分线与等角弧
+                    // 角平分线（点选式）：两步都在按下时点选角的边（第一步一条、第二步另一条），
+                    // 抬起时按两条边的交点与点选方向画出平分线与两个等角弧；
+                    // 完成时两条边的高亮移除，只保留平分线与等角弧
                     _currentCommitType = CommitReason.ShapeDrawing;
-                    if (drawMultiStepShapeCurrentStep == 0)
+                    if (drawMultiStepShapeCurrentStep == 0) return;
                     {
-                        if (GetDistance(iniP, endP) < 0.01) return;
-                        RemoveAngleBisectorStroke(_angleBisectorSide1Stroke);
+                        var side1Vector = _angleBisectorSide1LineEnd - _angleBisectorSide1LineStart;
+                        var side2Vector = _angleBisectorSide2LineEnd - _angleBisectorSide2LineStart;
+                        if (side1Vector.Length < 0.01 || side2Vector.Length < 0.01) return;
 
-                        // 第一条边用荧光笔辅助线绘制（与垂线基准线一致，完成时移除）
-                        _angleBisectorVertex = iniP;
-                        _angleBisectorSide1End = endP;
-                        _angleBisectorSide1Stroke = GenerateAngleBisectorGuideStroke(iniP, endP);
-                        inkCanvas.Strokes.Add(_angleBisectorSide1Stroke);
-                        break;
-                    }
+                        if (!TryGetLineIntersection(_angleBisectorSide1LineStart, side1Vector,
+                                _angleBisectorSide2LineStart, side2Vector, out var vertex))
+                        {
+                            ShowCanvasToast("两条边平行，画不出角平分线");
+                            return;
+                        }
 
-                    {
-                        var vertex = _angleBisectorVertex;
-                        var side1 = _angleBisectorSide1End - vertex;
-                        var side2 = endP - vertex;
-                        if (side1.Length < 0.01 || side2.Length < 0.01) return;
+                        // 点选位置决定每条边取哪个方向的射线：把点选位置投影到拟合直线上，
+                        // 用「投影相对顶点的方向」定射线，比直接用点选坐标准（点选点可能离线 ≤12px）
+                        side1Vector.Normalize();
+                        side2Vector.Normalize();
+                        var projection1 = Vector.Multiply(_angleBisectorSide1PickPoint - vertex, side1Vector);
+                        var projection2 = Vector.Multiply(_angleBisectorSide2PickPoint - vertex, side2Vector);
+                        var side1 = projection1 >= 0 ? side1Vector : -side1Vector;
+                        var side2 = projection2 >= 0 ? side2Vector : -side2Vector;
 
-                        // 清理上一帧：第二条边辅助线与平分线预览
-                        RemoveAngleBisectorStroke(_angleBisectorSide2Stroke);
+                        // 只清理上一帧的平分线与等角弧；两条边的高亮保留到完成时再移除
                         RemoveAngleBisectorStrokes(_angleBisectorLastPreview);
 
-                        var sideLength = side1.Length;
-                        side1.Normalize();
-                        side2.Normalize();
-
-                        // 第二条边同样用荧光笔辅助线，且与第一条边等长
-                        _angleBisectorSide2Stroke =
-                            GenerateAngleBisectorGuideStroke(vertex, vertex + side2 * sideLength);
-                        inkCanvas.Strokes.Add(_angleBisectorSide2Stroke);
+                        var rayLength1 = Math.Max(Math.Abs(projection1), 1);
+                        var rayLength2 = Math.Max(Math.Abs(projection2), 1);
 
                         // 角平分线方向 = 两条边的单位向量之和；两边接近 180° 时改用垂直方向
                         var bisector = side1 + side2;
                         if (bisector.Length < 0.01) bisector = new Vector(-side1.Y, side1.X);
                         bisector.Normalize();
-                        var bisectorLength = Math.Max(sideLength, 24) * 1.15;
+
+                        // 平分线长度：跟两条边的可见长度走（取较长者再放 30%），并保证一个最小长度，
+                        // 否则点选位置靠近顶点时平分线会短得看不出来
+                        var reach1 = GetRayReachLength(_angleBisectorSide1LineStart, _angleBisectorSide1LineEnd, vertex, side1);
+                        var reach2 = GetRayReachLength(_angleBisectorSide2LineStart, _angleBisectorSide2LineEnd, vertex, side2);
+                        var bisectorLength = Math.Max(Math.Max(Math.Max(reach1, reach2), Math.Max(rayLength1, rayLength2)) * 1.3, 110);
                         strokes.Add(GenerateAngleBisectorStroke(vertex, vertex + bisector * bisectorLength));
 
                         // 等角弧：以顶点为圆心、同一半径，在「边1→平分线」「平分线→边2」各画一段
-                        var arcRadius = Math.Max(Math.Min(sideLength * 0.32, 30), 12);
+                        var arcRadius = Math.Max(Math.Min(Math.Min(rayLength1, rayLength2) * 0.32, 30), 14);
                         AddEqualAngleArc(strokes, vertex, side1, bisector, arcRadius);
                         AddEqualAngleArc(strokes, vertex, bisector, side2, arcRadius);
+
+                        _angleBisectorVertex = vertex;
+                        _angleBisectorSide1End = vertex + side1 * rayLength1;
 
                         lastTempStrokeCollection = strokes;
                         inkCanvas.Strokes.Add(strokes);
@@ -2806,11 +2800,24 @@ namespace Ink_Canvas
                     if (_perpendicularBisectorAwaitNewGesture) return;
                     _currentCommitType = CommitReason.ShapeDrawing;
                     {
-                        var segment = endP - iniP;
+                        var dragSegment = endP - iniP;
                         // 拖动距离过小（单击或手抖）不生成，避免落下一条退化的中垂线
+                        if (dragSegment.Length < 8) return;
+
+                        // 精度：如果这次拖动是贴着某条已有直线拖的，就把拖动两端投影到该直线的拟合方向上，
+                        // 线段仍取「两个拖动点之间」的部分（只纠正方向与位置，不会把整条直线都当成线段）
+                        var segmentStart = iniP;
+                        var segmentEnd = endP;
+                        if (TryGetDragAlongExistingLine(iniP, endP, out var snappedStart, out var snappedEnd))
+                        {
+                            segmentStart = snappedStart;
+                            segmentEnd = snappedEnd;
+                        }
+
+                        var segment = segmentEnd - segmentStart;
                         if (segment.Length < 8) return;
 
-                        var mid = new Point((iniP.X + endP.X) / 2, (iniP.Y + endP.Y) / 2);
+                        var mid = new Point((segmentStart.X + segmentEnd.X) / 2, (segmentStart.Y + segmentEnd.Y) / 2);
                         var normal = new Vector(-segment.Y, segment.X);
                         normal.Normalize();
                         var along = segment;
@@ -2826,7 +2833,8 @@ namespace Ink_Canvas
                         result.Add(GeneratePerpendicularStroke(corner, mid + normal * markSize));
 
                         // 拖动阶段的预览：荧光笔线段 + 定稿笔画
-                        _perpendicularBisectorGuide = GeneratePerpendicularBisectorGuideStroke(iniP, endP);
+                        _perpendicularBisectorGuide =
+                            GeneratePerpendicularBisectorGuideStroke(segmentStart, segmentEnd);
                         _perpendicularBisectorResult = result;
                         strokes.Add(_perpendicularBisectorGuide);
                         foreach (Stroke resultStroke in result) strokes.Add(resultStroke);
@@ -3545,6 +3553,250 @@ namespace Ink_Canvas
             drawMultiStepShapeCurrentStep = 0;
         }
 
+        #region 平行线 / 垂线：第一步点选基准直线
+
+        /// <summary>点选基准直线时，按下位置与直线的最大允许偏差（像素）。</summary>
+        private const double BaselinePickHitTolerance = 12;
+
+        /// <summary>
+        /// 平行线 / 垂线的第一步：在按下位置选中一条已有直线作为基准，并用荧光笔高亮它。
+        /// 基准线只作提示，完成或取消时移除，不写入撤销历史。
+        /// </summary>
+        private bool BeginBaselinePickAt(Point position)
+        {
+            if (inkCanvas == null) return false;
+
+            if (!TryPickLineAt(position, out var lineStart, out var lineEnd))
+            {
+                ShowCanvasToast("第一步：请点击一条直线");
+                return false;
+            }
+
+            var guide = GenerateLineStroke(lineStart, lineEnd);
+            if (guide == null) return false;
+            guide.DrawingAttributes = CreatePerpendicularGuideDrawingAttributes();
+
+            var previousCommitType = _currentCommitType;
+            _currentCommitType = CommitReason.CodeInput;
+            try
+            {
+                if (drawingShapeMode == 17)
+                {
+                    RemoveParallelGuideStroke();
+                    _parallelBaseStart = lineStart;
+                    _parallelBaseEnd = lineEnd;
+                    _parallelBaselineStroke = guide;
+                    _parallelLastPreview = null;
+                }
+                else if (drawingShapeMode == 21)
+                {
+                    RemovePerpendicularGuideStroke();
+                    _perpendicularBaseStart = lineStart;
+                    _perpendicularBaseEnd = lineEnd;
+                    _perpendicularBaselineStroke = guide;
+                    _perpendicularLastPreview = null;
+                }
+                else
+                {
+                    return false;
+                }
+
+                inkCanvas.Strokes.Add(guide);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine(ex);
+                return false;
+            }
+            finally
+            {
+                _currentCommitType = previousCommitType;
+            }
+
+            ShowCanvasToast("已选基准线，请点击一点");
+            return true;
+        }
+
+        /// <summary>
+        /// 在按下位置附近找一条直线笔画：首尾连线足够长，且所有点都贴近这条连线。
+        /// </summary>
+        private bool TryPickLineAt(Point position, out Point lineStart, out Point lineEnd)
+        {
+            lineStart = default;
+            lineEnd = default;
+            if (inkCanvas == null) return false;
+
+            StrokeCollection hits = null;
+            try
+            {
+                hits = inkCanvas.Strokes.HitTest(position, BaselinePickHitTolerance);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine(ex);
+            }
+
+            if (hits == null) return false;
+
+            var bestDistance = double.MaxValue;
+            var found = false;
+            foreach (Stroke hit in hits)
+            {
+                if (hit == null) continue;
+                // 跳过本工具自己的高亮辅助笔画，避免把高亮再当成基准线
+                if (IsShapeToolGuideStroke(hit)) continue;
+                if (!TryGetStraightSegment(hit, out var start, out var end)) continue;
+
+                var distance = DistanceToLineSegment(position, start, end);
+                if (distance > BaselinePickHitTolerance || distance >= bestDistance) continue;
+
+                bestDistance = distance;
+                lineStart = start;
+                lineEnd = end;
+                found = true;
+            }
+
+            return found;
+        }
+
+        /// <summary>
+        /// 判断笔画是否是一条直线：用最小二乘（PCA）拟合方向，端点取所有点在拟合方向上的极值投影。
+        /// 比直接取首尾点更稳：手绘线的首尾点常有点抖动，会让后续的平行/垂线/角平分线方向偏掉。
+        /// </summary>
+        private bool TryGetStraightSegment(Stroke stroke, out Point start, out Point end)
+        {
+            start = default;
+            end = default;
+            var points = stroke?.StylusPoints;
+            if (points == null || points.Count < 2) return false;
+
+            // 质心
+            double sumX = 0;
+            double sumY = 0;
+            foreach (var stylusPoint in points)
+            {
+                var point = stylusPoint.ToPoint();
+                if (!double.IsFinite(point.X) || !double.IsFinite(point.Y)) return false;
+                sumX += point.X;
+                sumY += point.Y;
+            }
+
+            var count = points.Count;
+            var center = new Point(sumX / count, sumY / count);
+
+            // 协方差矩阵的主方向即直线方向
+            double sxx = 0;
+            double syy = 0;
+            double sxy = 0;
+            foreach (var stylusPoint in points)
+            {
+                var offset = stylusPoint.ToPoint() - center;
+                sxx += offset.X * offset.X;
+                syy += offset.Y * offset.Y;
+                sxy += offset.X * offset.Y;
+            }
+
+            var angle = 0.5 * Math.Atan2(2 * sxy, sxx - syy);
+            var direction = new Vector(Math.Cos(angle), Math.Sin(angle));
+            if (direction.Length < 0.5) return false;
+
+            var minProjection = double.MaxValue;
+            var maxProjection = double.MinValue;
+            double maxDeviation = 0;
+            foreach (var stylusPoint in points)
+            {
+                var offset = stylusPoint.ToPoint() - center;
+                var projection = Vector.Multiply(offset, direction);
+                if (projection < minProjection) minProjection = projection;
+                if (projection > maxProjection) maxProjection = projection;
+
+                // 点到拟合直线的垂距
+                var perpendicular = Math.Abs(direction.X * offset.Y - direction.Y * offset.X);
+                if (perpendicular > maxDeviation) maxDeviation = perpendicular;
+            }
+
+            var length = maxProjection - minProjection;
+            if (length < 24) return false;
+            if (maxDeviation > Math.Max(3, length * 0.02)) return false;
+
+            start = center + direction * minProjection;
+            end = center + direction * maxProjection;
+            return true;
+        }
+
+        /// <summary>
+        /// 从顶点沿给定射线方向能到达的最远距离（取该边两端点在射线方向上的投影，负值忽略）。
+        /// 用于给角平分线定长度：跟着边的可见长度走，不会贴着顶点就断。
+        /// </summary>
+        private static double GetRayReachLength(Point lineStart, Point lineEnd, Point vertex, Vector rayDirection)
+        {
+            var reach = Math.Max(Vector.Multiply(lineStart - vertex, rayDirection),
+                Vector.Multiply(lineEnd - vertex, rayDirection));
+            return Math.Max(reach, 0);
+        }
+
+        /// <summary>点到线段的最短距离。</summary>
+        private static double DistanceToLineSegment(Point point, Point start, Point end)
+        {
+            var segment = end - start;
+            var lengthSquared = segment.LengthSquared;
+            if (lengthSquared < 1e-6) return (point - start).Length;
+
+            var t = Vector.Multiply(point - start, segment) / lengthSquared;
+            t = Math.Max(0, Math.Min(1, t));
+            var projection = start + segment * t;
+            return (point - projection).Length;
+        }
+
+        /// <summary>中垂线吸附容差：拖动两端都要贴着同一条直线才吸附（像素）。</summary>
+        private const double PerpendicularBisectorSnapTolerance = 10;
+
+        /// <summary>
+        /// 中垂线精度吸附：拖动起点贴在某条已有直线上、且终点也贴着同一条直线时，
+        /// 把两个拖动点投影到该直线的拟合方向上，返回「两点之间」的那一段。
+        /// 这样中点与方向都跟着直线的拟合结果走（不受手拖偏差影响），
+        /// 但被平分的仍是用户拖出的这一段，而不是整条直线。
+        /// </summary>
+        private bool TryGetDragAlongExistingLine(Point dragStart, Point dragEnd,
+            out Point segmentStart, out Point segmentEnd)
+        {
+            segmentStart = default;
+            segmentEnd = default;
+            if (inkCanvas == null) return false;
+
+            if (!TryPickLineAt(dragStart, out var lineStart, out var lineEnd)) return false;
+            if (DistanceToInfiniteLine(dragEnd, lineStart, lineEnd) > PerpendicularBisectorSnapTolerance) return false;
+
+            segmentStart = ProjectPointOntoLine(dragStart, lineStart, lineEnd);
+            segmentEnd = ProjectPointOntoLine(dragEnd, lineStart, lineEnd);
+            return (segmentEnd - segmentStart).Length >= 8;
+        }
+
+        /// <summary>点到无限长直线（点 + 方向）的垂距。</summary>
+        private static double DistanceToInfiniteLine(Point point, Point lineStart, Point lineEnd)
+        {
+            var direction = lineEnd - lineStart;
+            var length = direction.Length;
+            if (length < 1e-6) return (point - lineStart).Length;
+
+            direction /= length;
+            var offset = point - lineStart;
+            return Math.Abs(direction.X * offset.Y - direction.Y * offset.X);
+        }
+
+        /// <summary>把点投影到无限长直线（点 + 方向）上，不做端点截断。</summary>
+        private static Point ProjectPointOntoLine(Point point, Point lineStart, Point lineEnd)
+        {
+            var direction = lineEnd - lineStart;
+            var lengthSquared = direction.LengthSquared;
+            if (lengthSquared < 1e-6) return lineStart;
+
+            var t = Vector.Multiply(point - lineStart, direction) / lengthSquared;
+            return lineStart + direction * t;
+        }
+
+        #endregion
+
         /// <summary>
         /// 逐条容错移除一组笔画。整集合 Remove 只要有一条已不在画布上就会整体失败，
         /// 导致上一帧预览残留，因此这里逐条判断后删除。
@@ -3565,6 +3817,207 @@ namespace Ink_Canvas
                     Debug.WriteLine(ex);
                 }
             }
+        }
+
+        /// <summary>
+        /// 三角形内心与内切圆半径：圆心按顶点对边长度加权，半径 = 2·面积/周长。
+        /// </summary>
+        /// <param name="vertices">三角形的三个顶点（顺序不限）</param>
+        /// <param name="center">内心（内切圆圆心）</param>
+        /// <param name="radius">内切圆半径</param>
+        /// <returns>退化三角形或半径过小时返回 false</returns>
+        private static bool TryGetTriangleIncircle(IList<Point> vertices, out Point center, out double radius)
+        {
+            center = default;
+            radius = 0;
+            if (vertices == null || vertices.Count < 3) return false;
+
+            var a = vertices[0];
+            var b = vertices[1];
+            var c = vertices[2];
+
+            var sideOfA = (c - b).Length; // 顶点 A 的对边 BC
+            var sideOfB = (a - c).Length; // 顶点 B 的对边 CA
+            var sideOfC = (b - a).Length; // 顶点 C 的对边 AB
+            var perimeter = sideOfA + sideOfB + sideOfC;
+            if (!(perimeter > 1e-6)) return false;
+
+            var area = Math.Abs((b.X - a.X) * (c.Y - a.Y) - (c.X - a.X) * (b.Y - a.Y)) * 0.5;
+            if (!(area > 1e-6)) return false;
+
+            var inradius = 2 * area / perimeter;
+            if (!double.IsFinite(inradius) || inradius < 0.5) return false;
+
+            var centerX = (sideOfA * a.X + sideOfB * b.X + sideOfC * c.X) / perimeter;
+            var centerY = (sideOfA * a.Y + sideOfB * b.Y + sideOfC * c.Y) / perimeter;
+            if (!double.IsFinite(centerX) || !double.IsFinite(centerY)) return false;
+
+            center = new Point(centerX, centerY);
+            radius = inradius;
+            return true;
+        }
+
+        /// <summary>
+        /// 把多边形的每条边在「内切圆的切点」处切成两段，返回所有边的分段笔画。
+        /// 切点 = 圆心到该边的垂足；只有垂足落在线段内部、且垂足到圆心的距离与半径相符的边才切，
+        /// 不规则多边形中与内切圆不相切的边保持整条（三角形、正多边形每条边都会被切）。
+        /// </summary>
+        private StrokeCollection BuildEdgesSplitAtTangency(IList<Point> vertices, Point center, double radius,
+            DrawingAttributes attributes)
+        {
+            if (vertices == null || vertices.Count < 3 || !(radius > 0.5) || inkCanvas == null) return null;
+
+            var result = new StrokeCollection();
+
+            Stroke CreateEdgeStroke(Point edgeStart, Point edgeEnd)
+            {
+                return new Stroke(new StylusPointCollection(new List<Point> { edgeStart, edgeEnd }))
+                {
+                    DrawingAttributes = (attributes ?? inkCanvas.DefaultDrawingAttributes).Clone()
+                };
+            }
+
+            for (var i = 0; i < vertices.Count; i++)
+            {
+                var edgeStart = vertices[i];
+                var edgeEnd = vertices[(i + 1) % vertices.Count];
+
+                // 垂足在线段内部、且到圆心的距离等于半径 → 该点就是切点，从切点处断开
+                if (TryGetEdgeTangencyPoint(edgeStart, edgeEnd, center, radius, out var tangencyPoint))
+                {
+                    result.Add(CreateEdgeStroke(edgeStart, tangencyPoint));
+                    result.Add(CreateEdgeStroke(tangencyPoint, edgeEnd));
+                    continue;
+                }
+
+                result.Add(CreateEdgeStroke(edgeStart, edgeEnd));
+            }
+
+            return result.Count > 0 ? result : null;
+        }
+
+        /// <summary>
+        /// 求一条边的切点（圆心到边的垂足）：垂足必须落在线段内部，且到圆心距离等于半径。
+        /// </summary>
+        private static bool TryGetEdgeTangencyPoint(Point edgeStart, Point edgeEnd, Point center, double radius,
+            out Point tangencyPoint)
+        {
+            tangencyPoint = default;
+            var edge = edgeEnd - edgeStart;
+            var edgeLength = edge.Length;
+            if (edgeLength < 0.01) return false;
+
+            var direction = edge / edgeLength;
+            var projection = Vector.Multiply(center - edgeStart, direction);
+            if (projection <= 0.01 || projection >= edgeLength - 0.01) return false;
+
+            var foot = edgeStart + direction * projection;
+            var tolerance = Math.Max(1.0, radius * 0.02);
+            if (Math.Abs((center - foot).Length - radius) > tolerance) return false;
+
+            tangencyPoint = foot;
+            return true;
+        }
+
+        /// <summary>收集多边形各边与内切圆的切点（与分段用的切点完全一致）。</summary>
+        private static List<Point> GetPolygonTangencyPoints(IList<Point> vertices, Point center, double radius)
+        {
+            var tangencyPoints = new List<Point>();
+            if (vertices == null || vertices.Count < 3) return tangencyPoints;
+
+            for (var i = 0; i < vertices.Count; i++)
+            {
+                var edgeStart = vertices[i];
+                var edgeEnd = vertices[(i + 1) % vertices.Count];
+                if (TryGetEdgeTangencyPoint(edgeStart, edgeEnd, center, radius, out var tangencyPoint))
+                    tangencyPoints.Add(tangencyPoint);
+            }
+
+            return tangencyPoints;
+        }
+
+        /// <summary>
+        /// 把内切圆按切点切成若干段圆弧：每个切点都落在弧的端点上，
+        /// 与「切点把边分成两段」对应起来；切点不足两个时退回整圆。
+        /// </summary>
+        private StrokeCollection BuildCircleArcsSplitAtTangency(Point center, double radius,
+            IList<Point> tangencyPoints, DrawingAttributes attributes)
+        {
+            if (inkCanvas == null || !(radius > 0.5)) return null;
+
+            var arcAttributes = (attributes ?? inkCanvas.DefaultDrawingAttributes).Clone();
+
+            var angles = new List<double>();
+            if (tangencyPoints != null)
+            {
+                foreach (var tangencyPoint in tangencyPoints)
+                {
+                    var angle = Math.Atan2(tangencyPoint.Y - center.Y, tangencyPoint.X - center.X);
+                    if (angle < 0) angle += Math.PI * 2;
+                    angles.Add(angle);
+                }
+            }
+
+            if (angles.Count >= 2)
+            {
+                angles.Sort();
+
+                // 去掉几乎重合的角度（退化顶点可能产生同一个切点）
+                var distinctAngles = new List<double>();
+                foreach (var angle in angles)
+                {
+                    if (distinctAngles.Count > 0 &&
+                        Math.Abs(angle - distinctAngles[distinctAngles.Count - 1]) < 1e-3) continue;
+                    distinctAngles.Add(angle);
+                }
+
+                // 0 与 2π 是同一个点
+                if (distinctAngles.Count >= 2 &&
+                    Math.Abs(distinctAngles[0] + Math.PI * 2 - distinctAngles[distinctAngles.Count - 1]) < 1e-3)
+                    distinctAngles.RemoveAt(distinctAngles.Count - 1);
+
+                if (distinctAngles.Count >= 2)
+                {
+                    var arcs = new StrokeCollection();
+                    for (var i = 0; i < distinctAngles.Count; i++)
+                    {
+                        var startAngle = distinctAngles[i];
+                        var endAngle = i + 1 < distinctAngles.Count
+                            ? distinctAngles[i + 1]
+                            : distinctAngles[0] + Math.PI * 2;
+
+                        var arc = CreateArcStroke(center, radius, startAngle, endAngle, arcAttributes);
+                        if (arc != null) arcs.Add(arc);
+                    }
+
+                    if (arcs.Count > 0) return arcs;
+                }
+            }
+
+            // 切点不足：整圆无法分成多段，仍按整圆返回
+            var circle = CreateCircleStroke(center, radius, attributes);
+            return circle == null ? null : new StrokeCollection { circle };
+        }
+
+        /// <summary>按起止角度采样生成一段圆弧笔画。</summary>
+        private static Stroke CreateArcStroke(Point center, double radius, double startAngle, double endAngle,
+            DrawingAttributes attributes)
+        {
+            var sweep = endAngle - startAngle;
+            if (sweep <= 1e-6) return null;
+
+            var stepCount = Math.Max(6, (int)Math.Ceiling(sweep * radius / 3.0));
+            var points = new List<Point>(stepCount + 1);
+            for (var i = 0; i <= stepCount; i++)
+            {
+                var angle = startAngle + sweep * i / stepCount;
+                points.Add(new Point(center.X + radius * Math.Cos(angle), center.Y + radius * Math.Sin(angle)));
+            }
+
+            return new Stroke(new StylusPointCollection(points))
+            {
+                DrawingAttributes = attributes.Clone()
+            };
         }
 
         /// <summary>
@@ -4012,7 +4465,80 @@ namespace Ink_Canvas
         }
 
         /// <summary>
-        /// 取消未完成的角平分线绘制：清理第一条边、预览与步骤状态。
+        /// 角平分线的点选入口：第一步点选角的一条边，第二步点选另一条边。
+        /// 两条边都用荧光笔高亮，点选位置决定每条边取哪个方向的射线（同一个交点可以夹出四个角）。
+        /// </summary>
+        private bool BeginAngleBisectorSidePick(Point position)
+        {
+            if (inkCanvas == null) return false;
+
+            var firstStep = drawMultiStepShapeCurrentStep == 0;
+            if (!TryPickLineAt(position, out var lineStart, out var lineEnd))
+            {
+                ShowCanvasToast(firstStep ? "第一步：请点击角的一条边" : "第二步：请点击角的另一条边");
+                return false;
+            }
+
+            var guide = GenerateAngleBisectorGuideStroke(lineStart, lineEnd);
+            if (guide == null) return false;
+
+            var previousCommitType = _currentCommitType;
+            _currentCommitType = CommitReason.CodeInput; // 边的高亮不入撤销栈
+            try
+            {
+                if (firstStep)
+                {
+                    RemoveAngleBisectorStroke(_angleBisectorSide1Stroke);
+                    RemoveAngleBisectorStroke(_angleBisectorSide2Stroke);
+                    _angleBisectorSide2Stroke = null;
+                    _angleBisectorSide1Stroke = guide;
+                    _angleBisectorSide1LineStart = lineStart;
+                    _angleBisectorSide1LineEnd = lineEnd;
+                    _angleBisectorSide1PickPoint = position;
+                    _angleBisectorVertex = default;
+                    _angleBisectorSide1End = default;
+                }
+                else
+                {
+                    RemoveAngleBisectorStroke(_angleBisectorSide2Stroke);
+                    _angleBisectorSide2Stroke = guide;
+                    _angleBisectorSide2LineStart = lineStart;
+                    _angleBisectorSide2LineEnd = lineEnd;
+                    _angleBisectorSide2PickPoint = position;
+                }
+
+                inkCanvas.Strokes.Add(guide);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine(ex);
+                return false;
+            }
+            finally
+            {
+                _currentCommitType = previousCommitType;
+            }
+
+            ShowCanvasToast(firstStep ? "已选第一条边，请点击角的另一条边" : "已选两条边，松手即可画出平分线");
+            return true;
+        }
+
+        /// <summary>求两条直线（点 + 方向）的交点；平行或重合时返回 false。</summary>
+        private static bool TryGetLineIntersection(Point point1, Vector direction1,
+            Point point2, Vector direction2, out Point intersection)
+        {
+            intersection = default;
+            var denominator = direction1.X * direction2.Y - direction1.Y * direction2.X;
+            if (Math.Abs(denominator) < 1e-6) return false;
+
+            var offset = point2 - point1;
+            var t = (offset.X * direction2.Y - offset.Y * direction2.X) / denominator;
+            intersection = point1 + direction1 * t;
+            return double.IsFinite(intersection.X) && double.IsFinite(intersection.Y);
+        }
+
+        /// <summary>
+        /// 取消未完成的角平分线绘制：清理两条边的高亮、预览与步骤状态。
         /// </summary>
         private void CancelAngleBisectorDrawing()
         {
@@ -4025,6 +4551,12 @@ namespace Ink_Canvas
             _angleBisectorUpPoint = null;
             _angleBisectorVertex = default;
             _angleBisectorSide1End = default;
+            _angleBisectorSide1LineStart = default;
+            _angleBisectorSide1LineEnd = default;
+            _angleBisectorSide1PickPoint = default;
+            _angleBisectorSide2LineStart = default;
+            _angleBisectorSide2LineEnd = default;
+            _angleBisectorSide2PickPoint = default;
             drawMultiStepShapeCurrentStep = 0;
         }
 
@@ -4235,27 +4767,278 @@ namespace Ink_Canvas
 
             RemovePolygonPreviewStroke();
 
-            var points = new List<Point>(_polygonVertices) { _polygonVertices[0] };
+            var vertices = new List<Point>(_polygonVertices);
             _polygonVertices.Clear();
 
-            var stroke = new Stroke(new StylusPointCollection(points))
-            {
-                DrawingAttributes = inkCanvas.DefaultDrawingAttributes.Clone()
-            };
-            inkCanvas.Strokes.Add(stroke);
+            var polygonAttributes = inkCanvas.DefaultDrawingAttributes.Clone();
+            var polygonStroke = CreateClosedPolygonStroke(vertices, polygonAttributes);
+            if (polygonStroke == null) return;
 
+            inkCanvas.Strokes.Add(polygonStroke);
+
+            // 延迟到本次抬起事件处理完再弹窗：白板/触控下在抬起回调里直接开模态窗口，
+            // 触摸状态与窗口激活会互相干扰（表现为第一次点击关不掉、选项点不中）
+            Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
+            {
+                try
+                {
+                    ApplyPolygonFinishOptions(polygonStroke, vertices, polygonAttributes);
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine(ex);
+                }
+            }));
+
+            // 多边形是连续绘制工具：完成一个后保持工具选中（图形按钮继续高亮），
+            // 便于紧接着绘制下一个，直到用户主动切换到其他工具。
+        }
+
+        /// <summary>
+        /// 多边形完成后的收尾：弹窗询问「纠正为正多边形」「显示内切圆」，
+        /// 按选择替换/追加笔画，并把最终结果作为一次撤销提交。
+        /// </summary>
+        private void ApplyPolygonFinishOptions(Stroke polygonStroke, List<Point> vertices, DrawingAttributes attributes)
+        {
+            if (inkCanvas == null || polygonStroke == null) return;
+            if (!inkCanvas.Strokes.Contains(polygonStroke)) return; // 期间被撤销/清屏
+
+            bool confirmed;
+            try
+            {
+                Activate();
+                var dialog = new PolygonFinishWindow(vertices.Count, vertices.Count == 3) { Owner = this };
+                confirmed = dialog.ShowDialog() == true;
+                if (!confirmed)
+                {
+                    CommitPolygonHistory(polygonStroke, null);
+                    return;
+                }
+
+                var resultPolygon = polygonStroke;
+                var attachments = new StrokeCollection();
+
+                var previousCommitType = _currentCommitType;
+                _currentCommitType = CommitReason.CodeInput; // 抑制 StrokesChanged 的自动历史，统一在下面提交
+                try
+                {
+                    var finalVertices = vertices;
+                    var hasIncircle = false;
+                    var incircleCenter = default(Point);
+                    var incircleRadius = 0.0;
+
+                    if (dialog.RegularizeRequested &&
+                        TryBuildRegularPolygonVertices(vertices, out var regularVertices, out var regularCenter, out var apothem))
+                    {
+                        var regularStroke = CreateClosedPolygonStroke(regularVertices, attributes);
+                        if (regularStroke != null)
+                        {
+                            if (inkCanvas.Strokes.Contains(polygonStroke)) inkCanvas.Strokes.Remove(polygonStroke);
+                            inkCanvas.Strokes.Add(regularStroke);
+                            resultPolygon = regularStroke;
+                            finalVertices = regularVertices;
+
+                            if (dialog.ShowIncircleRequested)
+                            {
+                                incircleCenter = regularCenter;
+                                incircleRadius = apothem;
+                                hasIncircle = true;
+                            }
+                        }
+                    }
+                    else if (dialog.ShowIncircleRequested)
+                    {
+                        hasIncircle = vertices.Count == 3
+                            ? TryGetTriangleIncircle(vertices, out incircleCenter, out incircleRadius)
+                            : TryGetPolygonIncircle(vertices, out incircleCenter, out incircleRadius);
+                    }
+
+                    if (hasIncircle)
+                    {
+                        // 内切圆的切点把每条边切成两段：先用分段边替换整条闭合边，再放内切圆
+                        var splitEdges = BuildEdgesSplitAtTangency(finalVertices, incircleCenter, incircleRadius, attributes);
+                        if (splitEdges != null && splitEdges.Count > 0)
+                        {
+                            if (resultPolygon != null && inkCanvas.Strokes.Contains(resultPolygon))
+                                inkCanvas.Strokes.Remove(resultPolygon);
+
+                            inkCanvas.Strokes.Add(splitEdges);
+                            resultPolygon = splitEdges[0];
+                            for (var i = 1; i < splitEdges.Count; i++) attachments.Add(splitEdges[i]);
+                        }
+
+                        // 内切圆同样按切点切成若干段圆弧，切点与边的分段点完全一致
+                        var incircleTangencyPoints = GetPolygonTangencyPoints(finalVertices, incircleCenter, incircleRadius);
+                        var incircleArcs = BuildCircleArcsSplitAtTangency(incircleCenter, incircleRadius,
+                            incircleTangencyPoints, attributes);
+                        if (incircleArcs != null)
+                        {
+                            inkCanvas.Strokes.Add(incircleArcs);
+                            foreach (Stroke arcStroke in incircleArcs) attachments.Add(arcStroke);
+                        }
+                    }
+                }
+                finally
+                {
+                    _currentCommitType = previousCommitType;
+                }
+
+                CommitPolygonHistory(resultPolygon, attachments);
+            }
+            catch (Exception ex)
+            {
+                LogHelper.WriteLogToFile($"多边形完成弹窗失败: {ex.Message}", LogHelper.LogType.Warning);
+                CommitPolygonHistory(polygonStroke, null);
+            }
+        }
+
+        /// <summary>把多边形与其附加笔画（内切圆）作为一次用户输入写入撤销历史。</summary>
+        private void CommitPolygonHistory(Stroke polygon, StrokeCollection attachments)
+        {
+            if (polygon == null) return;
+
+            var committed = new StrokeCollection { polygon };
+            if (attachments != null)
+            {
+                foreach (Stroke stroke in attachments) committed.Add(stroke);
+            }
+
+            var previousCommitType = _currentCommitType;
             _currentCommitType = CommitReason.UserInput;
             try
             {
-                timeMachine.CommitStrokeUserInputHistory(new StrokeCollection { stroke });
+                timeMachine.CommitStrokeUserInputHistory(committed);
+                MarkCurrentPageInkChanged();
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine(ex);
             }
+            finally
+            {
+                _currentCommitType = previousCommitType;
+            }
+        }
 
-            // 多边形是连续绘制工具：完成一个后保持工具选中（图形按钮继续高亮），
-            // 便于紧接着绘制下一个，直到用户主动切换到其他工具。
+        /// <summary>用顶点列表生成首尾相连的闭合笔画。</summary>
+        private Stroke CreateClosedPolygonStroke(IList<Point> vertices, DrawingAttributes attributes)
+        {
+            if (vertices == null || vertices.Count < 2 || inkCanvas == null) return null;
+
+            var points = new List<Point>(vertices) { vertices[0] };
+            return new Stroke(new StylusPointCollection(points))
+            {
+                DrawingAttributes = (attributes ?? inkCanvas.DefaultDrawingAttributes).Clone()
+            };
+        }
+
+        /// <summary>以 center 为圆心、radius 为半径生成圆笔画。</summary>
+        private Stroke CreateCircleStroke(Point center, double radius, DrawingAttributes attributes)
+        {
+            if (inkCanvas == null) return null;
+            if (!double.IsFinite(center.X) || !double.IsFinite(center.Y)) return null;
+            if (!double.IsFinite(radius) || radius < 0.5) return null;
+
+            var points = GenerateEllipseGeometry(
+                new Point(center.X - radius, center.Y - radius),
+                new Point(center.X + radius, center.Y + radius));
+            if (points == null || points.Count < 3) return null;
+
+            return new Stroke(new StylusPointCollection(points))
+            {
+                DrawingAttributes = (attributes ?? inkCanvas.DefaultDrawingAttributes).Clone()
+            };
+        }
+
+        /// <summary>
+        /// 把一组顶点规整为正多边形：保留中心、平均外接半径与首顶点方向，
+        /// 其余顶点按 360°/N 均匀分布；apothem 返回内切圆半径。
+        /// </summary>
+        private static bool TryBuildRegularPolygonVertices(IList<Point> vertices, out List<Point> result,
+            out Point center, out double apothem)
+        {
+            result = null;
+            center = default;
+            apothem = 0;
+            if (vertices == null || vertices.Count < 3) return false;
+
+            var count = vertices.Count;
+            double sumX = 0, sumY = 0;
+            for (var i = 0; i < count; i++)
+            {
+                sumX += vertices[i].X;
+                sumY += vertices[i].Y;
+            }
+
+            var cx = sumX / count;
+            var cy = sumY / count;
+            center = new Point(cx, cy);
+
+            double sumRadius = 0;
+            for (var i = 0; i < count; i++)
+            {
+                sumRadius += (vertices[i] - center).Length;
+            }
+
+            var circumRadius = sumRadius / count;
+            if (!double.IsFinite(circumRadius) || circumRadius < 1) return false;
+
+            var startAngle = Math.Atan2(vertices[0].Y - cy, vertices[0].X - cx);
+            var step = 2 * Math.PI / count;
+
+            result = new List<Point>(count);
+            for (var i = 0; i < count; i++)
+            {
+                var angle = startAngle + step * i;
+                result.Add(new Point(cx + circumRadius * Math.Cos(angle), cy + circumRadius * Math.Sin(angle)));
+            }
+
+            apothem = circumRadius * Math.Cos(Math.PI / count);
+            return true;
+        }
+
+        /// <summary>
+        /// 任意多边形的内切圆：圆心取顶点质心，半径取质心到各边距离的最小值。
+        /// 正多边形时该圆与每条边都相切（即内切圆）；不规则多边形时是一个内接于边的最大同心圆。
+        /// </summary>
+        private static bool TryGetPolygonIncircle(IList<Point> vertices, out Point center, out double radius)
+        {
+            center = default;
+            radius = 0;
+            if (vertices == null || vertices.Count < 3) return false;
+
+            double sumX = 0, sumY = 0;
+            for (var i = 0; i < vertices.Count; i++)
+            {
+                sumX += vertices[i].X;
+                sumY += vertices[i].Y;
+            }
+
+            center = new Point(sumX / vertices.Count, sumY / vertices.Count);
+
+            var minDistance = double.MaxValue;
+            for (var i = 0; i < vertices.Count; i++)
+            {
+                var a = vertices[i];
+                var b = vertices[(i + 1) % vertices.Count];
+                var distance = DistancePointToSegment(center, a, b);
+                if (distance < minDistance) minDistance = distance;
+            }
+
+            if (!double.IsFinite(minDistance) || minDistance < 0.5) return false;
+            radius = minDistance;
+            return true;
+        }
+
+        private static double DistancePointToSegment(Point point, Point a, Point b)
+        {
+            var ab = b - a;
+            var lengthSquared = ab.LengthSquared;
+            if (lengthSquared <= 1e-12) return (point - a).Length;
+
+            var t = Math.Max(0, Math.Min(1, ((point - a) * ab) / lengthSquared));
+            var projection = a + ab * t;
+            return (point - projection).Length;
         }
 
         /// <summary>
@@ -4283,6 +5066,494 @@ namespace Ink_Canvas
 
         #endregion
 
+        #region 过圆外一点作圆的切线（模式 13）
+
+        /// <summary>圆的切线工具占用的绘制模式号（原「等边三角形」工具）。</summary>
+        private const int TangentShapeMode = 13;
+
+        /// <summary>按住选圆时，按下位置与圆周的最大允许偏差（像素）。</summary>
+        private const double TangentCircleHitTolerance = 14;
+
+        /// <summary>本次拖动选中的圆（圆心）。</summary>
+        private Point _tangentCircleCenter;
+
+        /// <summary>本次拖动选中的圆（半径）。</summary>
+        private double _tangentCircleRadius;
+
+        /// <summary>选中圆的高亮圆环（荧光笔绘制，仅在拖动过程中显示，完成/取消时移除）。</summary>
+        private Stroke _tangentCircleGuide;
+
+        /// <summary>拖动阶段的切线预览（按 ShapeDrawing 添加，不入撤销栈）。</summary>
+        private StrokeCollection _tangentLastPreview;
+
+        /// <summary>是否正处于「按住圆拖到圆外」的拖动状态。</summary>
+        private bool _tangentCircleDragging;
+
+        /// <summary>触摸/手写笔抬笔位置（触摸路径合成的鼠标事件拿不到真实触控坐标）。</summary>
+        private Point? _tangentTapPoint;
+
+        /// <summary>发起拖动的那根手指的触摸 Id（-1 表示非触摸输入），用于忽略手掌/第二指的抬起。</summary>
+        private int _tangentPrimaryTouchId = -1;
+
+        /// <summary>
+        /// 圆的切线工具的一次拖动开始：按住圆（圆周或已登记圆的内部）即选中该圆并高亮，
+        /// 随后拖到圆外一点松手，按「圆外点 → 两切点并延伸过切点」画出两条切线。
+        /// </summary>
+        private bool BeginTangentDragAt(Point pressPoint)
+        {
+            _tangentCircleDragging = false;
+            _tangentTapPoint = null;
+            _tangentPrimaryTouchId = -1;
+            RemoveTangentPreview();
+            RemoveTangentCircleGuide();
+
+            if (inkCanvas == null) return false;
+
+            if (!TryPickCircleAt(pressPoint, out var center, out var radius))
+            {
+                _tangentCircleCenter = default;
+                _tangentCircleRadius = 0;
+                ShowCanvasToast("请按住一个圆拖到圆外");
+                return false;
+            }
+
+            _tangentCircleCenter = center;
+            _tangentCircleRadius = radius;
+            _tangentCircleDragging = true;
+            ShowTangentCircleGuide(center, radius);
+            ShowCanvasToast("按住圆拖到圆外一点后松手");
+            return true;
+        }
+
+        /// <summary>
+        /// 拖动结束：移除预览与高亮，按松手点生成最终的两条切线并作为一次用户输入提交。
+        /// </summary>
+        private void CommitTangentDrag(Point releasePoint)
+        {
+            var center = _tangentCircleCenter;
+            var radius = _tangentCircleRadius;
+            var dragging = _tangentCircleDragging;
+
+            RemoveTangentPreview();
+            RemoveTangentCircleGuide();
+            _tangentCircleDragging = false;
+            _tangentCircleCenter = default;
+            _tangentCircleRadius = 0;
+
+            if (!dragging || inkCanvas == null || radius <= 0.5) return;
+
+            // 松手点必须在圆外，圆上以及圆内都不存在切线
+            if (GetDistance(releasePoint, center) <= radius + 1)
+            {
+                ShowCanvasToast("请拖到圆外一点再松手");
+                return;
+            }
+
+            var tangents = BuildTangentStrokes(releasePoint, center, radius);
+            if (tangents == null || tangents.Count == 0) return;
+
+            // 两条切线作为一次用户输入写入撤销历史（StrokesChanged 按 UserInput 自动提交）
+            _currentCommitType = CommitReason.UserInput;
+            inkCanvas.Strokes.Add(tangents);
+        }
+
+        /// <summary>拖动阶段的预览：把当前拖动位置当作圆外点，实时显示两条切线。</summary>
+        private void UpdateTangentPreview(Point externalPoint)
+        {
+            RemoveTangentPreview();
+            if (!_tangentCircleDragging || inkCanvas == null) return;
+
+            var radius = _tangentCircleRadius;
+            if (radius <= 0.5) return;
+            if (GetDistance(externalPoint, _tangentCircleCenter) <= radius + 1) return;
+
+            var preview = BuildTangentStrokes(externalPoint, _tangentCircleCenter, radius);
+            if (preview == null || preview.Count == 0) return;
+
+            _tangentLastPreview = preview;
+            _currentCommitType = CommitReason.ShapeDrawing; // 预览不入撤销栈
+            inkCanvas.Strokes.Add(preview);
+        }
+
+        /// <summary>移除拖动阶段的切线预览（预览按 ShapeDrawing 添加，删除时同样不产生历史）。</summary>
+        private void RemoveTangentPreview()
+        {
+            var preview = _tangentLastPreview;
+            _tangentLastPreview = null;
+            if (preview == null || inkCanvas == null) return;
+
+            var previousCommitType = _currentCommitType;
+            _currentCommitType = CommitReason.ShapeDrawing;
+            try
+            {
+                RemoveStrokesSafe(preview);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine(ex);
+            }
+            finally
+            {
+                _currentCommitType = previousCommitType;
+            }
+        }
+
+        /// <summary>
+        /// 过圆外一点作圆的两条切线：切线长 L = √(d² - r²)，
+        /// 两个切点关于「圆心→圆外点」连线对称；线段从圆外点画到切点后再沿切线方向延伸一段，
+        /// 视觉上是一条切过圆的切线而不是一条弦。
+        /// </summary>
+        private StrokeCollection BuildTangentStrokes(Point externalPoint, Point center, double radius)
+        {
+            if (inkCanvas == null || radius <= 0.5) return null;
+
+            var toExternal = externalPoint - center;
+            var distance = toExternal.Length;
+            if (!double.IsFinite(distance) || distance <= radius + 1) return null;
+
+            toExternal.Normalize();
+
+            // 切点半径与圆心连线的夹角 θ 满足 cosθ = r / d
+            var cos = radius / distance;
+            var sin = Math.Sqrt(Math.Max(0, 1 - cos * cos));
+            var normal = new Vector(-toExternal.Y, toExternal.X);
+
+            var tangentPoint1 = center + (toExternal * cos + normal * sin) * radius;
+            var tangentPoint2 = center + (toExternal * cos - normal * sin) * radius;
+
+            // 延伸过切点：沿「圆外点 → 切点」方向再多画一截（约半个半径，至少 60px）
+            var overshoot = Math.Max(60, radius * 0.6);
+
+            var attributes = inkCanvas.DefaultDrawingAttributes.Clone();
+            var result = new StrokeCollection();
+
+            Stroke CreateSegment(Point segmentStart, Point segmentEnd)
+            {
+                var segment = GenerateLineStroke(segmentStart, segmentEnd);
+                segment.DrawingAttributes = attributes.Clone();
+                return segment;
+            }
+
+            foreach (var tangentPoint in new[] { tangentPoint1, tangentPoint2 })
+            {
+                var direction = tangentPoint - externalPoint;
+                if (direction.Length < 0.01) continue;
+                direction.Normalize();
+
+                // 切点把切线分成两段：圆外点 → 切点、切点 → 延伸端，
+                // 两段在切点处严格共点，便于后续选中/擦除/分段操作
+                result.Add(CreateSegment(externalPoint, tangentPoint));
+                result.Add(CreateSegment(tangentPoint, tangentPoint + direction * overshoot));
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// 在按下位置附近找一个圆：优先命中圆周，其次接受落在已登记圆内部的按下。
+        /// </summary>
+        private bool TryPickCircleAt(Point position, out Point center, out double radius)
+        {
+            center = default;
+            radius = 0;
+            if (inkCanvas == null) return false;
+
+            var bestCenter = default(Point);
+            var bestRadius = 0.0;
+            var bestDelta = double.MaxValue;
+            var found = false;
+
+            // 1) 圆周附近命中的笔画：直接用最小二乘拟合圆心与半径。
+            //    不能只信 circles 里的元数据——圆被移动/缩放后元数据不会同步更新
+            StrokeCollection hits = null;
+            try
+            {
+                hits = inkCanvas.Strokes.HitTest(position, TangentCircleHitTolerance);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine(ex);
+            }
+
+            if (hits != null)
+            {
+                foreach (Stroke hit in hits)
+                {
+                    if (IsShapeToolGuideStroke(hit)) continue;
+                    if (!TryFitCircleFromStroke(hit, out var fitCenter, out var fitRadius)) continue;
+
+                    var delta = Math.Abs(GetDistance(position, fitCenter) - fitRadius);
+                    if (delta > TangentCircleHitTolerance || delta >= bestDelta) continue;
+
+                    bestDelta = delta;
+                    bestCenter = fitCenter;
+                    bestRadius = fitRadius;
+                    found = true;
+                }
+            }
+
+            // 2) 已登记的圆（圆形工具 / 墨迹转形状）：能用笔画就重新拟合，元数据仅作兜底
+            foreach (var circle in circles)
+            {
+                if (circle?.Stroke == null || circle.R <= 0.5) continue;
+                if (!inkCanvas.Strokes.Contains(circle.Stroke)) continue;
+
+                var candidateCenter = circle.Centroid;
+                var candidateRadius = circle.R;
+                if (TryFitCircleFromStroke(circle.Stroke, out var registeredCenter, out var registeredRadius))
+                {
+                    candidateCenter = registeredCenter;
+                    candidateRadius = registeredRadius;
+                }
+
+                var delta = Math.Abs(GetDistance(position, candidateCenter) - candidateRadius);
+                if (delta > TangentCircleHitTolerance || delta >= bestDelta) continue;
+
+                bestDelta = delta;
+                bestCenter = candidateCenter;
+                bestRadius = candidateRadius;
+                found = true;
+            }
+
+            if (found)
+            {
+                center = bestCenter;
+                radius = bestRadius;
+                return true;
+            }
+
+            // 3) 点在圆内：按「包含该点的最小圆」选中，符合「点选对象」的直觉
+            var smallestRadius = double.MaxValue;
+            foreach (var circle in circles)
+            {
+                if (circle?.Stroke == null || circle.R <= 0.5) continue;
+                if (!inkCanvas.Strokes.Contains(circle.Stroke)) continue;
+
+                var candidateCenter = circle.Centroid;
+                var candidateRadius = circle.R;
+                if (TryFitCircleFromStroke(circle.Stroke, out var insideCenter, out var insideRadius))
+                {
+                    candidateCenter = insideCenter;
+                    candidateRadius = insideRadius;
+                }
+
+                if (GetDistance(position, candidateCenter) > candidateRadius || candidateRadius >= smallestRadius)
+                    continue;
+
+                smallestRadius = candidateRadius;
+                bestCenter = candidateCenter;
+                bestRadius = candidateRadius;
+                found = true;
+            }
+
+            center = bestCenter;
+            radius = bestRadius;
+            return found;
+        }
+
+        /// <summary>
+        /// 从一条闭合笔画拟合圆：先用包围盒做快速筛选，再用最小二乘（Kåsa）拟合圆心与半径，
+        /// 最后按径向残差判断是否足够接近圆。切线的相切精度就取决于这里的圆心与半径。
+        /// </summary>
+        private bool TryFitCircleFromStroke(Stroke stroke, out Point center, out double radius)
+        {
+            center = default;
+            radius = 0;
+            if (stroke == null) return false;
+
+            var points = stroke.StylusPoints;
+            if (points == null || points.Count < 16) return false;
+
+            var minX = double.MaxValue;
+            var minY = double.MaxValue;
+            var maxX = double.MinValue;
+            var maxY = double.MinValue;
+            foreach (var stylusPoint in points)
+            {
+                var point = stylusPoint.ToPoint();
+                if (!double.IsFinite(point.X) || !double.IsFinite(point.Y)) return false;
+                if (point.X < minX) minX = point.X;
+                if (point.X > maxX) maxX = point.X;
+                if (point.Y < minY) minY = point.Y;
+                if (point.Y > maxY) maxY = point.Y;
+            }
+
+            var width = maxX - minX;
+            var height = maxY - minY;
+            if (width < 24 || height < 24) return false;
+            // 椭圆 / 多边形也贴合包围盒，先按长宽比粗筛
+            if (Math.Abs(width - height) > Math.Max(width, height) * 0.25) return false;
+
+            // 未闭合的圆弧不能当作圆
+            if (GetDistance(points[0].ToPoint(), points[points.Count - 1].ToPoint()) >
+                Math.Max(width, height) * 0.25) return false;
+
+            if (!TryFitCircleLeastSquares(points, out center, out radius, out var rmsDeviation)) return false;
+            if (radius < 8) return false;
+            // 残差过大说明不是圆（椭圆、多边形在最小二乘拟合下残差会明显变大）
+            if (rmsDeviation > Math.Max(2.5, radius * 0.05)) return false;
+
+            return true;
+        }
+
+        /// <summary>
+        /// 最小二乘圆拟合（Kåsa 代数法）：解 x²+y²+Dx+Ey+F=0，
+        /// 圆心为 (-D/2, -E/2)，半径为 √((D/2)²+(E/2)²-F)。先平移到质心再解，数值更稳。
+        /// </summary>
+        private static bool TryFitCircleLeastSquares(StylusPointCollection points,
+            out Point center, out double radius, out double rmsDeviation)
+        {
+            center = default;
+            radius = 0;
+            rmsDeviation = double.MaxValue;
+
+            var count = points?.Count ?? 0;
+            if (count < 16) return false;
+
+            double meanX = 0;
+            double meanY = 0;
+            foreach (var stylusPoint in points)
+            {
+                var point = stylusPoint.ToPoint();
+                if (!double.IsFinite(point.X) || !double.IsFinite(point.Y)) return false;
+                meanX += point.X;
+                meanY += point.Y;
+            }
+
+            meanX /= count;
+            meanY /= count;
+
+            double suu = 0;
+            double svv = 0;
+            double suv = 0;
+            double b1 = 0;
+            double b2 = 0;
+            double sumSquaredNorm = 0;
+            foreach (var stylusPoint in points)
+            {
+                var u = stylusPoint.X - meanX;
+                var v = stylusPoint.Y - meanY;
+                var u2 = u * u;
+                var v2 = v * v;
+                suu += u2;
+                svv += v2;
+                suv += u * v;
+                b1 += u * (u2 + v2);
+                b2 += v * (u2 + v2);
+                sumSquaredNorm += u2 + v2;
+            }
+
+            var determinant = suu * svv - suv * suv;
+            if (Math.Abs(determinant) < 1e-9) return false;
+
+            // 正规方程：D·suu + E·suv = -b1；D·suv + E·svv = -b2
+            var rhs1 = -b1;
+            var rhs2 = -b2;
+            var d = (rhs1 * svv - suv * rhs2) / determinant;
+            var e = (suu * rhs2 - suv * rhs1) / determinant;
+
+            var offsetX = -d / 2;
+            var offsetY = -e / 2;
+            var constant = -sumSquaredNorm / count; // F
+            var radiusSquared = offsetX * offsetX + offsetY * offsetY - constant;
+            if (!double.IsFinite(radiusSquared) || radiusSquared <= 0) return false;
+
+            center = new Point(meanX + offsetX, meanY + offsetY);
+            radius = Math.Sqrt(radiusSquared);
+
+            double sumSquaredError = 0;
+            foreach (var stylusPoint in points)
+            {
+                var error = (stylusPoint.ToPoint() - center).Length - radius;
+                sumSquaredError += error * error;
+            }
+
+            rmsDeviation = Math.Sqrt(sumSquaredError / count);
+            return true;
+        }
+
+        /// <summary>是否为本工具自绘的高亮/辅助笔画（不应参与形状识别）。</summary>
+        private bool IsShapeToolGuideStroke(Stroke stroke)
+        {
+            if (stroke == null) return false;
+            return ReferenceEquals(stroke, _parallelBaselineStroke)
+                   || ReferenceEquals(stroke, _perpendicularBaselineStroke)
+                   || ReferenceEquals(stroke, _angleBisectorSide1Stroke)
+                   || ReferenceEquals(stroke, _angleBisectorSide2Stroke)
+                   || ReferenceEquals(stroke, _tangentCircleGuide)
+                   || ReferenceEquals(stroke, _perpendicularBisectorGuide)
+                   || ReferenceEquals(stroke, _midpointGuide);
+        }
+
+        /// <summary>按住圆后，用荧光笔圆环把选中的圆标示出来。</summary>
+        private void ShowTangentCircleGuide(Point center, double radius)
+        {
+            RemoveTangentCircleGuide();
+            if (inkCanvas == null) return;
+
+            var guide = CreateCircleStroke(center, radius, CreatePerpendicularGuideDrawingAttributes());
+            if (guide == null) return;
+
+            var previousCommitType = _currentCommitType;
+            _currentCommitType = CommitReason.CodeInput; // 高亮不是用户内容，不写入撤销历史
+            try
+            {
+                inkCanvas.Strokes.Add(guide);
+                _tangentCircleGuide = guide;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine(ex);
+            }
+            finally
+            {
+                _currentCommitType = previousCommitType;
+            }
+        }
+
+        /// <summary>移除选中圆的高亮圆环。</summary>
+        private void RemoveTangentCircleGuide()
+        {
+            var guide = _tangentCircleGuide;
+            _tangentCircleGuide = null;
+            if (guide == null || inkCanvas == null) return;
+
+            var previousCommitType = _currentCommitType;
+            _currentCommitType = CommitReason.CodeInput;
+            try
+            {
+                if (inkCanvas.Strokes.Contains(guide)) inkCanvas.Strokes.Remove(guide);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine(ex);
+            }
+            finally
+            {
+                _currentCommitType = previousCommitType;
+            }
+        }
+
+        /// <summary>清掉选中圆、高亮圆环、拖动预览与拖动状态。</summary>
+        private void ResetTangentCircleState()
+        {
+            RemoveTangentCircleGuide();
+            RemoveTangentPreview();
+            _tangentCircleCenter = default;
+            _tangentCircleRadius = 0;
+            _tangentCircleDragging = false;
+            _tangentTapPoint = null;
+            _tangentPrimaryTouchId = -1;
+        }
+
+        /// <summary>离开圆的切线工具时收尾：移除高亮与预览。</summary>
+        private void CancelTangentCircleDrawing()
+        {
+            ResetTangentCircleState();
+        }
+
+        #endregion
+
         private void inkCanvas_MouseDown(object sender, MouseButtonEventArgs e)
         {
             // 多边形：按下不绘制，顶点在抬起（单击）时确定
@@ -4290,6 +5561,26 @@ namespace Ink_Canvas
             {
                 e.Handled = true;
                 return;
+            }
+
+            // 圆的切线：按下即尝试选中被按住的圆并进入拖动（不拦截，继续走通用捕获流程）
+            if (drawingShapeMode == TangentShapeMode && e.ChangedButton == MouseButton.Left)
+            {
+                BeginTangentDragAt(e.GetPosition(inkCanvas));
+            }
+
+            // 平行线 / 垂线：第一步改为按下时点选一条已有直线作为基准
+            if ((drawingShapeMode == 17 || drawingShapeMode == 21)
+                && drawMultiStepShapeCurrentStep == 0
+                && e.ChangedButton == MouseButton.Left)
+            {
+                BeginBaselinePickAt(e.GetPosition(inkCanvas));
+            }
+
+            // 角平分线：两步都是按下时点选角的边（第一步一条边、第二步另一条边）
+            if (drawingShapeMode == 22 && e.ChangedButton == MouseButton.Left)
+            {
+                BeginAngleBisectorSidePick(e.GetPosition(inkCanvas));
             }
 
             // 油漆桶：单击（抬起）时按落点填充，按下不做任何事
@@ -4304,6 +5595,7 @@ namespace Ink_Canvas
             if (drawingShapeMode == 17) _parallelUpPoint = null;
             if (drawingShapeMode == 21) _perpendicularUpPoint = null;
             if (drawingShapeMode == 22) _angleBisectorUpPoint = null;
+            if (drawingShapeMode == 26) _perpendicularBisectorUpPoint = null;
             // 中垂线 / 中点：新的一次按下，允许重新绘制（上一次手势的收尾锁定到此解除）
             if (drawingShapeMode == 26) _perpendicularBisectorAwaitNewGesture = false;
             if (drawingShapeMode == 15) _midpointAwaitNewGesture = false;
@@ -4485,6 +5777,8 @@ namespace Ink_Canvas
             if (drawingShapeMode == 15) CompleteMidpointNow();
             if (drawingShapeMode == 27) RemoveArcRadiusGuide();
             if (drawingShapeMode == AxisFlipShapeMode) CancelAxisFlip();
+            // 圆的切线：拖动中丢失捕获（Alt+Tab、拖到窗口外等）时清掉预览与高亮，避免残留
+            if (drawingShapeMode == TangentShapeMode && _tangentCircleDragging) CancelTangentCircleDrawing();
         }
 
 
@@ -4492,6 +5786,26 @@ namespace Ink_Canvas
         private void inkCanvas_MouseUp(object sender, MouseButtonEventArgs e)
         {
             EndSecAgentStrokeErase();
+
+            // 圆的切线：松手即按拖动终点生成两条切线（触摸路径优先用抬笔位置）
+            if (drawingShapeMode == TangentShapeMode)
+            {
+                // 触摸/手写笔路径下合成的事件拿不到真实触控坐标，优先用抬笔位置
+                var releasePoint = _tangentTapPoint ?? e.GetPosition(inkCanvas);
+                _tangentTapPoint = null;
+
+                // 必须在 ReleaseMouseCapture 之前提交：释放捕获会同步触发 inkCanvas_LostMouseCapture，
+                // 那里会把未收尾的拖动状态清掉，之后再生成切线就没有圆心/半径了
+                if (e.ChangedButton == MouseButton.Left)
+                    CommitTangentDrag(releasePoint);
+
+                inkCanvas.ReleaseMouseCapture();
+                ViewboxFloatingBar.IsHitTestVisible = true;
+                BlackboardUIGridForInkReplay.IsHitTestVisible = true;
+                isMouseDown = false;
+                e.Handled = true;
+                return;
+            }
 
             // 多边形：抬起即视为一次单击，添加顶点或点击起点闭合完成
             if (drawingShapeMode == 12)
@@ -4557,16 +5871,38 @@ namespace Ink_Canvas
                 MouseTouchMove(point);
             }
 
-            // 角平分线第二步：抬起时按落点补绘一次，保证“单击”也能完成绘制
-            if (drawingShapeMode == 22 && drawMultiStepShapeCurrentStep == 1)
+            // 角平分线第二步：抬起时按落点补绘一次，保证“单击”也能完成绘制；
+            // 第二条边没点中时保持第二步，等下一次点击，不能把工具直接收尾
+            if (drawingShapeMode == 22 && drawMultiStepShapeCurrentStep == 1
+                && _angleBisectorSide2Stroke != null)
             {
                 var point = _angleBisectorUpPoint ?? e.GetPosition(inkCanvas);
                 _angleBisectorUpPoint = null;
                 MouseTouchMove(point);
             }
 
-            // 中垂线：松手后移除荧光笔线段，只保留垂直平分线与直角标记
-            if (drawingShapeMode == 26) CompletePerpendicularBisectorNow();
+            // 中垂线：先用真实松手点补画最后一帧（否则中点/方向会停在最后一次移动事件上），
+            // 再移除荧光笔线段，只保留垂直平分线与直角标记
+            if (drawingShapeMode == 26)
+            {
+                if (!_perpendicularBisectorAwaitNewGesture)
+                {
+                    var releasePoint = _perpendicularBisectorUpPoint ?? e.GetPosition(inkCanvas);
+                    if (GetDistance(iniP, releasePoint) >= 8)
+                    {
+                        MouseTouchMove(releasePoint);
+                    }
+                    else
+                    {
+                        // 收尾点离起点太近：不生成退化的中垂线，也别把上一帧的旧位置提交上去
+                        CancelPerpendicularBisector();
+                        lastTempStrokeCollection = null;
+                    }
+                }
+
+                _perpendicularBisectorUpPoint = null;
+                CompletePerpendicularBisectorNow();
+            }
 
             // 中点：松手后移除荧光笔线段，只保留中点标记
             if (drawingShapeMode == 15) CompleteMidpointNow();

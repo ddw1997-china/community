@@ -500,13 +500,13 @@ namespace Ink_Canvas
             BeginAxisFlip();
         }
 
-        /// <summary>沿轴翻转的提示浮层（复用同一个 Popup，避免每次提示都新建窗口句柄）。</summary>
+        /// <summary>画布居中提示浮层（复用同一个 Popup，避免每次提示都新建窗口句柄）。</summary>
         private Popup _axisFlipToastPopup;
         private TextBlock _axisFlipToastText;
         private System.Windows.Threading.DispatcherTimer _axisFlipToastTimer;
 
-        /// <summary>沿轴翻转进入拖轴模式时在窗口中央给一次提示。</summary>
-        private void ShowAxisFlipToast(string message)
+        /// <summary>在窗口中央显示一次提示（沿轴翻转、圆的切线等分步工具共用）。</summary>
+        private void ShowCanvasToast(string message)
         {
             try
             {
@@ -631,7 +631,7 @@ namespace Ink_Canvas
             isLongPressSelected = true;
 
             SetAxisFlipSelectionChromePinned(true);
-            ShowAxisFlipToast("请按下鼠标绘制对称轴");
+            ShowCanvasToast("请按下鼠标绘制对称轴");
         }
 
         /// <summary>
