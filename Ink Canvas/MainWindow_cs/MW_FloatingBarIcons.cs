@@ -1248,7 +1248,7 @@ namespace Ink_Canvas
                 GridInkCanvasSelectionCover.Visibility = Visibility.Collapsed;
                 HideSelectionDisplay();
             }
-            else if (inkCanvas.Strokes.Count > 0 || HasSecAgentSceneElementsOnCanvas())
+            else if (inkCanvas.Strokes.Count > 0 || HasSecAgentSceneElementsOnCanvas() || HasPaintFillsOnCanvas())
             {
                 if (Settings.Automation.IsAutoSaveScreenshotAtClear &&
                     inkCanvas.Strokes.Count > Settings.Automation.MinimumAutomationStrokeNumber)

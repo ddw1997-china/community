@@ -810,6 +810,58 @@ namespace Ink_Canvas
             }
         }
 
+        /// <summary>画布上是否存在油漆桶填充块（清空按钮据此判断是否有可清除的绘画内容）。</summary>
+        internal bool HasPaintFillsOnCanvas()
+        {
+            return inkCanvas != null && inkCanvas.Children.OfType<System.Windows.Shapes.Path>()
+                .Any(IsPaintBucketFillElement);
+        }
+
+        /// <summary>
+        /// PPT 切页时把当前页填充块从画布摘下并保留引用，返回该页时原样挂回。
+        /// 不写元素删除历史：切页后会清空时间机器历史，历史里留着已摘下的元素没有意义。
+        /// </summary>
+        internal List<System.Windows.Shapes.Path> DetachPaintFillsFromCanvas()
+        {
+            var fills = new List<System.Windows.Shapes.Path>();
+            if (inkCanvas == null) return fills;
+
+            fills = inkCanvas.Children.OfType<System.Windows.Shapes.Path>()
+                .Where(IsPaintBucketFillElement)
+                .ToList();
+            foreach (var fill in fills) inkCanvas.Children.Remove(fill);
+
+            if (fills.Count == 0) return fills;
+
+            if (currentSelectedElement != null && !inkCanvas.Children.Contains(currentSelectedElement))
+                currentSelectedElement = null;
+            ClearPaintFillSelection();
+            HideStrokeSelectionBarForPaintFill();
+            if (GridInkCanvasSelectionCover != null && inkCanvas.GetSelectedStrokes().Count == 0)
+                GridInkCanvasSelectionCover.Visibility = Visibility.Collapsed;
+
+            PaintBucketTrace($"PPT 切页暂存填充块 {fills.Count} 块");
+            return fills;
+        }
+
+        /// <summary>把暂存的填充块重新挂回画布；对象引用不变，位置、变换与事件绑定都保持原样。</summary>
+        internal void AttachPaintFillsToCanvas(IEnumerable<System.Windows.Shapes.Path> fills)
+        {
+            if (inkCanvas == null || fills == null) return;
+
+            var attached = 0;
+            foreach (var fill in fills)
+            {
+                if (fill == null || inkCanvas.Children.Contains(fill)) continue;
+                inkCanvas.Children.Add(fill);
+                attached++;
+            }
+
+            if (attached == 0) return;
+            UpdatePaintFillHitTest();
+            PaintBucketTrace($"PPT 切页恢复填充块 {attached} 块");
+        }
+
         /// <summary>
         /// 清屏时删除画布上所有油漆桶填充块。填充块属于绘画内容，不像图片/媒体那样在清屏后保留；
         /// 逐块写入元素删除历史，因此清屏后仍可用撤销逐块恢复。
@@ -1070,7 +1122,8 @@ namespace Ink_Canvas
         }
 
         /// <summary>
-        /// 套索/框选后同步填充块选中：把与当前墨迹选区相交的填充块也纳入选中集合。
+        /// 套索/框选后同步填充块选中：只有当前墨迹选区完整包含填充块时才纳入选中集合。
+        /// 仅有一点交集不算选中，否则框选旁边的笔迹会误把填充块一起选走。
         /// 纯点选填充块的路径不走这里（由 <see cref="SelectSinglePaintFill"/> 维护）。
         /// </summary>
         internal void SyncPaintFillSelectionFromStrokeSelection()
@@ -1097,7 +1150,7 @@ namespace Ink_Canvas
                 if (!IsPaintBucketFillElement(child)) continue;
                 var fillBounds = GetPaintFillCanvasBounds(child);
                 if (fillBounds.IsEmpty) continue;
-                if (!fillBounds.IntersectsWith(selectionBounds)) continue;
+                if (!selectionBounds.Contains(fillBounds)) continue;
                 AddPaintFillToSelection(child);
             }
 

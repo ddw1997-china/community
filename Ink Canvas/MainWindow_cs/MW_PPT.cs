@@ -181,6 +181,14 @@ namespace Ink_Canvas
         internal int CurrentPPTSlideIndex => _currentSlideShowPosition > 0 ? _currentSlideShowPosition - 1 : 0;
 
         private Dictionary<int, MemoryStream> _memoryStreams = new Dictionary<int, MemoryStream>();
+
+        /// <summary>
+        /// 放映期间按页码暂存的油漆桶填充块。填充块是画布子元素（paintfill_ Path），
+        /// 不进 StrokeCollection，必须和 _memoryStreams 一样按页保存 / 恢复。
+        /// </summary>
+        private readonly Dictionary<int, List<System.Windows.Shapes.Path>> _pptSlidePaintFills =
+            new Dictionary<int, List<System.Windows.Shapes.Path>>();
+
         private readonly object _pptEnhancedPreviewCacheLock = new object();
         private List<PPTEnhancedPreviewItem> _pptEnhancedPreviewCache;
         private Task<List<PPTEnhancedPreviewItem>> _pptEnhancedPreviewBuildTask;
@@ -1005,6 +1013,8 @@ namespace Ink_Canvas
                     ResetPPTEnhancedPreviewCache();
 
                     ClearStrokes(true);
+                    RemoveAllPaintFillsFromCanvas();
+                    ClearPPTSlidePaintFills();
 
                     // 清理备份历史记录，防止旧演示文稿的墨迹影响新演示文稿
                     if (TimeMachineHistories != null && TimeMachineHistories.Length > 0)
@@ -1090,6 +1100,7 @@ namespace Ink_Canvas
                             stream?.Dispose();
                         _memoryStreams.Clear();
                     }
+                    ClearPPTSlidePaintFills();
 
                     _pptUIManager?.UpdateConnectionStatus(false);
                 });
@@ -1255,6 +1266,7 @@ namespace Ink_Canvas
                         stream?.Dispose();
                     _memoryStreams.Clear();
                 }
+                ClearPPTSlidePaintFills();
 
                 if (Settings.PowerPointSettings.IsAutoSaveStrokesInPowerPoint && !string.IsNullOrEmpty(presentationName))
                 {
@@ -1418,6 +1430,37 @@ namespace Ink_Canvas
             }
         }
 
+        /// <summary>离页时摘下当前页填充块并按页码暂存；画布上没有填充时清掉旧暂存，避免已删除的填充在返回时复活。</summary>
+        private void SavePaintFillsForSlide(int slide)
+        {
+            var fills = DetachPaintFillsFromCanvas();
+            lock (_pptSlidePaintFills)
+            {
+                if (fills.Count == 0) _pptSlidePaintFills.Remove(slide);
+                else _pptSlidePaintFills[slide] = fills;
+            }
+        }
+
+        /// <summary>进入某页时把该页暂存的填充块挂回画布（与加载该页墨迹配套）。</summary>
+        private void RestorePaintFillsForSlide(int slide)
+        {
+            List<System.Windows.Shapes.Path> fills;
+            lock (_pptSlidePaintFills)
+            {
+                if (!_pptSlidePaintFills.TryGetValue(slide, out fills)) return;
+            }
+            AttachPaintFillsToCanvas(fills);
+        }
+
+        /// <summary>清空暂存填充块（与 _memoryStreams.Clear() 的生命周期保持一致）。</summary>
+        private void ClearPPTSlidePaintFills()
+        {
+            lock (_pptSlidePaintFills)
+            {
+                _pptSlidePaintFills.Clear();
+            }
+        }
+
         /// <summary>
         /// 处理幻灯片放映中的切换：在幻灯片变更时保存当前页墨迹、加载目标页墨迹并更新界面状态。
         /// </summary>
@@ -1493,12 +1536,17 @@ namespace Ink_Canvas
                         _memoryStreams[prev] = ms;
                     }
 
+                    // 填充块按页暂存，和上面的笔迹一起跟随翻页；返回该页时再挂回。
+                    SavePaintFillsForSlide(prev);
                     ClearStrokes(true);
                     timeMachine.ClearStrokeHistory();
 
                     _currentSlideShowPosition = currentSlide;
                     _singlePPTInkManager?.LockInkForSlide(currentSlide);
                     _pptUIManager?.UpdateCurrentSlideNumber(currentSlide, totalSlides);
+
+                    // 恢复目标页填充块（对象引用不变，位置/变换保持原样）
+                    RestorePaintFillsForSlide(currentSlide);
 
                     byte[] bytesToLoad = null;
                     lock (_memoryStreams)
@@ -1959,6 +2007,7 @@ namespace Ink_Canvas
                                     stream?.Dispose();
                                 _memoryStreams.Clear();
                             }
+                            ClearPPTSlidePaintFills();
                         }
                     });
                 }
@@ -1970,6 +2019,7 @@ namespace Ink_Canvas
                             stream?.Dispose();
                         _memoryStreams.Clear();
                     }
+                    ClearPPTSlidePaintFills();
                 }
 
                 await Application.Current.Dispatcher.InvokeAsync(() =>
@@ -2006,6 +2056,7 @@ namespace Ink_Canvas
                         SyncPdfPageSidebarWithCanvas();
 
                         ClearStrokes(true);
+                        RemoveAllPaintFillsFromCanvas();
                         // 清空备份历史记录，防止退出白板时恢复已结束PPT的墨迹
                         // 注意：这里只清空索引0的备份，不影响白板页面的墨迹（索引1及以上）
                         TimeMachineHistories[0] = null;
@@ -2336,6 +2387,8 @@ namespace Ink_Canvas
             try
             {
                 ClearStrokes(true);
+                // 放映开始时清掉画布上遗留的填充块；该页若有暂存填充则在下面墨迹加载后挂回。
+                RemoveAllPaintFillsFromCanvas();
                 timeMachine.ClearStrokeHistory();
 
                 byte[] bytes = null;
@@ -2358,6 +2411,8 @@ namespace Ink_Canvas
                         LogHelper.WriteLogToFile($"从内存流加载第 {slideIndex} 页墨迹失败: {ex}", LogHelper.LogType.Warning);
                     }
                 }
+
+                RestorePaintFillsForSlide(slideIndex);
             }
             catch (Exception ex)
             {
@@ -2421,6 +2476,7 @@ namespace Ink_Canvas
                         stream?.Dispose();
                     _memoryStreams.Clear();
                 }
+                ClearPPTSlidePaintFills();
 
                 LogHelper.WriteLogToFile("PPT状态变量已重置", LogHelper.LogType.Trace);
             }

@@ -240,6 +240,8 @@ namespace Ink_Canvas
         internal void ClearCanvasContentFromAutomation()
         {
             ClearStrokes(true);
+            // 填充块是画布子元素，ClearStrokes 只清 Strokes；自动化清屏也要一并清掉。
+            RemoveAllPaintFillsFromCanvas();
         }
 
         private static HashSet<UIElement> CollectRemovedElementsFromHistory(TimeMachineHistory[] history)

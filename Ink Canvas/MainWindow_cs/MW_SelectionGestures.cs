@@ -1372,9 +1372,10 @@ namespace Ink_Canvas
         /// </remarks>
         private void updateBorderStrokeSelectionControlLocation()
         {
-            var borderLeft = (inkCanvas.GetSelectionBounds().Left + inkCanvas.GetSelectionBounds().Right -
+            var selectionBounds = GetCurrentSelectionUnionBounds();
+            var borderLeft = (selectionBounds.Left + selectionBounds.Right -
                               BorderStrokeSelectionControlWidth) / 2;
-            var borderTop = inkCanvas.GetSelectionBounds().Bottom + 10; // 在墨迹下方10像素处显示
+            var borderTop = selectionBounds.Bottom + 10; // 在选区下方10像素处显示
             if (borderLeft < 0) borderLeft = 0;
             if (borderTop < 0) borderTop = 0;
             if (Width - borderLeft < BorderStrokeSelectionControlWidth || double.IsNaN(borderLeft))
@@ -1386,7 +1387,7 @@ namespace Ink_Canvas
             // 如果选中栏会超出屏幕底部，则显示在墨迹上方
             if (borderTop + BorderStrokeSelectionControlHeight > Height)
             {
-                borderTop = inkCanvas.GetSelectionBounds().Top - BorderStrokeSelectionControlHeight - 10;
+                borderTop = selectionBounds.Top - BorderStrokeSelectionControlHeight - 10;
                 if (borderTop < 0) borderTop = 10; // 如果上方也没有空间，则显示在顶部
             }
 
@@ -1885,7 +1886,8 @@ namespace Ink_Canvas
                 return;
             }
 
-            var selectionBounds = inkCanvas.GetSelectionBounds();
+            // 用「笔迹选区 ∪ 已选填充块」的范围，避免后续刷新把选择框缩回只包围笔迹
+            var selectionBounds = GetCurrentSelectionUnionBounds();
 
             // 向外扩展8像素
             double expandOffset = 8;
